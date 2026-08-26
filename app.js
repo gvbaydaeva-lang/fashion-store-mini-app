@@ -4,6 +4,7 @@
 
   const Data = window.FashionStoreData;
   const Core = window.FashionStoreCore;
+  const UI = window.FashionStoreUI;
   const tg = window.Telegram?.WebApp;
   const screenElement = document.querySelector('#screen');
   const bottomNav = document.querySelector('#bottom-nav');
@@ -45,6 +46,23 @@
 
   let toastTimer = null;
   let focusBeforeSheet = null;
+
+  function icon(name, className = 'ui-icon') {
+    return UI?.icon(name, className) || '';
+  }
+
+  function hydrateStaticIcons() {
+    document.querySelectorAll('[data-icon]').forEach((element) => {
+      element.innerHTML = icon(element.dataset.icon);
+    });
+  }
+
+  function applyViewportLayout() {
+    const viewportWidth = window.visualViewport?.width || window.innerWidth;
+    const viewportHeight = tg?.viewportHeight || window.visualViewport?.height || window.innerHeight;
+    document.documentElement.style.setProperty('--app-width', `${UI.getMiniAppWidth(viewportWidth)}px`);
+    if (viewportHeight) document.documentElement.style.setProperty('--app-height', `${Math.round(viewportHeight)}px`);
+  }
 
   function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>'"]/g, (character) => ({
@@ -96,6 +114,7 @@
     if (params.text_color) document.documentElement.style.setProperty('--tg-text', params.text_color);
     if (params.hint_color) document.documentElement.style.setProperty('--tg-hint', params.hint_color);
     if (params.button_color) document.documentElement.style.setProperty('--accent', params.button_color);
+    if (params.button_text_color) document.documentElement.style.setProperty('--button-text', params.button_text_color);
     if (params.destructive_text_color) document.documentElement.style.setProperty('--tg-destructive', params.destructive_text_color);
   }
 
@@ -165,7 +184,7 @@
       <div class="sheet__backdrop" data-action="close-sheet"></div>
       <section class="sheet" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}">
         <div class="sheet__handle" aria-hidden="true"></div>
-        <button class="icon-button sheet__close" type="button" data-action="close-sheet" aria-label="Закрыть">×</button>
+        <button class="icon-button sheet__close" type="button" data-action="close-sheet" aria-label="Закрыть">${icon('close')}</button>
         ${content}
       </section>`;
     modalRoot.querySelector('.sheet button, .sheet input, .sheet select')?.focus();
@@ -203,9 +222,15 @@
   function pageHeader(title, subtitle = '') {
     return `
       <header class="page-header">
-        ${state.history.length ? '<button class="icon-button" type="button" data-action="go-back" aria-label="Назад">‹</button>' : ''}
+        ${state.history.length ? `<button class="icon-button" type="button" data-action="go-back" aria-label="Назад">${icon('chevron-left')}</button>` : ''}
         <div><h1>${escapeHtml(title)}</h1>${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ''}</div>
       </header>`;
+  }
+
+  function productBackHeader() {
+    return state.history.length
+      ? `<header class="page-header page-header--compact"><button class="icon-button" type="button" data-action="go-back" aria-label="Назад">${icon('chevron-left')}</button><span class="sr-only">Карточка товара</span></header>`
+      : '';
   }
 
   function productCard(product) {
@@ -260,7 +285,7 @@
       <section class="editorial-card card">
         <p class="eyebrow">Лёгкие слои</p><h2>Городской гардероб</h2>
         <p>Жакеты, трикотаж и свободные рубашки для переменчивой погоды.</p>
-        <button class="text-button" type="button" data-action="open-category" data-category="jackets">Открыть подборку →</button>
+        <button class="text-button text-button--icon" type="button" data-action="open-category" data-category="jackets">Открыть подборку ${icon('chevron-right')}</button>
       </section>`;
   }
 
@@ -291,13 +316,13 @@
       ${pageHeader('Каталог', `${products.length} товаров`)}
       <div class="chip-strip" aria-label="Категории">${categories}</div>
       <div class="toolbar">
-        <button class="toolbar-button" type="button" data-action="filters">Фильтры <span aria-hidden="true">⌄</span></button>
-        <button class="toolbar-button" type="button" data-action="sort">Сортировка <span aria-hidden="true">⌄</span></button>
+        <button class="toolbar-button" type="button" data-action="filters">Фильтры <span aria-hidden="true">${icon('chevron-down')}</span></button>
+        <button class="toolbar-button" type="button" data-action="sort">Сортировка <span aria-hidden="true">${icon('chevron-down')}</span></button>
       </div>
       ${activeFilterChips() ? `<div class="active-filters">${activeFilterChips()}<button type="button" data-action="reset-filters">Сбросить</button></div>` : ''}
       ${products.length
         ? `<div class="product-grid">${products.map(productCard).join('')}</div>`
-        : `<section class="empty-state card"><span aria-hidden="true">◇</span><h2>Таких товаров пока нет</h2><p>Попробуйте изменить размер, цвет или цену.</p><button class="primary-button" type="button" data-action="reset-filters">Сбросить фильтры</button></section>`}
+        : `<section class="empty-state card"><span aria-hidden="true">${icon('grid')}</span><h2>Таких товаров пока нет</h2><p>Попробуйте изменить размер, цвет или цену.</p><button class="primary-button" type="button" data-action="reset-filters">Сбросить фильтры</button></section>`}
     `;
   }
 
@@ -315,7 +340,7 @@
       </button>`).join('');
 
     return `
-      ${pageHeader(product.name)}
+      ${productBackHeader()}
       <section class="product-gallery card">
         <img src="${product.images[0]}" alt="${escapeHtml(product.name)}">
         <span class="gallery-counter">1 / ${product.images.length}</span>
@@ -348,7 +373,7 @@
     if (!state.cart.length) {
       return `
         ${pageHeader('Корзина')}
-        <section class="empty-state card"><span aria-hidden="true">⌑</span><h2>Корзина пока пуста</h2><p>Выберите цвет и размер — мы сохраним вещи здесь.</p><button class="primary-button" type="button" data-action="navigate" data-screen="catalog">Перейти в каталог</button></section>`;
+        <section class="empty-state card"><span aria-hidden="true">${icon('bag')}</span><h2>Корзина пока пуста</h2><p>Выберите цвет и размер — мы сохраним вещи здесь.</p><button class="primary-button" type="button" data-action="navigate" data-screen="catalog">Перейти в каталог</button></section>`;
     }
     const summary = Core.getCartSummary(state.cart, 0);
     const items = state.cart.map((item) => `
@@ -357,9 +382,9 @@
         <div class="cart-item__body">
           <strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.colorName)}, ${escapeHtml(item.size)}</small><b>${money(item.price)}</b>
           <div class="quantity-control" aria-label="Количество ${escapeHtml(item.name)}">
-            <button type="button" data-action="cart-decrease" data-key="${item.key}" aria-label="Уменьшить количество">−</button>
+            <button type="button" data-action="cart-decrease" data-key="${item.key}" aria-label="Уменьшить количество">${icon('minus')}</button>
             <span>${item.quantity}</span>
-            <button type="button" data-action="cart-increase" data-key="${item.key}" aria-label="Увеличить количество">+</button>
+            <button type="button" data-action="cart-increase" data-key="${item.key}" aria-label="Увеличить количество">${icon('plus')}</button>
           </div>
           <button class="remove-button" type="button" data-action="cart-remove" data-key="${item.key}">Удалить</button>
         </div>
@@ -368,7 +393,7 @@
     return `
       ${pageHeader('Корзина', `${summary.itemCount} ${summary.itemCount === 1 ? 'товар' : 'товара'}`)}
       <div class="cart-list">${items}</div>
-      <section class="notice-card"><span aria-hidden="true">i</span><p>Товары закрепятся за вами только после демонстрационной оплаты. Корзина не является резервом.</p></section>
+      <section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>Товары закрепятся за вами только после демонстрационной оплаты. Корзина не является резервом.</p></section>
       <section class="summary-card card">
         <div><span>Товары</span><b>${money(summary.subtotal)}</b></div><div class="summary-total"><span>Итого</span><b>${money(summary.total)}</b></div>
         <button class="primary-button" type="button" data-action="checkout-start">Оформить заказ</button>
@@ -386,7 +411,7 @@
     if (!state.order) {
       return `
         ${pageHeader('Заказы')}
-        <section class="empty-state card"><span aria-hidden="true">✓</span><h2>Заказов пока нет</h2><p>После демонстрационной оплаты здесь появится текущий заказ.</p><button class="primary-button" type="button" data-action="navigate" data-screen="catalog">Перейти в каталог</button></section>`;
+        <section class="empty-state card"><span aria-hidden="true">${icon('receipt')}</span><h2>Заказов пока нет</h2><p>После демонстрационной оплаты здесь появится текущий заказ.</p><button class="primary-button" type="button" data-action="navigate" data-screen="catalog">Перейти в каталог</button></section>`;
     }
     const status = orderStatus(state.order);
     return `
@@ -407,13 +432,13 @@
       </section>
       <section class="store-card card"><p class="eyebrow">Фэшн стор</p><h2>${escapeHtml(Data.STORE.tagline)}</h2><p>${escapeHtml(Data.STORE.description)}</p></section>
       <section class="info-list card">
-        <div><span aria-hidden="true">⌖</span><p><strong>Адрес</strong><small>${escapeHtml(Data.STORE.address)}</small></p></div>
-        <div><span aria-hidden="true">◷</span><p><strong>Часы работы</strong><small>${escapeHtml(Data.STORE.hours)}</small></p></div>
-        <div><span aria-hidden="true">@</span><p><strong>Поддержка</strong><small>${escapeHtml(Data.STORE.support)}</small></p></div>
+        <div><span aria-hidden="true">${icon('map-pin')}</span><p><strong>Адрес</strong><small>${escapeHtml(Data.STORE.address)}</small></p></div>
+        <div><span aria-hidden="true">${icon('clock')}</span><p><strong>Часы работы</strong><small>${escapeHtml(Data.STORE.hours)}</small></p></div>
+        <div><span aria-hidden="true">${icon('at-sign')}</span><p><strong>Поддержка</strong><small>${escapeHtml(Data.STORE.support)}</small></p></div>
       </section>
-      <section class="notice-card"><span aria-hidden="true">i</span><p>Адрес, контакты, доставка и правила в этом прототипе демонстрационные.</p></section>
+      <section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>Адрес, контакты, доставка и правила в этом прототипе демонстрационные.</p></section>
       <div class="store-actions"><button class="secondary-button" type="button" data-action="demo-contact">Связаться</button><button class="secondary-button" type="button" data-action="store-rules">Оплата и возврат</button></div>
-      <button class="seller-entry" type="button" data-action="enter-seller">Режим продавца <span>Демо →</span></button>`;
+      <button class="seller-entry" type="button" data-action="enter-seller">Режим продавца <span>Демо ${icon('chevron-right')}</span></button>`;
   }
 
   function renderNotFound() {
@@ -442,7 +467,7 @@
   function renderCheckoutDelivery() {
     const methods = Data.DELIVERY_METHODS.map((method) => `
       <button class="delivery-card card ${state.delivery?.id === method.id ? 'is-active' : ''}" type="button" data-action="choose-delivery" data-delivery-id="${method.id}" aria-pressed="${state.delivery?.id === method.id}">
-        <span class="delivery-card__icon" aria-hidden="true">${method.id === 'pickup' ? '⌖' : '→'}</span>
+        <span class="delivery-card__icon" aria-hidden="true">${icon(method.id === 'pickup' ? 'map-pin' : 'truck')}</span>
         <span><strong>${escapeHtml(method.title)}</strong><small>${escapeHtml(method.description)}</small></span>
         <span class="delivery-card__price">${method.price ? money(method.price) : 'Бесплатно'}<em>Демо</em></span>
       </button>`).join('');
@@ -452,7 +477,7 @@
       ${pageHeader('Получение', 'Шаг 2 из 3')}
       ${checkoutProgress(2)}
       <div class="delivery-list">${methods}</div>
-      <section class="notice-card"><span aria-hidden="true">i</span><p>Адрес, стоимость и сроки указаны только для демонстрации интерфейса.</p></section>
+      <section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>Адрес, стоимость и сроки указаны только для демонстрации интерфейса.</p></section>
       <section class="sticky-checkout">
         <div><span>Итого</span><b>${money(subtotal + deliveryPrice)}</b></div>
         <button class="primary-button" type="button" data-action="delivery-continue" ${state.delivery ? '' : 'disabled'}>Продолжить</button>
@@ -483,7 +508,7 @@
     if (!state.order) return renderNotFound();
     return `
       <section class="success-screen">
-        <div class="success-mark" aria-hidden="true">✓</div>
+        <div class="success-mark" aria-hidden="true">${icon('check')}</div>
         <p class="eyebrow">Демонстрационный заказ</p>
         <h1>Оплата прошла</h1>
         <p>В прототипе платёж не выполнялся. Мы создали локальный заказ для проверки сценария.</p>
@@ -506,7 +531,7 @@
       <section class="order-status-card order-status-card--${status.className} card"><span class="status-pill status-pill--${status.className}">${status.title}</span><h2>${escapeHtml(status.text)}</h2><p>${state.order.status === 'ready' ? 'Статус изменён в демонстрационном режиме продавца.' : 'Продавец увидит заказ в своей очереди.'}</p></section>
       <section class="review-section card"><h2>Состав</h2><ul class="review-items">${orderItems(state.order)}</ul></section>
       <section class="info-list card">
-        <div><span aria-hidden="true">⌖</span><p><strong>${escapeHtml(state.order.delivery.title)}</strong><small>${escapeHtml(state.order.delivery.description)}</small></p></div>
+        <div><span aria-hidden="true">${icon('map-pin')}</span><p><strong>${escapeHtml(state.order.delivery.title)}</strong><small>${escapeHtml(state.order.delivery.description)}</small></p></div>
         <div><span aria-hidden="true">₽</span><p><strong>${money(state.order.total)}</strong><small>Демонстрационный итог</small></p></div>
       </section>
       <button class="secondary-button full-width" type="button" data-action="demo-contact">Связаться с магазином</button>`;
@@ -518,12 +543,12 @@
     );
     const content = orderMatchesTab
       ? `<button class="seller-order-card card" type="button" data-action="seller-open-order"><span class="status-pill status-pill--${state.order.status === 'ready' ? 'ready' : 'paid'}">${state.order.status === 'ready' ? 'Готов' : 'Собрать'}</span><span><strong>${escapeHtml(state.order.id)}</strong><small>${state.order.items.length} позиций · ${escapeHtml(state.order.delivery.title)}</small></span><b>${money(state.order.total)}</b></button>`
-      : `<section class="empty-state card"><span aria-hidden="true">✓</span><h2>${state.sellerTab === 'ready' ? 'Готовых заказов нет' : 'Заказов на сборку нет'}</h2><p>Демо-заказ появится в нужной вкладке после оплаты или сборки.</p></section>`;
+      : `<section class="empty-state card"><span aria-hidden="true">${icon('package')}</span><h2>${state.sellerTab === 'ready' ? 'Готовых заказов нет' : 'Заказов на сборку нет'}</h2><p>Демо-заказ появится в нужной вкладке после оплаты или сборки.</p></section>`;
     return `
       <header class="seller-header"><div><p class="eyebrow">Демо-режим</p><h1>Заказы продавца</h1></div><button class="secondary-button" type="button" data-action="exit-seller">В магазин</button></header>
       <div class="seller-tabs"><button class="${state.sellerTab === 'collect' ? 'is-active' : ''}" type="button" data-action="set-seller-tab" data-tab="collect">Собрать</button><button class="${state.sellerTab === 'ready' ? 'is-active' : ''}" type="button" data-action="set-seller-tab" data-tab="ready">Готовы</button></div>
       ${content}
-      <section class="notice-card"><span aria-hidden="true">i</span><p>В рабочей версии доступ проверяется сервером по Telegram ID. Эта кнопка открыта только для демонстрации.</p></section>`;
+      <section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>В рабочей версии доступ проверяется сервером по Telegram ID. Эта кнопка открыта только для демонстрации.</p></section>`;
   }
 
   function renderSellerOrder() {
@@ -533,7 +558,7 @@
       ${pageHeader(`Заказ ${state.order.id}`, 'Режим продавца')}
       <section class="order-status-card card"><span class="status-pill status-pill--${status.className}">${status.title}</span><p>${escapeHtml(status.text)}</p></section>
       <section class="review-section card"><h2>Собрать</h2><ul class="review-items">${orderItems(state.order)}</ul></section>
-      <section class="info-list card"><div><span aria-hidden="true">@</span><p><strong>${escapeHtml(state.order.customer.name)}</strong><small>${escapeHtml(state.order.customer.phone)}</small></p></div><div><span aria-hidden="true">⌖</span><p><strong>${escapeHtml(state.order.delivery.title)}</strong><small>${escapeHtml(state.order.delivery.description)}</small></p></div></section>
+      <section class="info-list card"><div><span aria-hidden="true">${icon('at-sign')}</span><p><strong>${escapeHtml(state.order.customer.name)}</strong><small>${escapeHtml(state.order.customer.phone)}</small></p></div><div><span aria-hidden="true">${icon('map-pin')}</span><p><strong>${escapeHtml(state.order.delivery.title)}</strong><small>${escapeHtml(state.order.delivery.description)}</small></p></div></section>
       ${state.order.status === 'paid' ? '<button class="primary-button full-width seller-ready-button" type="button" data-action="request-ready">Заказ собран</button>' : '<button class="secondary-button full-width seller-ready-button" type="button" data-action="exit-seller">Вернуться в магазин</button>'}`;
   }
 
@@ -566,12 +591,13 @@
 
   function render() {
     applyTelegramTheme();
+    screenElement.dataset.screen = state.screen;
     screenElement.classList.toggle('screen--full', CHECKOUT_SCREENS.has(state.screen));
     screenElement.innerHTML = (renderers[state.screen] || renderNotFound)();
     bottomNav.hidden = !ROOT_SCREENS.has(state.screen);
     updateNav();
     updateBackButton();
-    window.scrollTo({ top: 0, behavior: 'auto' });
+    UI.resetScroll(screenElement);
   }
 
   function selectColor(colorId) {
@@ -675,7 +701,7 @@
     ];
     openSheet(`
       <div class="sheet__header"><p class="eyebrow">Каталог</p><h2>Сортировка</h2></div>
-      <div class="sort-list">${options.map((option) => `<button type="button" data-action="set-sort" data-sort="${option.id}" aria-pressed="${state.sortId === option.id}"><span>${option.title}</span>${state.sortId === option.id ? '<b>✓</b>' : ''}</button>`).join('')}</div>
+      <div class="sort-list">${options.map((option) => `<button type="button" data-action="set-sort" data-sort="${option.id}" aria-pressed="${state.sortId === option.id}"><span>${option.title}</span>${state.sortId === option.id ? `<b>${icon('check')}</b>` : ''}</button>`).join('')}</div>
     `, { title: 'Сортировка каталога' });
   }
 
@@ -865,12 +891,17 @@
   };
 
   function init() {
+    hydrateStaticIcons();
+    applyViewportLayout();
     loadPersistedState();
     applyTelegramTheme();
     tg?.ready();
     tg?.expand();
     tg?.BackButton?.onClick(goBack);
     tg?.onEvent?.('themeChanged', applyTelegramTheme);
+    tg?.onEvent?.('viewportChanged', applyViewportLayout);
+    window.visualViewport?.addEventListener('resize', applyViewportLayout);
+    window.addEventListener('resize', applyViewportLayout);
     window.setTimeout(render, 300);
   }
 
