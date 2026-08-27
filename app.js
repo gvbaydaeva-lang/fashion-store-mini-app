@@ -7,12 +7,17 @@
   const UI = window.FashionStoreUI;
   const tg = window.Telegram?.WebApp;
   const screenElement = document.querySelector('#screen');
+  const appShell = document.querySelector('#app');
   const bottomNav = document.querySelector('#bottom-nav');
   const cartBadge = document.querySelector('#cart-badge');
   const toastElement = document.querySelector('#toast');
   const modalRoot = document.querySelector('#modal-root');
   const CART_KEY = 'fashion-store-cart-v1';
   const ORDER_KEY = 'fashion-store-order-v1';
+  const OFFER_KEY = 'fashion-store-offer-seen-v1';
+  const MAIN_APP_URL = Core.buildMainMiniAppUrl('fashion_katalog_bot');
+  const OFFER_BOT_URL = 'https://t.me/fashion_katalog_bot?start=from_app';
+  const SHARE_TEXT = 'Посмотри каталог «Фэшн стор» в Telegram';
   const ROOT_SCREENS = new Set(['home', 'catalog', 'cart', 'orders', 'store']);
   const CHECKOUT_SCREENS = new Set([
     'product', 'checkout-contact', 'checkout-delivery', 'checkout-review',
@@ -180,6 +185,7 @@
 
   function openSheet(content, { title = 'Панель' } = {}) {
     focusBeforeSheet = document.activeElement;
+    appShell.inert = true;
     modalRoot.innerHTML = `
       <div class="sheet__backdrop" data-action="close-sheet"></div>
       <section class="sheet" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}">
@@ -192,18 +198,66 @@
 
   function closeSheet() {
     modalRoot.replaceChildren();
+    appShell.inert = false;
     focusBeforeSheet?.focus();
   }
 
+  function showFirstOpenOffer() {
+    let storedValue = null;
+    try {
+      storedValue = window.localStorage.getItem(OFFER_KEY);
+    } catch (_error) {
+      storedValue = null;
+    }
+    if (!Core.shouldShowFirstOpenOffer(storedValue)) return;
+
+    try {
+      window.localStorage.setItem(OFFER_KEY, 'seen');
+    } catch (_error) {
+      // Оффер остаётся доступным, даже если браузер запретил localStorage.
+    }
+
+    focusBeforeSheet = document.activeElement;
+    appShell.inert = true;
+    modalRoot.innerHTML = `
+      <div class="offer-overlay">
+        <section class="offer-dialog" role="dialog" aria-modal="true" aria-labelledby="offer-title" aria-describedby="offer-description">
+          <div class="offer-dialog__emoji" aria-hidden="true">🎁</div>
+          <h2 id="offer-title">Добро пожаловать в магазин Фэшн стор</h2>
+          <p id="offer-description">Подпишитесь на бота, чтобы быть в курсе акций и новинок</p>
+          <ul class="offer-dialog__benefits">
+            <li>Расскажем про акции</li>
+            <li>Первыми узнаете о новинках</li>
+            <li>Эксклюзивные акции для подписчиков</li>
+          </ul>
+          <button class="offer-dialog__cta" type="button" data-action="open-offer-bot">Получить скидку 15%</button>
+          <button class="offer-dialog__skip" type="button" data-action="close-sheet">Пропустить</button>
+        </section>
+      </div>`;
+    modalRoot.querySelector('.offer-dialog__cta')?.focus();
+  }
+
+  function openOfferBot() {
+    closeSheet();
+    if (tg?.openTelegramLink) tg.openTelegramLink(OFFER_BOT_URL);
+    else window.location.assign(OFFER_BOT_URL);
+  }
+
+  function shareBot() {
+    const shareUrl = Core.buildTelegramShareUrl(MAIN_APP_URL, SHARE_TEXT);
+    if (tg?.openTelegramLink) tg.openTelegramLink(shareUrl);
+    else window.location.assign(shareUrl);
+  }
+
   function handleModalKeydown(event) {
-    const sheet = modalRoot.querySelector('.sheet');
-    if (!sheet) return;
+    const dialog = modalRoot.querySelector('.sheet, .offer-dialog');
+    if (!dialog) return;
     if (event.key === 'Escape') {
       closeSheet();
       return;
     }
     if (event.key !== 'Tab') return;
-    const controls = [...sheet.querySelectorAll(
+    const controls = [...dialog.querySelectorAll(
       'button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex="0"]',
     )];
     if (!controls.length) return;
@@ -286,7 +340,8 @@
         <p class="eyebrow">Лёгкие слои</p><h2>Городской гардероб</h2>
         <p>Жакеты, трикотаж и свободные рубашки для переменчивой погоды.</p>
         <button class="text-button text-button--icon" type="button" data-action="open-category" data-category="jackets">Открыть подборку ${icon('chevron-right')}</button>
-      </section>`;
+      </section>
+      <button class="share-button" type="button" data-action="share-bot">${icon('share')}<span>Поделиться с другом</span></button>`;
   }
 
   function activeFilterChips() {
@@ -887,6 +942,8 @@
     },
     'request-ready': requestOrderReady,
     'confirm-ready': confirmOrderReady,
+    'open-offer-bot': openOfferBot,
+    'share-bot': shareBot,
     'close-sheet': closeSheet,
   };
 
@@ -902,7 +959,10 @@
     tg?.onEvent?.('viewportChanged', applyViewportLayout);
     window.visualViewport?.addEventListener('resize', applyViewportLayout);
     window.addEventListener('resize', applyViewportLayout);
-    window.setTimeout(render, 300);
+    window.setTimeout(() => {
+      render();
+      showFirstOpenOffer();
+    }, 300);
   }
 
   document.addEventListener('click', (event) => {

@@ -92,6 +92,19 @@
     return order.status === 'paid' ? { ...order, status: 'ready' } : { ...order };
   }
 
+  function shouldShowFirstOpenOffer(storedValue) {
+    return storedValue !== 'seen';
+  }
+
+  function buildMainMiniAppUrl(username) {
+    const normalizedUsername = String(username || '').trim().replace(/^@/, '');
+    return `https://t.me/${normalizedUsername}?startapp`;
+  }
+
+  function buildTelegramShareUrl(botUrl, text) {
+    return `https://t.me/share/url?url=${encodeURIComponent(botUrl)}&text=${encodeURIComponent(text)}`;
+  }
+
   return {
     filterProducts,
     sortProducts,
@@ -102,5 +115,8 @@
     getCartSummary,
     createDemoOrder,
     markOrderReady,
+    shouldShowFirstOpenOffer,
+    buildMainMiniAppUrl,
+    buildTelegramShareUrl,
   };
 });

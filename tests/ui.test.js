@@ -17,6 +17,13 @@ test('неизвестное имя иконки безопасно возвра
   assert.equal(icon('unknown-icon'), '');
 });
 
+test('кнопка шаринга использует общую SVG-иконку', () => {
+  const markup = icon('share');
+
+  assert.match(markup, /^<svg /);
+  assert.match(markup, /viewBox="0 0 24 24"/);
+});
+
 test('оболочка Mini App остаётся компактной на широком экране', () => {
   assert.equal(getMiniAppWidth(375), 375);
   assert.equal(getMiniAppWidth(768), 520);

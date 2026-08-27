@@ -116,8 +116,16 @@
 
 - `fashion-store-cart-v1` — корзина.
 - `fashion-store-order-v1` — текущий демонстрационный заказ.
+- `fashion-store-offer-seen-v1` — отметка о показе приветственного оффера.
 
-Чтобы начать сценарий заново, очистите данные сайта в браузере или удалите эти два ключа из `localStorage`.
+Чтобы снова проверить оффер первого запуска, выполните в консоли браузера:
+
+```js
+localStorage.removeItem('fashion-store-offer-seen-v1');
+location.reload();
+```
+
+Чтобы полностью начать сценарий заново, очистите данные сайта в браузере или удалите все три ключа из `localStorage`.
 
 ## Запуск
 
@@ -164,6 +172,7 @@ https://telegram.org/js/telegram-web-app.js
 - `ready()` и `expand()`;
 - `themeParams` и событие `themeChanged`;
 - `BackButton`;
+- `openTelegramLink()` для шаринга ссылки на бота;
 - имя из `initDataUnsafe.user` только для приветствия;
 - safe areas через CSS-переменные Telegram и `env(safe-area-inset-*)`.
 

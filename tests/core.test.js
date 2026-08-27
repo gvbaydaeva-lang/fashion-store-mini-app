@@ -13,7 +13,32 @@ const {
   getCartSummary,
   createDemoOrder,
   markOrderReady,
+  shouldShowFirstOpenOffer,
+  buildMainMiniAppUrl,
+  buildTelegramShareUrl,
 } = require('../core.js');
+
+test('оффер показывается без маркера и не повторяется после просмотра', () => {
+  assert.equal(shouldShowFirstOpenOffer(null), true);
+  assert.equal(shouldShowFirstOpenOffer('seen'), false);
+});
+
+test('ссылка для шаринга передаёт Telegram адрес бота и текст', () => {
+  assert.equal(
+    buildTelegramShareUrl(
+      'https://t.me/fashion_katalog_bot',
+      'Посмотри каталог «Фэшн стор» в Telegram',
+    ),
+    'https://t.me/share/url?url=https%3A%2F%2Ft.me%2Ffashion_katalog_bot&text=%D0%9F%D0%BE%D1%81%D0%BC%D0%BE%D1%82%D1%80%D0%B8%20%D0%BA%D0%B0%D1%82%D0%B0%D0%BB%D0%BE%D0%B3%20%C2%AB%D0%A4%D1%8D%D1%88%D0%BD%20%D1%81%D1%82%D0%BE%D1%80%C2%BB%20%D0%B2%20Telegram',
+  );
+});
+
+test('ссылка Main Mini App открывает приложение, а не профиль бота', () => {
+  assert.equal(
+    buildMainMiniAppUrl('fashion_katalog_bot'),
+    'https://t.me/fashion_katalog_bot?startapp',
+  );
+});
 
 test('фильтр оставляет товары нужной категории и доступного размера', () => {
   const result = filterProducts(PRODUCTS, {
