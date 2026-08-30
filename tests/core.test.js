@@ -16,6 +16,14 @@ const {
   shouldShowFirstOpenOffer,
   buildMainMiniAppUrl,
   buildTelegramShareUrl,
+  createAdminCatalog,
+  getPublishedProducts,
+  filterAdminProducts,
+  buildProductVariants,
+  validateAdminProduct,
+  duplicateAdminProduct,
+  getAdminProductStatus,
+  popScreenHistory,
 } = require('../core.js');
 
 test('оффер показывается без маркера и не повторяется после просмотра', () => {
@@ -153,4 +161,186 @@ test('готовность меняет только оплаченный зак
 
   assert.equal(order.status, 'paid');
   assert.equal(ready.status, 'ready');
+});
+
+test('административный каталог глубоко копирует товары и помечает их опубликованными', () => {
+  const source = [{
+    id: 'dress',
+    images: ['assets/dress.jpg'],
+    colors: [{ id: 'black', name: 'Чёрный', hex: '#242424' }],
+    variants: [{ colorId: 'black', size: 'S', stock: 2 }],
+    measurements: { S: '88–68–94' },
+  }];
+
+  const result = createAdminCatalog(source);
+  result[0].images.push('changed.jpg');
+  result[0].colors[0].name = 'Изменён';
+  result[0].variants[0].stock = 0;
+  result[0].measurements.S = 'changed';
+
+  assert.equal(result[0].adminStatus, 'published');
+  assert.deepEqual(result[0].sizes, ['S']);
+  assert.deepEqual(source[0].images, ['assets/dress.jpg']);
+  assert.equal(source[0].colors[0].name, 'Чёрный');
+  assert.equal(source[0].variants[0].stock, 2);
+  assert.equal(source[0].measurements.S, '88–68–94');
+});
+
+test('покупатель получает только опубликованные товары', () => {
+  const products = [
+    { id: 'one', adminStatus: 'published' },
+    { id: 'two', adminStatus: 'draft' },
+  ];
+
+  assert.deepEqual(getPublishedProducts(products).map(({ id }) => id), ['one']);
+});
+
+test('админский поиск не зависит от регистра и фильтрует черновики', () => {
+  const products = [
+    { id: 'one', name: 'Платье Миди', adminStatus: 'published', variants: [] },
+    { id: 'two', name: 'Жакет Софт', adminStatus: 'draft', variants: [] },
+  ];
+
+  assert.deepEqual(
+    filterAdminProducts(products, 'ЖАКЕТ', 'draft').map(({ id }) => id),
+    ['two'],
+  );
+});
+
+test('админский фильтр находит опубликованный товар без остатка', () => {
+  const products = [
+    {
+      id: 'one',
+      name: 'Платье',
+      adminStatus: 'published',
+      variants: [{ colorId: 'black', size: 'S', stock: 0 }],
+    },
+    {
+      id: 'two',
+      name: 'Жакет',
+      adminStatus: 'published',
+      variants: [{ colorId: 'black', size: 'M', stock: 1 }],
+    },
+  ];
+
+  assert.deepEqual(filterAdminProducts(products, '', 'out').map(({ id }) => id), ['one']);
+});
+
+test('матрица создаёт все сочетания и сохраняет прежний остаток', () => {
+  const result = buildProductVariants(
+    [{ id: 'black', name: 'Чёрный', hex: '#242424' }],
+    ['S', 'M'],
+    [{ colorId: 'black', size: 'S', stock: 3 }],
+  );
+
+  assert.deepEqual(result, [
+    { colorId: 'black', size: 'S', stock: 3, enabled: true },
+    { colorId: 'black', size: 'M', stock: 0, enabled: true },
+  ]);
+});
+
+test('матрица вариантов не мутирует старые значения и сохраняет отключение', () => {
+  const previous = [{ colorId: 'black', size: 'S', stock: 3, enabled: false }];
+  const result = buildProductVariants([{ id: 'black' }], ['S'], previous);
+
+  result[0].stock = 8;
+
+  assert.equal(result[0].enabled, false);
+  assert.equal(previous[0].stock, 3);
+});
+
+test('публикация требует фото, название, цену, цвет и размер', () => {
+  assert.deepEqual(
+    validateAdminProduct({
+      images: [],
+      name: '',
+      price: 0,
+      colors: [],
+      sizes: [],
+      variants: [],
+    }, 4),
+    {
+      images: 'Загрузи хотя бы одно фото',
+      name: 'Добавь название товара',
+      price: 'Добавь цену',
+      colors: 'Укажи хотя бы один цвет',
+      sizes: 'Укажи хотя бы один размер',
+    },
+  );
+});
+
+test('валидация отклоняет старую цену ниже текущей и некорректный остаток', () => {
+  const errors = validateAdminProduct({
+    images: ['assets/dress.jpg'],
+    name: 'Платье',
+    price: 5000,
+    oldPrice: 4000,
+    colors: [{ id: 'black' }],
+    sizes: ['S'],
+    variants: [{ colorId: 'black', size: 'S', stock: -1, enabled: true }],
+  }, 4);
+
+  assert.equal(errors.oldPrice, 'Старая цена должна быть выше текущей');
+  assert.equal(errors.variants, 'Остаток должен быть целым числом от нуля');
+});
+
+test('публикация требует хотя бы один включённый вариант', () => {
+  const errors = validateAdminProduct({
+    images: ['assets/dress.jpg'],
+    name: 'Платье',
+    price: 5000,
+    oldPrice: null,
+    colors: [{ id: 'black' }],
+    sizes: ['S'],
+    variants: [{ colorId: 'black', size: 'S', stock: 0, enabled: false }],
+  }, 4);
+
+  assert.equal(errors.variants, 'Оставь хотя бы один вариант');
+});
+
+test('похожий товар становится независимым черновиком и не переносит остатки', () => {
+  const source = {
+    id: 'old',
+    name: 'Платье',
+    adminStatus: 'published',
+    images: ['assets/dress.jpg'],
+    colors: [{ id: 'black', name: 'Чёрный', hex: '#242424' }],
+    sizes: ['S'],
+    variants: [{ colorId: 'black', size: 'S', stock: 4, enabled: true }],
+    measurements: { S: '88–68–94' },
+  };
+
+  const copy = duplicateAdminProduct(source, 'new');
+  copy.colors[0].name = 'Изменён';
+
+  assert.equal(copy.id, 'new');
+  assert.equal(copy.adminStatus, 'draft');
+  assert.equal(copy.variants[0].stock, 0);
+  assert.equal(source.colors[0].name, 'Чёрный');
+  assert.equal(source.variants[0].stock, 4);
+});
+
+test('статус товара различает черновик, публикацию и отсутствие остатка', () => {
+  assert.equal(getAdminProductStatus({ adminStatus: 'draft', variants: [] }), 'draft');
+  assert.equal(getAdminProductStatus({
+    adminStatus: 'published',
+    variants: [{ stock: 0, enabled: true }],
+  }), 'out');
+  assert.equal(getAdminProductStatus({
+    adminStatus: 'published',
+    variants: [{ stock: 1, enabled: true }],
+  }), 'published');
+});
+
+test('выход из редактора получает предыдущий экран без повторного вызова навигации', () => {
+  const history = [
+    { screen: 'store', params: {} },
+    { screen: 'seller-products', params: { filter: 'draft' } },
+  ];
+
+  const result = popScreenHistory(history, 'seller-products');
+
+  assert.deepEqual(result.target, { screen: 'seller-products', params: { filter: 'draft' } });
+  assert.deepEqual(result.history, [{ screen: 'store', params: {} }]);
+  assert.equal(history.length, 2);
 });

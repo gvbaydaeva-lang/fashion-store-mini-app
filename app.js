@@ -15,13 +15,15 @@
   const CART_KEY = 'fashion-store-cart-v1';
   const ORDER_KEY = 'fashion-store-order-v1';
   const OFFER_KEY = 'fashion-store-offer-seen-v1';
+  const ADMIN_PRODUCTS_KEY = 'fashion-store-admin-products-v1';
   const MAIN_APP_URL = Core.buildMainMiniAppUrl('fashion_katalog_bot');
   const OFFER_BOT_URL = 'https://t.me/fashion_katalog_bot?start=from_app';
   const SHARE_TEXT = 'Посмотри каталог «Фэшн стор» в Telegram';
   const ROOT_SCREENS = new Set(['home', 'catalog', 'cart', 'orders', 'store']);
   const CHECKOUT_SCREENS = new Set([
     'product', 'checkout-contact', 'checkout-delivery', 'checkout-review',
-    'payment-success', 'order-detail', 'seller-orders', 'seller-order',
+    'payment-success', 'order-detail', 'seller-access', 'seller-products',
+    'seller-product-edit', 'seller-orders', 'seller-order',
   ]);
   const DEFAULT_FILTERS = {
     category: 'all',
@@ -30,6 +32,15 @@
     maxPrice: null,
     onlyNew: false,
   };
+  const ADMIN_COLORS = [
+    { id: 'black', name: 'Чёрный', hex: '#242424' },
+    { id: 'milk', name: 'Молочный', hex: '#eee9df' },
+    { id: 'blue', name: 'Голубой', hex: '#9ec9e6' },
+    { id: 'berry', name: 'Ягодный', hex: '#8a3d55' },
+    { id: 'sand', name: 'Песочный', hex: '#c9ad8a' },
+    { id: 'graphite', name: 'Графит', hex: '#555861' },
+  ];
+  const ADMIN_SIZES = ['XS', 'S', 'M', 'L', 'XL'];
 
   const state = {
     screen: 'home',
@@ -45,7 +56,15 @@
     customer: { name: '', phone: '' },
     delivery: null,
     sellerMode: false,
+    sellerSection: 'products',
     sellerTab: 'collect',
+    adminProducts: [],
+    adminQuery: '',
+    adminFilter: 'all',
+    adminDraft: null,
+    adminStep: 1,
+    adminDirty: false,
+    adminErrors: {},
     isSubmitting: false,
   };
 
@@ -96,12 +115,17 @@
   function loadPersistedState() {
     const cart = readStored(CART_KEY, []);
     const order = readStored(ORDER_KEY, null);
+    const storedAdminProducts = readStored(ADMIN_PRODUCTS_KEY, null);
     state.cart = Array.isArray(cart)
       ? cart.filter((item) => item && typeof item.key === 'string' && item.quantity > 0)
       : [];
     state.order = order && typeof order === 'object' && typeof order.id === 'string'
       ? order
       : null;
+    state.adminProducts = Array.isArray(storedAdminProducts)
+      && storedAdminProducts.every((product) => product && typeof product.id === 'string')
+      ? Core.createAdminCatalog(storedAdminProducts)
+      : Core.createAdminCatalog(Data.PRODUCTS);
     state.customer.name = getTelegramFirstName() === 'Гость' ? '' : getTelegramFirstName();
   }
 
@@ -109,6 +133,16 @@
     window.localStorage.setItem(CART_KEY, JSON.stringify(state.cart));
     if (state.order) window.localStorage.setItem(ORDER_KEY, JSON.stringify(state.order));
     else window.localStorage.removeItem(ORDER_KEY);
+  }
+
+  function saveAdminProducts(products = state.adminProducts) {
+    try {
+      window.localStorage.setItem(ADMIN_PRODUCTS_KEY, JSON.stringify(products));
+      return true;
+    } catch (_error) {
+      showToast('Не удалось сохранить товары: хранилище переполнено');
+      return false;
+    }
   }
 
   function applyTelegramTheme() {
@@ -129,8 +163,63 @@
     else tg.BackButton.hide();
   }
 
+  function getCatalogProducts() {
+    return Core.getPublishedProducts(state.adminProducts).map((product) => ({
+      ...product,
+      variants: product.variants.filter(({ enabled }) => enabled !== false),
+    }));
+  }
+
   function getProduct(productId) {
-    return Data.PRODUCTS.find((product) => product.id === productId) || null;
+    return getCatalogProducts().find((product) => product.id === productId) || null;
+  }
+
+  function getAdminProduct(productId) {
+    return state.adminProducts.find((product) => product.id === productId) || null;
+  }
+
+  function createBlankAdminProduct() {
+    return {
+      id: `admin-${Date.now().toString(36)}`,
+      name: '',
+      category: 'dresses',
+      price: '',
+      oldPrice: null,
+      badge: null,
+      images: [],
+      colors: [],
+      sizes: [],
+      description: '',
+      composition: '',
+      care: '',
+      fit: '',
+      model: '',
+      measurements: {},
+      variants: [],
+      adminStatus: 'draft',
+    };
+  }
+
+  function cloneAdminProduct(product) {
+    return Core.createAdminCatalog([product])[0];
+  }
+
+  function startAdminDraft(product = null) {
+    state.adminDraft = product ? cloneAdminProduct(product) : createBlankAdminProduct();
+    state.adminStep = 1;
+    state.adminDirty = false;
+    state.adminErrors = {};
+    navigate('seller-product-edit', { productId: state.adminDraft.id });
+  }
+
+  function persistAdminProduct(product) {
+    const exists = state.adminProducts.some(({ id }) => id === product.id);
+    const nextProducts = exists
+      ? state.adminProducts.map((item) => (item.id === product.id ? cloneAdminProduct(product) : item))
+      : [cloneAdminProduct(product), ...state.adminProducts];
+    if (!saveAdminProducts(nextProducts)) return false;
+    state.adminProducts = nextProducts;
+    return true;
   }
 
   function getColor(product, colorId) {
@@ -167,6 +256,10 @@
   function goBack() {
     if (modalRoot.children.length) {
       closeSheet();
+      return;
+    }
+    if (state.screen === 'seller-product-edit') {
+      adminEditorBack();
       return;
     }
     const previous = state.history.pop();
@@ -306,9 +399,11 @@
   }
 
   function renderHome() {
-    const newProducts = Data.PRODUCTS.filter(({ badge }) => badge === 'Новинка').slice(0, 4);
+    const catalogProducts = getCatalogProducts();
+    const newProducts = catalogProducts.filter(({ badge }) => badge === 'Новинка').slice(0, 4);
     const categoryCards = Data.CATEGORIES.filter(({ id }) => id !== 'all').map((category) => {
-      const product = Data.PRODUCTS.find(({ category: productCategory }) => productCategory === category.id);
+      const product = catalogProducts.find(({ category: productCategory }) => productCategory === category.id);
+      if (!product) return '';
       return `
         <button class="category-card" type="button" data-action="open-category" data-category="${category.id}">
           <img src="${product.images[0]}" alt="" loading="lazy"><span>${escapeHtml(category.title)}</span>
@@ -349,7 +444,7 @@
     if (state.filters.sizes.length) chips.push(`Размер: ${state.filters.sizes.join(', ')}`);
     if (state.filters.colors.length) {
       const names = state.filters.colors.map((id) => (
-        Data.PRODUCTS.flatMap(({ colors }) => colors).find((color) => color.id === id)?.name || id
+        getCatalogProducts().flatMap(({ colors }) => colors).find((color) => color.id === id)?.name || id
       ));
       chips.push(`Цвет: ${names.join(', ')}`);
     }
@@ -359,8 +454,9 @@
   }
 
   function renderCatalog() {
+    const catalogProducts = getCatalogProducts();
     const products = Core.sortProducts(
-      Core.filterProducts(Data.PRODUCTS, state.filters),
+      Core.filterProducts(catalogProducts, state.filters),
       state.sortId,
     );
     const categories = Data.CATEGORIES.map((category) => `
@@ -592,29 +688,293 @@
       <button class="secondary-button full-width" type="button" data-action="demo-contact">Связаться с магазином</button>`;
   }
 
+  function sellerShell(section, content) {
+    state.sellerSection = section;
+    return `
+      <header class="seller-header">
+        <div><p class="eyebrow">Демо-управление</p><h1>Фэшн стор</h1></div>
+        <button class="secondary-button" type="button" data-action="exit-seller">В магазин</button>
+      </header>
+      <nav class="seller-main-tabs" aria-label="Разделы админ-панели">
+        <button class="${section === 'products' ? 'is-active' : ''}" type="button" data-action="set-seller-section" data-section="products" aria-current="${section === 'products' ? 'page' : 'false'}">Товары</button>
+        <button class="${section === 'orders' ? 'is-active' : ''}" type="button" data-action="set-seller-section" data-section="orders" aria-current="${section === 'orders' ? 'page' : 'false'}">Заказы</button>
+      </nav>
+      ${content}`;
+  }
+
+  function renderSellerAccess() {
+    return `
+      <section class="seller-access">
+        <div class="brand-mark" aria-hidden="true">Ф</div>
+        <p class="eyebrow">Закрытая зона</p>
+        <h1>Управление магазином</h1>
+        <p>Здесь можно проверить демонстрационный сценарий товаров и заказов.</p>
+        <section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p><strong>Это демо-доступ.</strong> Серверная проверка Telegram ID пока не подключена.</p></section>
+        <button class="primary-button full-width" type="button" data-action="open-seller-demo">Открыть демо-панель</button>
+        <button class="text-button text-button--center" type="button" data-action="exit-seller">Вернуться в магазин</button>
+      </section>`;
+  }
+
+  function adminStatusMeta(product) {
+    const status = Core.getAdminProductStatus(product);
+    if (status === 'draft') return { label: 'Черновик', className: 'draft' };
+    if (status === 'out') return { label: 'Нет в наличии', className: 'out' };
+    return { label: 'Опубликован', className: 'published' };
+  }
+
+  function renderAdminProductRow(product) {
+    const status = adminStatusMeta(product);
+    const stock = product.variants.reduce((sum, variant) => (
+      variant.enabled === false ? sum : sum + Number(variant.stock || 0)
+    ), 0);
+    const image = product.images[0]
+      ? `<img src="${escapeHtml(product.images[0])}" alt="">`
+      : `<span class="admin-product-row__placeholder" aria-hidden="true">${icon('image')}</span>`;
+    return `
+      <article class="admin-product-row card">
+        <button class="admin-product-row__open" type="button" data-action="edit-admin-product" data-product-id="${escapeHtml(product.id)}">
+          <span class="admin-product-row__image">${image}</span>
+          <span class="admin-product-row__content">
+            <strong>${escapeHtml(product.name || 'Без названия')}</strong>
+            <small>${product.price ? money(product.price) : 'Цена не указана'} · ${product.colors.length} ${product.colors.length === 1 ? 'цвет' : 'цвета'}</small>
+            <span>Остаток: ${stock}</span>
+            <em class="admin-status admin-status--${status.className}">${status.label}</em>
+          </span>
+        </button>
+        <button class="icon-button admin-product-row__more" type="button" data-action="admin-product-menu" data-product-id="${escapeHtml(product.id)}" aria-label="Действия с товаром ${escapeHtml(product.name || 'Без названия')}">${icon('more')}</button>
+      </article>`;
+  }
+
+  function renderSellerProducts() {
+    const products = Core.filterAdminProducts(
+      state.adminProducts,
+      state.adminQuery,
+      state.adminFilter,
+    );
+    const filters = [
+      { id: 'all', label: 'Все' },
+      { id: 'published', label: 'Опубликованы' },
+      { id: 'draft', label: 'Черновики' },
+      { id: 'out', label: 'Нет в наличии' },
+    ];
+    const content = `
+      <section class="admin-section-heading">
+        <div><p class="eyebrow">Ассортимент</p><h2>Товары</h2><p>${state.adminProducts.length} позиций в демо-каталоге</p></div>
+        <button class="primary-button admin-add-button" type="button" data-action="add-admin-product">${icon('plus')}<span>Добавить товар</span></button>
+      </section>
+      <label class="admin-search">
+        <span aria-hidden="true">${icon('search')}</span>
+        <span class="sr-only">Поиск по названию</span>
+        <input type="search" data-action="admin-search" value="${escapeHtml(state.adminQuery)}" placeholder="Найти товар" autocomplete="off">
+      </label>
+      <div class="admin-filter-strip" aria-label="Статус товара">${filters.map((filter) => `
+        <button class="${state.adminFilter === filter.id ? 'is-active' : ''}" type="button" data-action="set-admin-filter" data-filter="${filter.id}" aria-pressed="${state.adminFilter === filter.id}">${filter.label}</button>
+      `).join('')}</div>
+      ${products.length
+        ? `<div class="admin-product-list">${products.map(renderAdminProductRow).join('')}</div>`
+        : `<section class="empty-state card"><span aria-hidden="true">${icon('package')}</span><h2>${state.adminProducts.length ? 'Ничего не найдено' : 'Товаров пока нет'}</h2><p>${state.adminProducts.length ? 'Измени запрос или выбери другой статус.' : 'Добавь первый товар — он сохранится как черновик.'}</p><button class="primary-button" type="button" data-action="add-admin-product">Добавить товар</button></section>`}
+      <section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>Товары и остатки сохраняются только на этом устройстве. Это демонстрация без базы данных.</p></section>`;
+    return sellerShell('products', content);
+  }
+
+  function adminProgress() {
+    const labels = ['Фото', 'Данные', 'Варианты', 'Проверка'];
+    return `
+      <div class="admin-progress" aria-label="Шаг ${state.adminStep} из 4">
+        <div class="admin-progress__top"><strong>Шаг ${state.adminStep} из 4</strong><span>${labels[state.adminStep - 1]}</span></div>
+        <div class="admin-progress__track"><span style="--progress:${state.adminStep * 25}%"></span></div>
+        <div class="admin-progress__labels">${labels.map((label, index) => `<span class="${index + 1 <= state.adminStep ? 'is-active' : ''}">${label}</span>`).join('')}</div>
+      </div>`;
+  }
+
+  function adminFieldError(name) {
+    return state.adminErrors[name]
+      ? `<p class="field-error" role="alert">${escapeHtml(state.adminErrors[name])}</p>`
+      : '';
+  }
+
+  function adminEditorHeader() {
+    return `
+      <header class="admin-editor-header">
+        <button class="icon-button" type="button" data-action="admin-editor-back" aria-label="Назад">${icon('chevron-left')}</button>
+        <div><p class="eyebrow">${state.adminDraft?.adminStatus === 'published' ? 'Редактирование' : 'Новый товар'}</p><h1>${escapeHtml(state.adminDraft?.name || 'Без названия')}</h1></div>
+      </header>`;
+  }
+
+  function renderAdminStepOne(product) {
+    const photos = product.images.map((image, index) => `
+      <figure class="admin-photo">
+        <img src="${escapeHtml(image)}" alt="Фото товара ${index + 1}">
+        ${index === 0 ? '<figcaption>Главное</figcaption>' : `<button type="button" data-action="admin-photo-main" data-index="${index}">Сделать главной</button>`}
+        <button class="icon-button" type="button" data-action="admin-photo-remove" data-index="${index}" aria-label="Удалить фото ${index + 1}">${icon('close')}</button>
+      </figure>`).join('');
+    const categories = Data.CATEGORIES.filter(({ id }) => id !== 'all').map((category) => `
+      <option value="${category.id}" ${product.category === category.id ? 'selected' : ''}>${escapeHtml(category.title)}</option>`).join('');
+    return `
+      <form id="admin-product-form" class="admin-editor-form" data-step="1" novalidate>
+        <section class="admin-form-section card">
+          <div class="admin-form-heading"><div><p class="eyebrow">Сначала образ</p><h2>Фото товара</h2></div><span>${product.images.length}/4</span></div>
+          ${photos ? `<div class="admin-photo-grid">${photos}</div>` : `<div class="admin-photo-empty">${icon('image')}<strong>Добавь фотографию</strong><span>Вертикальное фото лучше покажет одежду</span></div>`}
+          ${adminFieldError('images')}
+          <div class="admin-photo-actions">
+            <label class="secondary-button">${icon('camera')}<span>Камера</span><input class="sr-only" type="file" accept="image/*" capture="environment" data-action="admin-photo-input"></label>
+            <label class="secondary-button">${icon('image')}<span>Из галереи</span><input class="sr-only" type="file" accept="image/*" multiple data-action="admin-photo-input"></label>
+          </div>
+          <small>До 4 фотографий, каждая не больше 800 КБ.</small>
+        </section>
+        <section class="admin-form-section card">
+          <label><span>Название товара</span><input name="name" type="text" maxlength="80" value="${escapeHtml(product.name)}" placeholder="Например, Платье Миди" autocomplete="off"></label>
+          ${adminFieldError('name')}
+          <label><span>Категория</span><select name="category">${categories}</select></label>
+        </section>
+        ${adminEditorActions('Продолжить')}
+      </form>`;
+  }
+
+  function renderAdminStepTwo(product) {
+    return `
+      <form id="admin-product-form" class="admin-editor-form" data-step="2" novalidate>
+        <section class="admin-form-section card">
+          <div class="admin-form-heading"><div><p class="eyebrow">Покупатель увидит</p><h2>Цена и описание</h2></div></div>
+          <div class="admin-price-grid">
+            <label><span>Цена, ₽</span><input name="price" type="number" min="1" step="1" inputmode="numeric" value="${product.price || ''}" placeholder="5990"></label>
+            <label><span>Старая цена, ₽</span><input name="oldPrice" type="number" min="1" step="1" inputmode="numeric" value="${product.oldPrice || ''}" placeholder="Необязательно"></label>
+          </div>
+          ${adminFieldError('price')}${adminFieldError('oldPrice')}
+          <label><span>Описание</span><textarea name="description" rows="4" maxlength="500" placeholder="Крой, длина и главные детали">${escapeHtml(product.description)}</textarea></label>
+          <label><span>Состав</span><input name="composition" type="text" maxlength="180" value="${escapeHtml(product.composition)}" placeholder="Вискоза 70%, полиэстер 30%"></label>
+          <label><span>Посадка</span><input name="fit" type="text" maxlength="180" value="${escapeHtml(product.fit)}" placeholder="Свободная, размер в размер"></label>
+          <label><span>Уход</span><input name="care" type="text" maxlength="180" value="${escapeHtml(product.care)}" placeholder="Деликатная стирка при 30 °C"></label>
+        </section>
+        ${adminEditorActions('Продолжить')}
+      </form>`;
+  }
+
+  function renderAdminStepThree(product) {
+    const colorChips = ADMIN_COLORS.map((color) => {
+      const selected = product.colors.some(({ id }) => id === color.id);
+      return `<button class="color-button ${selected ? 'is-active' : ''}" type="button" data-action="toggle-admin-color" data-color-id="${color.id}" aria-pressed="${selected}"><span style="--swatch:${color.hex}" aria-hidden="true"></span>${color.name}</button>`;
+    }).join('');
+    const sizeChips = ADMIN_SIZES.map((size) => `
+      <button class="chip ${product.sizes.includes(size) ? 'is-active' : ''}" type="button" data-action="toggle-admin-size" data-size="${size}" aria-pressed="${product.sizes.includes(size)}">${size}</button>`).join('');
+    const groups = product.colors.map((color) => {
+      const variants = product.variants.filter(({ colorId }) => colorId === color.id);
+      return `
+        <details class="admin-variant-group card" open>
+          <summary><span><i style="--swatch:${color.hex}"></i><strong>${escapeHtml(color.name)}</strong></span><small>${variants.filter(({ enabled }) => enabled !== false).length} вариантов</small></summary>
+          <div>${variants.map((variant) => `
+            <label class="admin-variant-row ${variant.enabled === false ? 'is-disabled' : ''}">
+              <button type="button" data-action="toggle-admin-variant" data-color-id="${variant.colorId}" data-size="${variant.size}" aria-pressed="${variant.enabled !== false}">${variant.enabled === false ? 'Выкл.' : 'Вкл.'}</button>
+              <strong>${variant.size}</strong>
+              <span>Остаток</span>
+              <input type="number" min="0" step="1" inputmode="numeric" value="${variant.stock}" data-action="admin-stock" data-color-id="${variant.colorId}" data-size="${variant.size}" ${variant.enabled === false ? 'disabled' : ''} aria-label="Остаток ${escapeHtml(color.name)}, размер ${variant.size}">
+            </label>`).join('')}</div>
+        </details>`;
+    }).join('');
+    return `
+      <form id="admin-product-form" class="admin-editor-form" data-step="3" novalidate>
+        <section class="admin-form-section card">
+          <div class="admin-form-heading"><div><p class="eyebrow">Матрица наличия</p><h2>Цвета и размеры</h2></div><span>${product.variants.length} вариантов</span></div>
+          <fieldset><legend>Цвета</legend><div class="choice-grid choice-grid--colors">${colorChips}</div>${adminFieldError('colors')}</fieldset>
+          <fieldset><legend>Размеры</legend><div class="choice-grid choice-grid--compact">${sizeChips}</div>${adminFieldError('sizes')}</fieldset>
+        </section>
+        ${groups || '<section class="empty-state card"><span aria-hidden="true">' + icon('grid') + '</span><h2>Выбери цвета и размеры</h2><p>Приложение само создаст все сочетания.</p></section>'}
+        ${adminFieldError('variants')}
+        ${adminEditorActions('Продолжить')}
+      </form>`;
+  }
+
+  function adminProductPreview(product) {
+    const sizes = [...new Set(product.variants.filter((variant) => variant.enabled !== false).map(({ size }) => size))];
+    const colors = product.colors.map((color) => `<span class="color-button"><span style="--swatch:${color.hex}" aria-hidden="true"></span>${escapeHtml(color.name)}</span>`).join('');
+    return `
+      <article class="admin-preview-card card">
+        <div class="admin-preview-card__media">${product.images[0] ? `<img src="${escapeHtml(product.images[0])}" alt="${escapeHtml(product.name)}">` : icon('image')}</div>
+        <div class="admin-preview-card__body">
+          <p class="eyebrow">${escapeHtml(Data.CATEGORIES.find(({ id }) => id === product.category)?.title || 'Без категории')}</p>
+          <h2>${escapeHtml(product.name || 'Без названия')}</h2>
+          <p class="product-price"><b>${product.price ? money(product.price) : 'Цена не указана'}</b>${product.oldPrice ? `<s>${money(product.oldPrice)}</s>` : ''}</p>
+          <p>${escapeHtml(product.description || 'Описание пока не добавлено.')}</p>
+          <div class="choice-grid choice-grid--colors">${colors}</div>
+          <p class="choice-hint">Размеры: ${sizes.length ? sizes.join(', ') : 'не указаны'}</p>
+        </div>
+      </article>`;
+  }
+
+  function renderAdminStepFour(product) {
+    const errors = Core.validateAdminProduct(product, 4);
+    const errorEntries = Object.values(errors);
+    const finalActions = product.adminStatus === 'published'
+      ? `<div class="admin-editor-actions"><span></span><button class="primary-button" type="button" data-action="save-admin-changes" ${errorEntries.length ? 'disabled' : ''}>Сохранить изменения</button></div>`
+      : `<div class="admin-editor-actions admin-editor-actions--final"><button class="secondary-button" type="button" data-action="save-admin-draft">Сохранить черновик</button><button class="primary-button" type="button" data-action="publish-admin-product" ${errorEntries.length ? 'disabled' : ''}>Опубликовать</button></div>`;
+    return `
+      <section class="admin-editor-form">
+        <div class="admin-preview-switch" role="group" aria-label="Режим просмотра"><span>Редактор</span><strong>Как увидит покупатель</strong></div>
+        ${adminProductPreview(product)}
+        ${errorEntries.length ? `<section class="admin-validation card"><h2>Перед публикацией исправь</h2><ul>${errorEntries.map((error) => `<li>${escapeHtml(error)}</li>`).join('')}</ul><button class="secondary-button full-width" type="button" data-action="admin-fix-errors">Исправить</button></section>` : '<section class="notice-card notice-card--success"><span aria-hidden="true">' + icon('check') + '</span><p>Карточка заполнена и готова к публикации.</p></section>'}
+        ${finalActions}
+      </section>`;
+  }
+
+  function adminEditorActions(primaryLabel) {
+    const saveAction = state.adminDraft?.adminStatus === 'published'
+      ? '<button class="text-button" type="button" data-action="save-admin-changes">Сохранить изменения</button>'
+      : '<button class="text-button" type="button" data-action="save-admin-draft">Сохранить черновик</button>';
+    return `
+      <div class="admin-editor-actions">
+        ${saveAction}
+        <button class="primary-button" type="submit">${primaryLabel}</button>
+      </div>`;
+  }
+
+  function renderAdminEditor() {
+    const product = state.adminDraft || createBlankAdminProduct();
+    const steps = {
+      1: renderAdminStepOne,
+      2: renderAdminStepTwo,
+      3: renderAdminStepThree,
+      4: renderAdminStepFour,
+    };
+    return `
+      ${adminEditorHeader()}
+      ${adminProgress()}
+      ${steps[state.adminStep](product)}`;
+  }
+
+  function formatOrderTime(createdAt) {
+    try {
+      return new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(new Date(createdAt));
+    } catch (_error) {
+      return 'сейчас';
+    }
+  }
+
   function renderSellerOrders() {
     const orderMatchesTab = state.order && (
       state.sellerTab === 'ready' ? state.order.status === 'ready' : state.order.status === 'paid'
     );
+    const collectCount = state.order?.status === 'paid' ? 1 : 0;
+    const readyCount = state.order?.status === 'ready' ? 1 : 0;
     const content = orderMatchesTab
-      ? `<button class="seller-order-card card" type="button" data-action="seller-open-order"><span class="status-pill status-pill--${state.order.status === 'ready' ? 'ready' : 'paid'}">${state.order.status === 'ready' ? 'Готов' : 'Собрать'}</span><span><strong>${escapeHtml(state.order.id)}</strong><small>${state.order.items.length} позиций · ${escapeHtml(state.order.delivery.title)}</small></span><b>${money(state.order.total)}</b></button>`
-      : `<section class="empty-state card"><span aria-hidden="true">${icon('package')}</span><h2>${state.sellerTab === 'ready' ? 'Готовых заказов нет' : 'Заказов на сборку нет'}</h2><p>Демо-заказ появится в нужной вкладке после оплаты или сборки.</p></section>`;
-    return `
-      <header class="seller-header"><div><p class="eyebrow">Демо-режим</p><h1>Заказы продавца</h1></div><button class="secondary-button" type="button" data-action="exit-seller">В магазин</button></header>
-      <div class="seller-tabs"><button class="${state.sellerTab === 'collect' ? 'is-active' : ''}" type="button" data-action="set-seller-tab" data-tab="collect">Собрать</button><button class="${state.sellerTab === 'ready' ? 'is-active' : ''}" type="button" data-action="set-seller-tab" data-tab="ready">Готовы</button></div>
+      ? `<button class="seller-order-card card" type="button" data-action="seller-open-order"><span class="status-pill status-pill--${state.order.status === 'ready' ? 'ready' : 'paid'}">${state.order.status === 'ready' ? 'Заказ собран' : 'Оплачен, собираем'}</span><span><strong>${escapeHtml(state.order.id)}</strong><small>${formatOrderTime(state.order.createdAt)} · ${escapeHtml(state.order.customer.name)} · ${state.order.items.length} позиций</small><small>${escapeHtml(state.order.delivery.title)}</small></span><b>${money(state.order.total)}</b></button>`
+      : `<section class="empty-state card"><span aria-hidden="true">${icon('package')}</span><h2>${state.sellerTab === 'ready' ? 'Готовых заказов пока нет' : 'Нет заказов на сборку'}</h2><p>Оплаченный демо-заказ появится в нужной вкладке.</p></section>`;
+    return sellerShell('orders', `
+      <section class="admin-section-heading"><div><p class="eyebrow">Рабочая очередь</p><h2>Заказы</h2><p>Только один локальный демо-заказ</p></div></section>
+      <div class="seller-tabs"><button class="${state.sellerTab === 'collect' ? 'is-active' : ''}" type="button" data-action="set-seller-tab" data-tab="collect">Собрать <span>${collectCount}</span></button><button class="${state.sellerTab === 'ready' ? 'is-active' : ''}" type="button" data-action="set-seller-tab" data-tab="ready">Готовы <span>${readyCount}</span></button></div>
       ${content}
-      <section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>В рабочей версии доступ проверяется сервером по Telegram ID. Эта кнопка открыта только для демонстрации.</p></section>`;
+      <section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>В рабочей версии доступ и изменение статусов проверяются сервером. Сейчас данные сохраняются только на этом устройстве.</p></section>`);
   }
 
   function renderSellerOrder() {
     if (!state.order) return renderSellerOrders();
     const status = orderStatus(state.order);
-    return `
-      ${pageHeader(`Заказ ${state.order.id}`, 'Режим продавца')}
-      <section class="order-status-card card"><span class="status-pill status-pill--${status.className}">${status.title}</span><p>${escapeHtml(status.text)}</p></section>
-      <section class="review-section card"><h2>Собрать</h2><ul class="review-items">${orderItems(state.order)}</ul></section>
+    const content = `
+      <header class="admin-editor-header"><button class="icon-button" type="button" data-action="go-back" aria-label="Назад">${icon('chevron-left')}</button><div><p class="eyebrow">${escapeHtml(state.order.id)}</p><h1>Карточка заказа</h1></div></header>
+      <section class="order-status-card card"><span class="status-pill status-pill--${status.className}">${status.title}</span><h2>${escapeHtml(status.text)}</h2><p>${formatOrderTime(state.order.createdAt)} · ${money(state.order.total)}</p></section>
+      <section class="review-section card"><h2>Состав заказа</h2><ul class="review-items">${orderItems(state.order)}</ul></section>
       <section class="info-list card"><div><span aria-hidden="true">${icon('at-sign')}</span><p><strong>${escapeHtml(state.order.customer.name)}</strong><small>${escapeHtml(state.order.customer.phone)}</small></p></div><div><span aria-hidden="true">${icon('map-pin')}</span><p><strong>${escapeHtml(state.order.delivery.title)}</strong><small>${escapeHtml(state.order.delivery.description)}</small></p></div></section>
-      ${state.order.status === 'paid' ? '<button class="primary-button full-width seller-ready-button" type="button" data-action="request-ready">Заказ собран</button>' : '<button class="secondary-button full-width seller-ready-button" type="button" data-action="exit-seller">Вернуться в магазин</button>'}`;
+      ${state.order.status === 'paid' ? '<button class="primary-button full-width seller-ready-button" type="button" data-action="request-ready">Заказ собран</button>' : `<section class="notice-card notice-card--success"><span aria-hidden="true">${icon('check')}</span><p>${state.order.delivery.id === 'pickup' ? 'Ждёт покупателя в магазине.' : 'Готов к передаче в доставку.'}</p></section>`}`;
+    return sellerShell('orders', content);
   }
 
   const renderers = {
@@ -629,6 +989,9 @@
     'checkout-review': renderCheckoutReview,
     'payment-success': renderPaymentSuccess,
     'order-detail': renderOrderDetail,
+    'seller-access': renderSellerAccess,
+    'seller-products': renderSellerProducts,
+    'seller-product-edit': renderAdminEditor,
     'seller-orders': renderSellerOrders,
     'seller-order': renderSellerOrder,
   };
@@ -716,11 +1079,12 @@
   }
 
   function renderFilterSheet() {
+    const catalogProducts = getCatalogProducts();
     const sizes = ['XS', 'S', 'M', 'L', 'XL'];
     const uniqueColors = [...new Map(
-      Data.PRODUCTS.flatMap(({ colors }) => colors).map((color) => [color.id, color]),
+      catalogProducts.flatMap(({ colors }) => colors).map((color) => [color.id, color]),
     ).values()];
-    const results = Core.filterProducts(Data.PRODUCTS, state.draftFilters).length;
+    const results = Core.filterProducts(catalogProducts, state.draftFilters).length;
     openSheet(`
       <div class="sheet__header"><p class="eyebrow">Каталог</p><h2>Фильтры</h2></div>
       <fieldset><legend>Размер</legend><div class="choice-grid choice-grid--compact">${sizes.map((size) => `<button class="chip ${state.draftFilters.sizes.includes(size) ? 'is-active' : ''}" type="button" data-action="toggle-filter-size" data-size="${size}">${size}</button>`).join('')}</div></fieldset>
@@ -829,8 +1193,13 @@
 
   function enterSellerMode() {
     state.sellerMode = true;
+    state.sellerSection = 'products';
     state.sellerTab = state.order?.status === 'ready' ? 'ready' : 'collect';
-    navigate('seller-orders');
+    navigate('seller-access');
+  }
+
+  function openSellerDemo() {
+    navigate('seller-products');
   }
 
   function exitSellerMode() {
@@ -838,6 +1207,266 @@
     state.history = [];
     state.screen = 'store';
     state.params = {};
+    render();
+  }
+
+  function setSellerSection(section) {
+    if (section === 'orders') {
+      navigate('seller-orders', {}, { root: true });
+      return;
+    }
+    navigate('seller-products', {}, { root: true });
+  }
+
+  function syncAdminForm(form) {
+    if (!form || !state.adminDraft) return;
+    const formData = new FormData(form);
+    const step = Number(form.dataset.step);
+    if (step === 1) {
+      state.adminDraft.name = String(formData.get('name') || '').trim();
+      state.adminDraft.category = String(formData.get('category') || 'dresses');
+    }
+    if (step === 2) {
+      const price = Number(formData.get('price'));
+      const oldPriceValue = String(formData.get('oldPrice') || '').trim();
+      state.adminDraft.price = Number.isInteger(price) && price > 0 ? price : '';
+      state.adminDraft.oldPrice = oldPriceValue ? Number(oldPriceValue) : null;
+      state.adminDraft.description = String(formData.get('description') || '').trim();
+      state.adminDraft.composition = String(formData.get('composition') || '').trim();
+      state.adminDraft.fit = String(formData.get('fit') || '').trim();
+      state.adminDraft.care = String(formData.get('care') || '').trim();
+    }
+    state.adminDirty = true;
+  }
+
+  function focusFirstAdminError() {
+    const firstError = Object.keys(state.adminErrors)[0];
+    if (!firstError) return;
+    document.querySelector(`[name="${firstError}"]`)?.focus();
+  }
+
+  function continueAdminEditor(form) {
+    syncAdminForm(form);
+    state.adminErrors = Core.validateAdminProduct(state.adminDraft, state.adminStep);
+    if (Object.keys(state.adminErrors).length) {
+      render();
+      focusFirstAdminError();
+      return;
+    }
+    state.adminErrors = {};
+    state.adminStep = Math.min(4, state.adminStep + 1);
+    render();
+  }
+
+  function saveAdminProduct(status) {
+    const form = document.querySelector('#admin-product-form');
+    syncAdminForm(form);
+    if (!state.adminDraft) return;
+    if (status === 'published') {
+      state.adminErrors = Core.validateAdminProduct(state.adminDraft, 4);
+      if (Object.keys(state.adminErrors).length) {
+        state.adminStep = 4;
+        render();
+        showToast('Исправь ошибки перед публикацией');
+        return;
+      }
+    }
+    const nextProduct = {
+      ...cloneAdminProduct(state.adminDraft),
+      adminStatus: status,
+    };
+    if (!persistAdminProduct(nextProduct)) return;
+    state.adminDraft = null;
+    state.adminDirty = false;
+    state.adminErrors = {};
+    state.adminStep = 1;
+    state.history = [];
+    state.screen = 'seller-products';
+    state.params = {};
+    render();
+    showToast(status === 'published' ? 'Товар опубликован' : 'Черновик сохранён');
+  }
+
+  function confirmLeaveAdminEditor() {
+    state.adminDirty = false;
+    closeSheet();
+    state.adminDraft = null;
+    state.adminStep = 1;
+    state.adminErrors = {};
+    leaveAdminEditor();
+  }
+
+  function leaveAdminEditor() {
+    const result = Core.popScreenHistory(state.history, 'seller-products');
+    state.history = result.history;
+    state.screen = result.target.screen;
+    state.params = result.target.params || {};
+    render();
+  }
+
+  function adminEditorBack() {
+    if (state.adminStep > 1) {
+      state.adminStep -= 1;
+      state.adminErrors = {};
+      render();
+      return;
+    }
+    if (!state.adminDirty) {
+      state.adminDraft = null;
+      leaveAdminEditor();
+      return;
+    }
+    openSheet(`
+      <div class="sheet__header"><p class="eyebrow">Несохранённые изменения</p><h2>Выйти из редактора?</h2></div>
+      <p>Изменения этого товара будут потеряны.</p>
+      <div class="sheet__actions"><button class="secondary-button" type="button" data-action="close-sheet">Остаться</button><button class="primary-button" type="button" data-action="confirm-leave-admin">Выйти</button></div>
+    `, { title: 'Подтверждение выхода' });
+  }
+
+  function rebuildAdminVariants() {
+    state.adminDraft.variants = Core.buildProductVariants(
+      state.adminDraft.colors,
+      state.adminDraft.sizes,
+      state.adminDraft.variants,
+    );
+    state.adminDirty = true;
+    state.adminErrors = {};
+  }
+
+  function toggleAdminColor(colorId) {
+    const color = ADMIN_COLORS.find(({ id }) => id === colorId);
+    if (!color || !state.adminDraft) return;
+    const selected = state.adminDraft.colors.some(({ id }) => id === colorId);
+    state.adminDraft.colors = selected
+      ? state.adminDraft.colors.filter(({ id }) => id !== colorId)
+      : [...state.adminDraft.colors, { ...color }];
+    rebuildAdminVariants();
+    render();
+  }
+
+  function toggleAdminSize(size) {
+    if (!ADMIN_SIZES.includes(size) || !state.adminDraft) return;
+    state.adminDraft.sizes = state.adminDraft.sizes.includes(size)
+      ? state.adminDraft.sizes.filter((item) => item !== size)
+      : ADMIN_SIZES.filter((item) => [...state.adminDraft.sizes, size].includes(item));
+    rebuildAdminVariants();
+    render();
+  }
+
+  function getAdminVariant(colorId, size) {
+    return state.adminDraft?.variants.find((variant) => (
+      variant.colorId === colorId && variant.size === size
+    ));
+  }
+
+  function toggleAdminVariant(colorId, size) {
+    const variant = getAdminVariant(colorId, size);
+    if (!variant) return;
+    variant.enabled = variant.enabled === false;
+    state.adminDirty = true;
+    render();
+  }
+
+  function updateAdminStock(control) {
+    const variant = getAdminVariant(control.dataset.colorId, control.dataset.size);
+    if (!variant) return;
+    const stock = Number(control.value);
+    variant.stock = Number.isInteger(stock) && stock >= 0 ? stock : -1;
+    state.adminDirty = true;
+  }
+
+  function readImageFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleAdminPhotos(files) {
+    if (!state.adminDraft) return;
+    const availableSlots = Math.max(0, 4 - state.adminDraft.images.length);
+    const selectedFiles = [...files].slice(0, availableSlots);
+    if (!selectedFiles.length) {
+      showToast(state.adminDraft.images.length >= 4 ? 'Можно добавить не больше 4 фото' : 'Выбери изображение');
+      return;
+    }
+    if (selectedFiles.some((file) => !file.type.startsWith('image/'))) {
+      showToast('Выбери файл изображения');
+      return;
+    }
+    if (selectedFiles.some((file) => file.size > 800 * 1024)) {
+      showToast('Каждое фото должно быть не больше 800 КБ');
+      return;
+    }
+    try {
+      const images = await Promise.all(selectedFiles.map(readImageFile));
+      state.adminDraft.images = [...state.adminDraft.images, ...images];
+      state.adminDirty = true;
+      state.adminErrors = {};
+      render();
+    } catch (_error) {
+      showToast('Не удалось прочитать фотографию');
+    }
+  }
+
+  function makeAdminPhotoMain(index) {
+    if (!state.adminDraft?.images[index]) return;
+    const images = [...state.adminDraft.images];
+    const [selected] = images.splice(index, 1);
+    state.adminDraft.images = [selected, ...images];
+    state.adminDirty = true;
+    render();
+  }
+
+  function removeAdminPhoto(index) {
+    if (!state.adminDraft?.images[index]) return;
+    state.adminDraft.images = state.adminDraft.images.filter((_image, itemIndex) => itemIndex !== index);
+    state.adminDirty = true;
+    render();
+  }
+
+  function openAdminProductMenu(productId) {
+    const product = getAdminProduct(productId);
+    if (!product) return;
+    openSheet(`
+      <div class="sheet__header"><p class="eyebrow">Товар</p><h2>${escapeHtml(product.name || 'Без названия')}</h2></div>
+      <div class="admin-action-list">
+        <button type="button" data-action="edit-admin-product" data-product-id="${escapeHtml(product.id)}">${icon('edit')}<span><strong>Редактировать</strong><small>Изменить данные и остатки</small></span>${icon('chevron-right')}</button>
+        <button type="button" data-action="preview-admin-product" data-product-id="${escapeHtml(product.id)}">${icon('image')}<span><strong>Как увидит покупатель</strong><small>Открыть предпросмотр карточки</small></span>${icon('chevron-right')}</button>
+        <button type="button" data-action="duplicate-admin-product" data-product-id="${escapeHtml(product.id)}">${icon('copy')}<span><strong>Создать похожий</strong><small>Остатки не перенесутся</small></span>${icon('chevron-right')}</button>
+      </div>
+      <button class="secondary-button full-width" type="button" data-action="close-sheet">Отмена</button>
+    `, { title: 'Действия с товаром' });
+  }
+
+  function duplicateProduct(productId) {
+    const product = getAdminProduct(productId);
+    if (!product) return;
+    const copy = Core.duplicateAdminProduct(product, `admin-${Date.now().toString(36)}`);
+    closeSheet();
+    startAdminDraft(copy);
+    state.adminDirty = true;
+  }
+
+  function previewAdminProduct(productId) {
+    const product = getAdminProduct(productId);
+    if (!product) return;
+    closeSheet();
+    state.adminDraft = cloneAdminProduct(product);
+    state.adminStep = 4;
+    state.adminDirty = false;
+    state.adminErrors = {};
+    navigate('seller-product-edit', { productId: product.id });
+  }
+
+  function jumpToFirstAdminError() {
+    const errors = Core.validateAdminProduct(state.adminDraft, 4);
+    if (errors.images || errors.name) state.adminStep = 1;
+    else if (errors.price || errors.oldPrice) state.adminStep = 2;
+    else state.adminStep = 3;
+    state.adminErrors = Core.validateAdminProduct(state.adminDraft, state.adminStep);
     render();
   }
 
@@ -849,7 +1478,7 @@
     openSheet(`
       <div class="sheet__header"><p class="eyebrow">${escapeHtml(state.order.id)}</p><h2>Заказ действительно собран?</h2></div>
       <p>${message}</p>
-      <div class="sheet__actions"><button class="secondary-button" type="button" data-action="close-sheet">Отмена</button><button class="primary-button" type="button" data-action="confirm-ready">Подтвердить</button></div>
+      <div class="sheet__actions"><button class="secondary-button" type="button" data-action="close-sheet">Отмена</button><button class="primary-button" type="button" data-action="confirm-ready">Да, заказ собран</button></div>
     `, { title: 'Подтверждение сборки заказа' });
   }
 
@@ -934,7 +1563,36 @@
     'demo-contact': () => showToast('Демонстрационный контакт: ' + Data.STORE.support),
     'store-rules': openRules,
     'enter-seller': enterSellerMode,
+    'open-seller-demo': openSellerDemo,
     'exit-seller': exitSellerMode,
+    'set-seller-section': (control) => setSellerSection(control.dataset.section),
+    'add-admin-product': () => startAdminDraft(),
+    'edit-admin-product': (control) => {
+      const product = getAdminProduct(control.dataset.productId);
+      if (!product) return;
+      if (modalRoot.children.length) closeSheet();
+      startAdminDraft(product);
+    },
+    'admin-product-menu': (control) => openAdminProductMenu(control.dataset.productId),
+    'preview-admin-product': (control) => previewAdminProduct(control.dataset.productId),
+    'duplicate-admin-product': (control) => duplicateProduct(control.dataset.productId),
+    'set-admin-filter': (control) => {
+      state.adminFilter = ['published', 'draft', 'out'].includes(control.dataset.filter)
+        ? control.dataset.filter
+        : 'all';
+      render();
+    },
+    'admin-editor-back': adminEditorBack,
+    'save-admin-draft': () => saveAdminProduct('draft'),
+    'save-admin-changes': () => saveAdminProduct('published'),
+    'publish-admin-product': () => saveAdminProduct('published'),
+    'confirm-leave-admin': confirmLeaveAdminEditor,
+    'toggle-admin-color': (control) => toggleAdminColor(control.dataset.colorId),
+    'toggle-admin-size': (control) => toggleAdminSize(control.dataset.size),
+    'toggle-admin-variant': (control) => toggleAdminVariant(control.dataset.colorId, control.dataset.size),
+    'admin-photo-main': (control) => makeAdminPhotoMain(Number(control.dataset.index)),
+    'admin-photo-remove': (control) => removeAdminPhoto(Number(control.dataset.index)),
+    'admin-fix-errors': jumpToFirstAdminError,
     'seller-open-order': () => navigate('seller-order'),
     'set-seller-tab': (control) => {
       state.sellerTab = control.dataset.tab === 'ready' ? 'ready' : 'collect';
@@ -974,9 +1632,35 @@
   document.addEventListener('change', (event) => {
     const control = event.target.closest('[data-action]');
     if (control?.dataset.action === 'toggle-new') actions['toggle-new'](control);
+    if (control?.dataset.action === 'admin-photo-input') {
+      handleAdminPhotos(control.files || []);
+      control.value = '';
+    }
+  });
+
+  document.addEventListener('input', (event) => {
+    const control = event.target;
+    if (control.matches('[data-action="admin-search"]')) {
+      state.adminQuery = control.value;
+      render();
+      const search = document.querySelector('[data-action="admin-search"]');
+      search?.focus();
+      search?.setSelectionRange?.(search.value.length, search.value.length);
+      return;
+    }
+    if (control.matches('[data-action="admin-stock"]')) {
+      updateAdminStock(control);
+      return;
+    }
+    if (control.closest('#admin-product-form')) state.adminDirty = true;
   });
 
   document.addEventListener('submit', (event) => {
+    if (event.target.id === 'admin-product-form') {
+      event.preventDefault();
+      continueAdminEditor(event.target);
+      return;
+    }
     if (event.target.id !== 'contact-form') return;
     event.preventDefault();
     const form = event.target;

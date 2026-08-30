@@ -42,3 +42,11 @@ test('переход сбрасывает прокрутку внутренне�
 
   assert.deepEqual(options, { top: 0, left: 0, behavior: 'auto' });
 });
+
+test('админ-панель использует общий SVG-набор для рабочих действий', () => {
+  for (const name of ['search', 'camera', 'image', 'more', 'edit', 'copy']) {
+    const markup = icon(name);
+    assert.match(markup, /^<svg /, name);
+    assert.match(markup, /viewBox="0 0 24 24"/, name);
+  }
+});
