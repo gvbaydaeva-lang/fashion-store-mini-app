@@ -446,6 +446,7 @@ img { display: block; max-width: 100%; }
 .details-list summary { min-height: 52px; padding: 15px; font-weight: 700; cursor: pointer; }
 .details-list p { padding: 0 15px 15px; }
 .product-actions { position: fixed; z-index: 24; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: 0.9fr 1.1fr; width: 100%; max-width: var(--app-width); margin: 0 auto; padding: 10px 16px calc(10px + var(--safe-bottom)); gap: 9px; border-top: 1px solid var(--border); background: color-mix(in srgb, var(--surface) 96%, transparent); backdrop-filter: blur(18px); }
+.product-actions__cart { grid-column: 1 / -1; min-height: 44px; border: 0; background: transparent; color: var(--accent-dark); font-weight: 750; }
 
 .cart-list { display: grid; gap: 12px; }
 .cart-item { display: grid; grid-template-columns: 112px minmax(0, 1fr); padding: 10px; gap: 12px; }

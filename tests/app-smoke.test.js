@@ -32,6 +32,7 @@ function createElement() {
     hidden: false,
     innerHTML: '',
     style: { setProperty() {} },
+    scrollTop: 0,
     textContent: '',
     addEventListener() {},
     querySelector() { return null; },
@@ -103,4 +104,17 @@ test('административные экраны рендерятся из р
   app.navigate('seller-product-edit');
   assert.match(screen.innerHTML, /Шаг 1 из 4/);
   assert.match(screen.innerHTML, /Фото товара/);
+});
+
+test('карточка сразу показывает цвет и размер и сохраняет прокрутку при перерисовке', () => {
+  const { app, screen } = loadApp();
+
+  app.navigate('product', { productId: 'dress-air' });
+  assert.match(screen.innerHTML, /data-action="select-color"/);
+  assert.match(screen.innerHTML, /data-action="select-size"/);
+  assert.match(screen.innerHTML, /Перейти в корзину/);
+
+  screen.scrollTop = 180;
+  app.render({ preserveScroll: true });
+  assert.equal(screen.scrollTop, 180);
 });

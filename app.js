@@ -484,11 +484,20 @@
       <button class="color-button ${state.selectedColorId === color.id ? 'is-active' : ''}" type="button" data-action="select-color" data-color-id="${color.id}" aria-pressed="${state.selectedColorId === color.id}">
         <span style="--swatch:${color.hex}" aria-hidden="true"></span>${escapeHtml(color.name)}
       </button>`).join('');
-    const variants = state.selectedColorId ? Core.getAvailableOptions(product, state.selectedColorId) : [];
-    const sizeButtons = variants.map((variant) => `
-      <button class="size-button ${state.selectedSize === variant.size ? 'is-active' : ''}" type="button" data-action="select-size" data-size="${variant.size}" ${variant.stock === 0 ? 'disabled' : ''} aria-pressed="${state.selectedSize === variant.size}">
-        <strong>${variant.size}</strong><small>${variant.stock === 0 ? 'Нет' : variant.stock === 1 ? 'Последний' : 'В наличии'}</small>
-      </button>`).join('');
+    const sizes = product.sizes?.length
+      ? product.sizes
+      : [...new Set(product.variants.map(({ size }) => size))];
+    const sizeButtons = sizes.map((size) => {
+      const variant = state.selectedColorId ? getVariant(product, state.selectedColorId, size) : null;
+      const unavailable = !variant || variant.stock === 0;
+      const status = !state.selectedColorId
+        ? 'Выберите цвет'
+        : variant?.stock === 0 ? 'Нет' : variant?.stock === 1 ? 'Последний' : 'В наличии';
+      return `
+      <button class="size-button ${state.selectedSize === size ? 'is-active' : ''}" type="button" data-action="select-size" data-size="${size}" ${unavailable ? 'disabled' : ''} aria-pressed="${state.selectedSize === size}">
+        <strong>${size}</strong><small>${status}</small>
+      </button>`;
+    }).join('');
 
     return `
       ${productBackHeader()}
@@ -507,7 +516,7 @@
         <div class="section-heading"><h2>Цвет</h2><span>${state.selectedColorId ? escapeHtml(getColor(product, state.selectedColorId)?.name) : 'Выберите'}</span></div>
         <div class="choice-grid choice-grid--colors">${colorButtons}</div>
         <div class="section-heading"><h2>Размер</h2><button type="button" data-action="size-guide" data-product-id="${product.id}">Как выбрать</button></div>
-        ${state.selectedColorId ? `<div class="choice-grid">${sizeButtons}</div>` : '<p class="choice-hint">Сначала выберите цвет — покажем доступные размеры.</p>'}
+        <div class="choice-grid">${sizeButtons}</div>
       </section>
       <section class="details-list card">
         <details><summary>Посадка и параметры модели</summary><p>${escapeHtml(product.fit)} ${escapeHtml(product.model)}</p></details>
@@ -517,6 +526,7 @@
       <div class="product-actions">
         <button class="secondary-button" type="button" data-action="add-to-cart">В корзину</button>
         <button class="primary-button" type="button" data-action="buy-now">Купить сейчас</button>
+        <button class="product-actions__cart" type="button" data-action="navigate" data-screen="cart">Перейти в корзину</button>
       </div>`;
   }
 
@@ -1007,7 +1017,8 @@
     cartBadge.hidden = summary.itemCount === 0;
   }
 
-  function render() {
+  function render(options = {}) {
+    const previousScrollTop = screenElement.scrollTop;
     applyTelegramTheme();
     screenElement.dataset.screen = state.screen;
     screenElement.classList.toggle('screen--full', CHECKOUT_SCREENS.has(state.screen));
@@ -1016,17 +1027,18 @@
     updateNav();
     updateBackButton();
     UI.resetScroll(screenElement);
+    if (options.preserveScroll) screenElement.scrollTop = previousScrollTop;
   }
 
   function selectColor(colorId) {
     state.selectedColorId = colorId;
     state.selectedSize = null;
-    render();
+    render({ preserveScroll: true });
   }
 
   function selectSize(size) {
     state.selectedSize = size;
-    render();
+    render({ preserveScroll: true });
   }
 
   function addSelectedProduct(goToCheckout) {
@@ -1057,7 +1069,7 @@
     saveState();
     showToast('Добавлено в корзину');
     if (goToCheckout) navigate('checkout-contact');
-    else render();
+    else render({ preserveScroll: true });
   }
 
   function changeCartQuantity(key, delta) {
