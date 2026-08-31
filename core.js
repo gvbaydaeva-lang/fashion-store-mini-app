@@ -144,13 +144,24 @@
     return hasStock ? 'published' : 'out';
   }
 
-  function filterAdminProducts(products, query = '', status = 'all') {
+  function filterAdminProducts(products, query = '', status = 'all', filters = {}) {
     const normalizedQuery = String(query).trim().toLocaleLowerCase('ru-RU');
     return products.filter((product) => {
       const matchesQuery = !normalizedQuery
         || String(product.name || '').toLocaleLowerCase('ru-RU').includes(normalizedQuery);
       const matchesStatus = status === 'all' || getAdminProductStatus(product) === status;
-      return matchesQuery && matchesStatus;
+      const matchesCategory = !filters.category || filters.category === 'all'
+        || product.category === filters.category;
+      const matchesSupplier = !filters.supplier || filters.supplier === 'all'
+        || String(product.supplier || '').trim() === filters.supplier;
+      const hasStock = (product.variants || []).some((variant) => (
+        variant.enabled !== false && Number(variant.stock) > 0
+      ));
+      const matchesAvailability = !filters.availability || filters.availability === 'all'
+        || (filters.availability === 'in-stock' ? hasStock : !hasStock);
+      const matchesNew = !filters.onlyNew || product.badge === 'Новинка';
+      return matchesQuery && matchesStatus && matchesCategory && matchesSupplier
+        && matchesAvailability && matchesNew;
     });
   }
 

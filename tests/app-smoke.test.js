@@ -102,8 +102,14 @@ test('административные экраны рендерятся из р
   assert.match(screen.innerHTML, /Платье Воздух/);
 
   app.navigate('seller-product-edit');
-  assert.match(screen.innerHTML, /Шаг 1 из 4/);
-  assert.match(screen.innerHTML, /Фото товара/);
+  assert.doesNotMatch(screen.innerHTML, /Шаг 1 из 4/);
+  assert.match(screen.innerHTML, /Основная информация/);
+  assert.match(screen.innerHTML, /Описание товара/);
+  assert.match(screen.innerHTML, /Остатки по вариантам/);
+  assert.match(screen.innerHTML, /name="description"/);
+  assert.doesNotMatch(screen.innerHTML, /name="composition"/);
+  assert.doesNotMatch(screen.innerHTML, /name="fit"/);
+  assert.doesNotMatch(screen.innerHTML, /name="care"/);
 });
 
 test('карточка сразу показывает цвет и размер и сохраняет прокрутку при перерисовке', () => {
@@ -112,6 +118,9 @@ test('карточка сразу показывает цвет и размер 
   app.navigate('product', { productId: 'dress-air' });
   assert.match(screen.innerHTML, /data-action="select-color"/);
   assert.match(screen.innerHTML, /data-action="select-size"/);
+  assert.doesNotMatch(screen.innerHTML, /Как выбрать/);
+  assert.doesNotMatch(screen.innerHTML, /Посадка и параметры модели/);
+  assert.doesNotMatch(screen.innerHTML, /Состав и уход/);
   assert.match(screen.innerHTML, /Перейти в корзину/);
 
   screen.scrollTop = 180;

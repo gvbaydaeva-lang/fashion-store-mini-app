@@ -226,6 +226,33 @@ test('админский фильтр находит опубликованны�
   assert.deepEqual(filterAdminProducts(products, '', 'out').map(({ id }) => id), ['one']);
 });
 
+test('админские фильтры одновременно отбирают категорию, наличие и новинки', () => {
+  const products = [
+    { id: 'new-in', name: 'Платье', category: 'dresses', badge: 'Новинка', adminStatus: 'published', variants: [{ stock: 2 }] },
+    { id: 'old-in', name: 'Жакет', category: 'jackets', badge: null, adminStatus: 'published', variants: [{ stock: 2 }] },
+    { id: 'new-out', name: 'Рубашка', category: 'shirts', badge: 'Новинка', adminStatus: 'published', variants: [{ stock: 0 }] },
+  ];
+
+  assert.deepEqual(
+    filterAdminProducts(products, '', 'all', { category: 'dresses', availability: 'in-stock', onlyNew: true }).map(({ id }) => id),
+    ['new-in'],
+  );
+});
+
+test('админский фильтр оставляет товары выбранного поставщика', () => {
+  const products = [
+    { id: 'one', name: 'Платье', supplier: 'Milan Fashion', adminStatus: 'published', variants: [{ stock: 2 }] },
+    { id: 'two', name: 'Жакет', supplier: 'Local Brand', adminStatus: 'published', variants: [{ stock: 2 }] },
+    { id: 'three', name: 'Рубашка', supplier: 'Milan Fashion', adminStatus: 'published', variants: [{ stock: 0 }] },
+  ];
+
+  assert.deepEqual(
+    filterAdminProducts(products, '', 'all', { supplier: 'Milan Fashion', availability: 'in-stock' })
+      .map(({ id }) => id),
+    ['one'],
+  );
+});
+
 test('матрица создаёт все сочетания и сохраняет прежний остаток', () => {
   const result = buildProductVariants(
     [{ id: 'black', name: 'Чёрный', hex: '#242424' }],

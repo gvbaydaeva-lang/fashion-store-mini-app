@@ -61,6 +61,10 @@
     adminProducts: [],
     adminQuery: '',
     adminFilter: 'all',
+    adminCategory: 'all',
+    adminSupplier: 'all',
+    adminAvailability: 'all',
+    adminOnlyNew: false,
     adminDraft: null,
     adminStep: 1,
     adminDirty: false,
@@ -182,6 +186,9 @@
     return {
       id: `admin-${Date.now().toString(36)}`,
       name: '',
+      sellerSku: '',
+      wholesalePrice: null,
+      supplier: '',
       category: 'dresses',
       price: '',
       oldPrice: null,
@@ -515,12 +522,10 @@
       <section class="choice-section" id="product-choice">
         <div class="section-heading"><h2>Цвет</h2><span>${state.selectedColorId ? escapeHtml(getColor(product, state.selectedColorId)?.name) : 'Выберите'}</span></div>
         <div class="choice-grid choice-grid--colors">${colorButtons}</div>
-        <div class="section-heading"><h2>Размер</h2><button type="button" data-action="size-guide" data-product-id="${product.id}">Как выбрать</button></div>
+        <div class="section-heading"><h2>Размер</h2></div>
         <div class="choice-grid">${sizeButtons}</div>
       </section>
       <section class="details-list card">
-        <details><summary>Посадка и параметры модели</summary><p>${escapeHtml(product.fit)} ${escapeHtml(product.model)}</p></details>
-        <details><summary>Состав и уход</summary><p>${escapeHtml(product.composition)}. ${escapeHtml(product.care)}</p></details>
         <details><summary>Доставка, обмен и возврат</summary><p>Условия в прототипе демонстрационные. Финальные правила подтверждаются магазином до запуска.</p></details>
       </section>
       <div class="product-actions">
@@ -746,8 +751,8 @@
           <span class="admin-product-row__image">${image}</span>
           <span class="admin-product-row__content">
             <strong>${escapeHtml(product.name || 'Без названия')}</strong>
-            <small>${product.price ? money(product.price) : 'Цена не указана'} · ${product.colors.length} ${product.colors.length === 1 ? 'цвет' : 'цвета'}</small>
-            <span>Остаток: ${stock}</span>
+            <small>${product.sellerSku ? `Артикул: ${escapeHtml(product.sellerSku)} · ` : ''}${product.price ? money(product.price) : 'Цена не указана'} · ${product.colors.length} ${product.colors.length === 1 ? 'цвет' : 'цвета'}</small>
+            <span>Остаток: <b>${stock}</b> · изменить в карточке</span>
             <em class="admin-status admin-status--${status.className}">${status.label}</em>
           </span>
         </button>
@@ -760,6 +765,12 @@
       state.adminProducts,
       state.adminQuery,
       state.adminFilter,
+      {
+        category: state.adminCategory,
+        supplier: state.adminSupplier,
+        availability: state.adminAvailability,
+        onlyNew: state.adminOnlyNew,
+      },
     );
     const filters = [
       { id: 'all', label: 'Все' },
@@ -767,6 +778,10 @@
       { id: 'draft', label: 'Черновики' },
       { id: 'out', label: 'Нет в наличии' },
     ];
+    const categories = Data.CATEGORIES.filter(({ id }) => id !== 'all');
+    const suppliers = [...new Set(state.adminProducts
+      .map((product) => String(product.supplier || '').trim())
+      .filter(Boolean))].sort((left, right) => left.localeCompare(right, 'ru-RU'));
     const content = `
       <section class="admin-section-heading">
         <div><p class="eyebrow">Ассортимент</p><h2>Товары</h2><p>${state.adminProducts.length} позиций в демо-каталоге</p></div>
@@ -780,6 +795,12 @@
       <div class="admin-filter-strip" aria-label="Статус товара">${filters.map((filter) => `
         <button class="${state.adminFilter === filter.id ? 'is-active' : ''}" type="button" data-action="set-admin-filter" data-filter="${filter.id}" aria-pressed="${state.adminFilter === filter.id}">${filter.label}</button>
       `).join('')}</div>
+      <div class="admin-filter-tools">
+        <label class="admin-filter-select"><span class="sr-only">Категория</span><select data-action="set-admin-category"><option value="all">Все категории</option>${categories.map((category) => `<option value="${category.id}" ${state.adminCategory === category.id ? 'selected' : ''}>${escapeHtml(category.title)}</option>`).join('')}</select></label>
+        <label class="admin-filter-select"><span class="sr-only">Поставщик</span><select data-action="set-admin-supplier"><option value="all">Все поставщики</option>${suppliers.map((supplier) => `<option value="${escapeHtml(supplier)}" ${state.adminSupplier === supplier ? 'selected' : ''}>${escapeHtml(supplier)}</option>`).join('')}</select></label>
+        ${['all', 'in-stock', 'out-of-stock'].map((id) => `<button class="filter-chip ${state.adminAvailability === id ? 'is-active' : ''}" type="button" data-action="set-admin-availability" data-availability="${id}">${id === 'all' ? 'Любое наличие' : id === 'in-stock' ? 'В наличии' : 'Нет остатка'}</button>`).join('')}
+        <button class="filter-chip ${state.adminOnlyNew ? 'is-active' : ''}" type="button" data-action="toggle-admin-new" aria-pressed="${state.adminOnlyNew}">Новинки</button>
+      </div>
       ${products.length
         ? `<div class="admin-product-list">${products.map(renderAdminProductRow).join('')}</div>`
         : `<section class="empty-state card"><span aria-hidden="true">${icon('package')}</span><h2>${state.adminProducts.length ? 'Ничего не найдено' : 'Товаров пока нет'}</h2><p>${state.adminProducts.length ? 'Измени запрос или выбери другой статус.' : 'Добавь первый товар — он сохранится как черновик.'}</p><button class="primary-button" type="button" data-action="add-admin-product">Добавить товар</button></section>`}
@@ -835,6 +856,7 @@
         <section class="admin-form-section card">
           <label><span>Название товара</span><input name="name" type="text" maxlength="80" value="${escapeHtml(product.name)}" placeholder="Например, Платье Миди" autocomplete="off"></label>
           ${adminFieldError('name')}
+          <label><span>Артикул продавца</span><input name="sellerSku" type="text" maxlength="40" value="${escapeHtml(product.sellerSku)}" placeholder="Например, DR-204" autocomplete="off"></label>
           <label><span>Категория</span><select name="category">${categories}</select></label>
         </section>
         ${adminEditorActions('Продолжить')}
@@ -849,6 +871,8 @@
           <div class="admin-price-grid">
             <label><span>Цена, ₽</span><input name="price" type="number" min="1" step="1" inputmode="numeric" value="${product.price || ''}" placeholder="5990"></label>
             <label><span>Старая цена, ₽</span><input name="oldPrice" type="number" min="1" step="1" inputmode="numeric" value="${product.oldPrice || ''}" placeholder="Необязательно"></label>
+            <label><span>Опт, ₽</span><input name="wholesalePrice" type="number" min="1" step="1" inputmode="numeric" value="${product.wholesalePrice || ''}" placeholder="Необязательно"></label>
+            <label><span>Поставщик</span><input name="supplier" type="text" maxlength="80" value="${escapeHtml(product.supplier)}" placeholder="Например, Milan Fashion" autocomplete="off"></label>
           </div>
           ${adminFieldError('price')}${adminFieldError('oldPrice')}
           <label><span>Описание</span><textarea name="description" rows="4" maxlength="500" placeholder="Крой, длина и главные детали">${escapeHtml(product.description)}</textarea></label>
@@ -884,7 +908,7 @@
     return `
       <form id="admin-product-form" class="admin-editor-form" data-step="3" novalidate>
         <section class="admin-form-section card">
-          <div class="admin-form-heading"><div><p class="eyebrow">Матрица наличия</p><h2>Цвета и размеры</h2></div><span>${product.variants.length} вариантов</span></div>
+          <div class="admin-form-heading"><div><p class="eyebrow">Количество товара</p><h2>Остатки по вариантам</h2><p>Введи число отдельно для каждого цвета и размера.</p></div><span>${product.variants.length} вариантов</span></div>
           <fieldset><legend>Цвета</legend><div class="choice-grid choice-grid--colors">${colorChips}</div>${adminFieldError('colors')}</fieldset>
           <fieldset><legend>Размеры</legend><div class="choice-grid choice-grid--compact">${sizeChips}</div>${adminFieldError('sizes')}</fieldset>
         </section>
@@ -904,6 +928,7 @@
           <p class="eyebrow">${escapeHtml(Data.CATEGORIES.find(({ id }) => id === product.category)?.title || 'Без категории')}</p>
           <h2>${escapeHtml(product.name || 'Без названия')}</h2>
           <p class="product-price"><b>${product.price ? money(product.price) : 'Цена не указана'}</b>${product.oldPrice ? `<s>${money(product.oldPrice)}</s>` : ''}</p>
+          ${product.sellerSku ? `<p class="choice-hint">Артикул: ${escapeHtml(product.sellerSku)}</p>` : ''}
           <p>${escapeHtml(product.description || 'Описание пока не добавлено.')}</p>
           <div class="choice-grid choice-grid--colors">${colors}</div>
           <p class="choice-hint">Размеры: ${sizes.length ? sizes.join(', ') : 'не указаны'}</p>
@@ -939,16 +964,70 @@
 
   function renderAdminEditor() {
     const product = state.adminDraft || createBlankAdminProduct();
-    const steps = {
-      1: renderAdminStepOne,
-      2: renderAdminStepTwo,
-      3: renderAdminStepThree,
-      4: renderAdminStepFour,
-    };
+    const photos = product.images.map((image, index) => `
+      <figure class="admin-photo">
+        <img src="${escapeHtml(image)}" alt="Фото товара ${index + 1}">
+        ${index === 0 ? '<figcaption>Главное</figcaption>' : `<button type="button" data-action="admin-photo-main" data-index="${index}">Сделать главной</button>`}
+        <button class="icon-button" type="button" data-action="admin-photo-remove" data-index="${index}" aria-label="Удалить фото ${index + 1}">${icon('close')}</button>
+      </figure>`).join('');
+    const categories = Data.CATEGORIES.filter(({ id }) => id !== 'all').map((category) => `
+      <option value="${category.id}" ${product.category === category.id ? 'selected' : ''}>${escapeHtml(category.title)}</option>`).join('');
+    const colorChips = ADMIN_COLORS.map((color) => {
+      const selected = product.colors.some(({ id }) => id === color.id);
+      return `<button class="color-button ${selected ? 'is-active' : ''}" type="button" data-action="toggle-admin-color" data-color-id="${color.id}" aria-pressed="${selected}"><span style="--swatch:${color.hex}" aria-hidden="true"></span>${color.name}</button>`;
+    }).join('');
+    const sizeChips = ADMIN_SIZES.map((size) => `
+      <button class="chip ${product.sizes.includes(size) ? 'is-active' : ''}" type="button" data-action="toggle-admin-size" data-size="${size}" aria-pressed="${product.sizes.includes(size)}">${size}</button>`).join('');
+    const variantGroups = product.colors.map((color) => {
+      const variants = product.variants.filter(({ colorId }) => colorId === color.id);
+      return `
+        <details class="admin-variant-group card" open>
+          <summary><span><i style="--swatch:${color.hex}"></i><strong>${escapeHtml(color.name)}</strong></span><small>${variants.filter(({ enabled }) => enabled !== false).length} размеров</small></summary>
+          <div>${variants.map((variant) => `
+            <label class="admin-variant-row ${variant.enabled === false ? 'is-disabled' : ''}">
+              <button type="button" data-action="toggle-admin-variant" data-color-id="${variant.colorId}" data-size="${variant.size}" aria-pressed="${variant.enabled !== false}">${variant.enabled === false ? 'Выкл.' : 'Вкл.'}</button>
+              <strong>${variant.size}</strong>
+              <span>Количество</span>
+              <input type="number" min="0" step="1" inputmode="numeric" value="${variant.stock}" data-action="admin-stock" data-color-id="${variant.colorId}" data-size="${variant.size}" ${variant.enabled === false ? 'disabled' : ''} aria-label="Количество ${escapeHtml(color.name)}, размер ${variant.size}">
+            </label>`).join('')}</div>
+        </details>`;
+    }).join('');
     return `
       ${adminEditorHeader()}
-      ${adminProgress()}
-      ${steps[state.adminStep](product)}`;
+      <form id="admin-product-form" class="admin-editor-form admin-editor-form--single" novalidate>
+        <section class="admin-form-section card">
+          <div class="admin-form-heading"><div><p class="eyebrow">Карточка товара</p><h2>Основная информация</h2></div><span>${product.images.length}/4 фото</span></div>
+          ${photos ? `<div class="admin-photo-grid">${photos}</div>` : `<div class="admin-photo-empty">${icon('image')}<strong>Добавь фотографию</strong><span>Вертикальное фото лучше покажет одежду</span></div>`}
+          ${adminFieldError('images')}
+          <div class="admin-photo-actions">
+            <label class="secondary-button">${icon('camera')}<span>Камера</span><input class="sr-only" type="file" accept="image/*" capture="environment" data-action="admin-photo-input"></label>
+            <label class="secondary-button">${icon('image')}<span>Из галереи</span><input class="sr-only" type="file" accept="image/*" multiple data-action="admin-photo-input"></label>
+          </div>
+          <div class="admin-editor-grid">
+            <label><span>Название товара</span><input name="name" type="text" maxlength="80" value="${escapeHtml(product.name)}" placeholder="Например, Платье Миди" autocomplete="off"></label>
+            <label><span>Артикул продавца</span><input name="sellerSku" type="text" maxlength="40" value="${escapeHtml(product.sellerSku)}" placeholder="Например, DR-204" autocomplete="off"></label>
+            <label><span>Категория</span><select name="category">${categories}</select></label>
+            <label><span>Цена, ₽</span><input name="price" type="number" min="1" step="1" inputmode="numeric" value="${product.price || ''}" placeholder="5990"></label>
+            <label><span>Старая цена, ₽</span><input name="oldPrice" type="number" min="1" step="1" inputmode="numeric" value="${product.oldPrice || ''}" placeholder="Необязательно"></label>
+          </div>
+          ${adminFieldError('name')}${adminFieldError('price')}${adminFieldError('oldPrice')}
+        </section>
+        <section class="admin-form-section card">
+          <div class="admin-form-heading"><div><p class="eyebrow">Текст карточки</p><h2>Описание товара</h2><p>Расскажи о крое, составе, посадке и уходе одним текстом.</p></div></div>
+          <label><span>Описание товара</span><textarea name="description" rows="4" maxlength="500" placeholder="Крой, длина и главные детали">${escapeHtml(product.description)}</textarea></label>
+        </section>
+        <section class="admin-form-section card">
+          <div class="admin-form-heading"><div><p class="eyebrow">Количество товара</p><h2>Остатки по вариантам</h2><p>Выбери цвета и размеры, затем введи количество напротив каждого варианта.</p></div><span>${product.variants.length} вариантов</span></div>
+          <fieldset><legend>Цвета</legend><div class="choice-grid choice-grid--colors">${colorChips}</div>${adminFieldError('colors')}</fieldset>
+          <fieldset><legend>Размеры</legend><div class="choice-grid choice-grid--compact">${sizeChips}</div>${adminFieldError('sizes')}</fieldset>
+        </section>
+        ${variantGroups || `<section class="empty-state card"><span aria-hidden="true">${icon('grid')}</span><h2>Сначала выбери варианты</h2><p>После выбора цвета и размера здесь появятся поля для количества.</p></section>`}
+        ${adminFieldError('variants')}
+        <div class="admin-editor-actions admin-editor-actions--final">
+          <button class="secondary-button" type="button" data-action="${product.adminStatus === 'published' ? 'save-admin-changes' : 'save-admin-draft'}">${product.adminStatus === 'published' ? 'Сохранить изменения' : 'Сохранить черновик'}</button>
+          ${product.adminStatus === 'published' ? '<span></span>' : '<button class="primary-button" type="button" data-action="publish-admin-product">Опубликовать</button>'}
+        </div>
+      </form>`;
   }
 
   function formatOrderTime(createdAt) {
@@ -1136,18 +1215,6 @@
     `, { title: 'Сортировка каталога' });
   }
 
-  function openSizeGuide(productId) {
-    const product = getProduct(productId);
-    const rows = Object.entries(product.measurements).map(([size, value]) => `<tr><th>${size}</th><td>${escapeHtml(value)}</td></tr>`).join('');
-    openSheet(`
-      <div class="sheet__header"><p class="eyebrow">${escapeHtml(product.name)}</p><h2>Размерная сетка</h2></div>
-      <p>Сравните замеры вещи со своей одеждой с похожей посадкой.</p>
-      <table class="size-table"><thead><tr><th>Размер</th><th>Замеры, см</th></tr></thead><tbody>${rows}</tbody></table>
-      <p class="choice-hint">${escapeHtml(product.fit)}</p>
-      <button class="primary-button" type="button" data-action="close-sheet">Понятно</button>
-    `, { title: 'Размерная сетка' });
-  }
-
   function openRules() {
     openSheet(`
       <div class="sheet__header"><p class="eyebrow">Важно</p><h2>Оплата и возврат</h2></div>
@@ -1233,21 +1300,17 @@
   function syncAdminForm(form) {
     if (!form || !state.adminDraft) return;
     const formData = new FormData(form);
-    const step = Number(form.dataset.step);
-    if (step === 1) {
-      state.adminDraft.name = String(formData.get('name') || '').trim();
-      state.adminDraft.category = String(formData.get('category') || 'dresses');
-    }
-    if (step === 2) {
-      const price = Number(formData.get('price'));
-      const oldPriceValue = String(formData.get('oldPrice') || '').trim();
-      state.adminDraft.price = Number.isInteger(price) && price > 0 ? price : '';
-      state.adminDraft.oldPrice = oldPriceValue ? Number(oldPriceValue) : null;
-      state.adminDraft.description = String(formData.get('description') || '').trim();
-      state.adminDraft.composition = String(formData.get('composition') || '').trim();
-      state.adminDraft.fit = String(formData.get('fit') || '').trim();
-      state.adminDraft.care = String(formData.get('care') || '').trim();
-    }
+    state.adminDraft.name = String(formData.get('name') || '').trim();
+    state.adminDraft.sellerSku = String(formData.get('sellerSku') || '').trim();
+    state.adminDraft.category = String(formData.get('category') || 'dresses');
+    const price = Number(formData.get('price'));
+    const oldPriceValue = String(formData.get('oldPrice') || '').trim();
+    state.adminDraft.price = Number.isInteger(price) && price > 0 ? price : '';
+    state.adminDraft.oldPrice = oldPriceValue ? Number(oldPriceValue) : null;
+    const wholesalePriceValue = String(formData.get('wholesalePrice') || '').trim();
+    state.adminDraft.wholesalePrice = wholesalePriceValue ? Number(wholesalePriceValue) : null;
+    state.adminDraft.supplier = String(formData.get('supplier') || '').trim();
+    state.adminDraft.description = String(formData.get('description') || '').trim();
     state.adminDirty = true;
   }
 
@@ -1317,12 +1380,6 @@
   }
 
   function adminEditorBack() {
-    if (state.adminStep > 1) {
-      state.adminStep -= 1;
-      state.adminErrors = {};
-      render();
-      return;
-    }
     if (!state.adminDirty) {
       state.adminDraft = null;
       leaveAdminEditor();
@@ -1553,7 +1610,6 @@
     },
     'select-color': (control) => selectColor(control.dataset.colorId),
     'select-size': (control) => selectSize(control.dataset.size),
-    'size-guide': (control) => openSizeGuide(control.dataset.productId),
     'add-to-cart': () => addSelectedProduct(false),
     'buy-now': () => addSelectedProduct(true),
     'cart-decrease': (control) => changeCartQuantity(control.dataset.key, -1),
@@ -1592,6 +1648,24 @@
       state.adminFilter = ['published', 'draft', 'out'].includes(control.dataset.filter)
         ? control.dataset.filter
         : 'all';
+      render();
+    },
+    'set-admin-category': (control) => {
+      state.adminCategory = control.value || 'all';
+      render();
+    },
+    'set-admin-supplier': (control) => {
+      state.adminSupplier = control.value || 'all';
+      render();
+    },
+    'set-admin-availability': (control) => {
+      state.adminAvailability = ['in-stock', 'out-of-stock'].includes(control.dataset.availability)
+        ? control.dataset.availability
+        : 'all';
+      render();
+    },
+    'toggle-admin-new': () => {
+      state.adminOnlyNew = !state.adminOnlyNew;
       render();
     },
     'admin-editor-back': adminEditorBack,
@@ -1637,13 +1711,15 @@
 
   document.addEventListener('click', (event) => {
     const control = event.target.closest('[data-action]');
-    if (!control || control.disabled || control.matches('input[data-action]')) return;
+    if (!control || control.disabled || control.matches('input[data-action], select[data-action]')) return;
     actions[control.dataset.action]?.(control, event);
   });
 
   document.addEventListener('change', (event) => {
     const control = event.target.closest('[data-action]');
     if (control?.dataset.action === 'toggle-new') actions['toggle-new'](control);
+    if (control?.dataset.action === 'set-admin-category') actions['set-admin-category'](control);
+    if (control?.dataset.action === 'set-admin-supplier') actions['set-admin-supplier'](control);
     if (control?.dataset.action === 'admin-photo-input') {
       handleAdminPhotos(control.files || []);
       control.value = '';
