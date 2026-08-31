@@ -2,7 +2,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { PRODUCTS } = require('../data.js');
 const {
   filterProducts,
   sortProducts,
@@ -25,6 +24,19 @@ const {
   getAdminProductStatus,
   popScreenHistory,
 } = require('../core.js');
+
+const TEST_PRODUCTS = [
+  {
+    id: 'dress-test', category: 'dresses', price: 5990, badge: 'Новинка',
+    colors: [{ id: 'blue', name: 'Голубой', hex: '#9ec9e6' }],
+    variants: [{ colorId: 'blue', size: 'M', stock: 2 }, { colorId: 'blue', size: 'L', stock: 0 }],
+  },
+  {
+    id: 'jacket-test', category: 'jackets', price: 9990, badge: null,
+    colors: [{ id: 'black', name: 'Чёрный', hex: '#242424' }],
+    variants: [{ colorId: 'black', size: 'S', stock: 1 }],
+  },
+];
 
 test('оффер показывается без маркера и не повторяется после просмотра', () => {
   assert.equal(shouldShowFirstOpenOffer(null), true);
@@ -49,7 +61,7 @@ test('ссылка Main Mini App открывает приложение, а н�
 });
 
 test('фильтр оставляет товары нужной категории и доступного размера', () => {
-  const result = filterProducts(PRODUCTS, {
+  const result = filterProducts(TEST_PRODUCTS, {
     category: 'dresses',
     sizes: ['M'],
     colors: [],
@@ -65,17 +77,17 @@ test('фильтр оставляет товары нужной категори
 });
 
 test('сортировка по цене не изменяет исходный массив', () => {
-  const original = PRODUCTS.map(({ id }) => id);
-  const sorted = sortProducts(PRODUCTS, 'price-asc');
+  const original = TEST_PRODUCTS.map(({ id }) => id);
+  const sorted = sortProducts(TEST_PRODUCTS, 'price-asc');
 
-  assert.deepEqual(PRODUCTS.map(({ id }) => id), original);
+  assert.deepEqual(TEST_PRODUCTS.map(({ id }) => id), original);
   assert.ok(sorted.every((product, index) => (
     index === 0 || sorted[index - 1].price <= product.price
   )));
 });
 
 test('варианты возвращают размеры и остатки выбранного цвета', () => {
-  const product = PRODUCTS[0];
+  const product = TEST_PRODUCTS[0];
   const colorId = product.colors[0].id;
   const options = getAvailableOptions(product, colorId);
 

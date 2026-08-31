@@ -16,6 +16,7 @@
   const ORDER_KEY = 'fashion-store-order-v1';
   const OFFER_KEY = 'fashion-store-offer-seen-v1';
   const ADMIN_PRODUCTS_KEY = 'fashion-store-admin-products-v1';
+  const PREORDER_RESET_KEY = 'fashion-store-preorder-reset-v1';
   const MAIN_APP_URL = Core.buildMainMiniAppUrl('fashion_katalog_bot');
   const OFFER_BOT_URL = 'https://t.me/fashion_katalog_bot?start=from_app';
   const SHARE_TEXT = 'Посмотри каталог «Фэшн стор» в Telegram';
@@ -133,6 +134,12 @@
     state.customer.name = getTelegramFirstName() === 'Гость' ? '' : getTelegramFirstName();
   }
 
+  function applyApprovedDemoReset() {
+    if (window.localStorage.getItem(PREORDER_RESET_KEY) === '1') return;
+    [CART_KEY, ORDER_KEY, ADMIN_PRODUCTS_KEY].forEach((key) => window.localStorage.removeItem(key));
+    window.localStorage.setItem(PREORDER_RESET_KEY, '1');
+  }
+
   function saveState() {
     window.localStorage.setItem(CART_KEY, JSON.stringify(state.cart));
     if (state.order) window.localStorage.setItem(ORDER_KEY, JSON.stringify(state.order));
@@ -189,7 +196,7 @@
       sellerSku: '',
       wholesalePrice: null,
       supplier: '',
-      category: 'dresses',
+      category: 'all',
       price: '',
       oldPrice: null,
       badge: null,
@@ -406,16 +413,8 @@
   }
 
   function renderHome() {
-    const catalogProducts = getCatalogProducts();
-    const newProducts = catalogProducts.filter(({ badge }) => badge === 'Новинка').slice(0, 4);
-    const categoryCards = Data.CATEGORIES.filter(({ id }) => id !== 'all').map((category) => {
-      const product = catalogProducts.find(({ category: productCategory }) => productCategory === category.id);
-      if (!product) return '';
-      return `
-        <button class="category-card" type="button" data-action="open-category" data-category="${category.id}">
-          <img src="${product.images[0]}" alt="" loading="lazy"><span>${escapeHtml(category.title)}</span>
-        </button>`;
-    }).join('');
+    const terms = Object.values(Data.STORE.preorderTerms || {}).map((term) => `
+      <li class="preorder-terms__item">${escapeHtml(term)}</li>`).join('');
 
     return `
       <header class="home-header">
@@ -425,23 +424,13 @@
       <section class="hero card">
         <span class="hero__orb hero__orb--one" aria-hidden="true"></span>
         <span class="hero__orb hero__orb--two" aria-hidden="true"></span>
-        <p class="eyebrow">Новая коллекция</p>
+        <p class="eyebrow">Fashion Store</p>
         <h2>${Data.STORE.tagline}</h2>
-        <p>Лёгкие сочетания, которые работают весь день.</p>
-        <button class="secondary-button" type="button" data-action="open-new">Смотреть новинки</button>
+        <p>${escapeHtml(Data.STORE.description)}</p>
+        <button class="secondary-button" type="button" data-action="navigate" data-screen="catalog">Открыть каталог</button>
       </section>
-      <section class="section-block">
-        <div class="section-heading"><h2>Категории</h2><button type="button" data-action="navigate" data-screen="catalog">Все</button></div>
-        <div class="category-strip">${categoryCards}</div>
-      </section>
-      <section class="section-block">
-        <div class="section-heading"><div><p class="eyebrow">Только поступили</p><h2>Новинки</h2></div><button type="button" data-action="open-new">Смотреть все</button></div>
-        <div class="product-grid">${newProducts.map(productCard).join('')}</div>
-      </section>
-      <section class="editorial-card card">
-        <p class="eyebrow">Лёгкие слои</p><h2>Городской гардероб</h2>
-        <p>Жакеты, трикотаж и свободные рубашки для переменчивой погоды.</p>
-        <button class="text-button text-button--icon" type="button" data-action="open-category" data-category="jackets">Открыть подборку ${icon('chevron-right')}</button>
+      <section class="preorder-summary" aria-label="Условия предзаказа">
+        <ul class="preorder-terms preorder-terms--compact">${terms}</ul>
       </section>
       <button class="share-button" type="button" data-action="share-bot">${icon('share')}<span>Поделиться с другом</span></button>`;
   }
@@ -462,6 +451,11 @@
 
   function renderCatalog() {
     const catalogProducts = getCatalogProducts();
+    if (!catalogProducts.length) {
+      return `
+        ${pageHeader('Каталог')}
+        <section class="empty-state card"><span aria-hidden="true">${icon('grid')}</span><h2>Ассортимент скоро появится</h2><p>Следите за обновлениями — новые модели будут здесь.</p><button class="primary-button" type="button" data-action="navigate" data-screen="store">Условия предзаказа</button></section>`;
+    }
     const products = Core.sortProducts(
       Core.filterProducts(catalogProducts, state.filters),
       state.sortId,
@@ -505,6 +499,9 @@
         <strong>${size}</strong><small>${status}</small>
       </button>`;
     }).join('');
+    const selectedVariant = state.selectedColorId && state.selectedSize
+      ? getVariant(product, state.selectedColorId, state.selectedSize)
+      : null;
 
     return `
       ${productBackHeader()}
@@ -524,6 +521,7 @@
         <div class="choice-grid choice-grid--colors">${colorButtons}</div>
         <div class="section-heading"><h2>Размер</h2></div>
         <div class="choice-grid">${sizeButtons}</div>
+        ${selectedVariant?.stock === 1 ? '<p class="low-stock-text">Осталась 1 шт.</p>' : ''}
       </section>
       <section class="details-list card">
         <details><summary>Доставка, обмен и возврат</summary><p>Условия в прототипе демонстрационные. Финальные правила подтверждаются магазином до запуска.</p></details>
@@ -1694,6 +1692,7 @@
   function init() {
     hydrateStaticIcons();
     applyViewportLayout();
+    applyApprovedDemoReset();
     loadPersistedState();
     applyTelegramTheme();
     tg?.ready();
@@ -1780,6 +1779,6 @@
     }
   }, true);
 
-  window.FashionStoreApp = { init, navigate, goBack, render };
+  window.FashionStoreApp = { init, navigate, goBack, render, selectColor, selectSize };
   document.addEventListener('DOMContentLoaded', init, { once: true });
 })(window, document);

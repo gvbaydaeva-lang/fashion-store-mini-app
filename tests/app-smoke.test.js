@@ -43,7 +43,7 @@ function createElement() {
   };
 }
 
-function loadApp() {
+function loadApp(initialStorage = {}) {
   const elements = new Map([
     ['#screen', createElement()],
     ['#app', createElement()],
@@ -52,7 +52,10 @@ function loadApp() {
     ['#toast', createElement()],
     ['#modal-root', createElement()],
   ]);
-  const storage = new Map([['fashion-store-offer-seen-v1', 'seen']]);
+  const storage = new Map([
+    ['fashion-store-offer-seen-v1', 'seen'],
+    ...Object.entries(initialStorage),
+  ]);
   const document = {
     documentElement: createElement(),
     querySelector(selector) { return elements.get(selector) || null; },
@@ -88,8 +91,39 @@ function loadApp() {
     Set,
   }, { filename: 'app.js' });
   window.FashionStoreApp.init();
-  return { app: window.FashionStoreApp, screen: elements.get('#screen') };
+  return { app: window.FashionStoreApp, screen: elements.get('#screen'), storage };
 }
+
+test('новая версия один раз очищает только утверждённые локальные демо-ключи', () => {
+  const { storage } = loadApp({
+    'fashion-store-cart-v1': '[{"key":"demo"}]',
+    'fashion-store-order-v1': '{"id":"FS-1"}',
+    'fashion-store-admin-products-v1': '[{"id":"dress-air"}]',
+  });
+
+  assert.equal(storage.get('fashion-store-cart-v1'), undefined);
+  assert.equal(storage.get('fashion-store-order-v1'), undefined);
+  assert.equal(storage.get('fashion-store-admin-products-v1'), undefined);
+  assert.equal(storage.get('fashion-store-preorder-reset-v1'), '1');
+});
+
+test('главная использует утверждённый текст и четыре условия предзаказа', () => {
+  const { screen } = loadApp();
+
+  assert.match(screen.innerHTML, /Трендовые модели без лишних наценок/);
+  assert.match(screen.innerHTML, /Стиль, который не требует переплаты/);
+  assert.match(screen.innerHTML, /Полная оплата при оформлении предзаказа/);
+  assert.match(screen.innerHTML, /Цена указана с учётом доставки до Элисты/);
+  assert.match(screen.innerHTML, /preorder-terms--compact/);
+  assert.doesNotMatch(screen.innerHTML, /preorder-terms card/);
+});
+
+test('пустой каталог объясняет, что ассортимент скоро появится', () => {
+  const { app, screen } = loadApp();
+
+  app.navigate('catalog');
+  assert.match(screen.innerHTML, /Ассортимент скоро появится/);
+});
 
 test('административные экраны рендерятся из реального app.js без runtime-ошибки', () => {
   const { app, screen } = loadApp();
@@ -99,7 +133,7 @@ test('административные экраны рендерятся из р
 
   app.navigate('seller-products');
   assert.match(screen.innerHTML, /Добавить товар/);
-  assert.match(screen.innerHTML, /Платье Воздух/);
+  assert.doesNotMatch(screen.innerHTML, /Платье Воздух/);
 
   app.navigate('seller-product-edit');
   assert.doesNotMatch(screen.innerHTML, /Шаг 1 из 4/);
@@ -112,18 +146,25 @@ test('административные экраны рендерятся из р
   assert.doesNotMatch(screen.innerHTML, /name="care"/);
 });
 
-test('карточка сразу показывает цвет и размер и сохраняет прокрутку при перерисовке', () => {
-  const { app, screen } = loadApp();
+test('остаток одной единицы показывается покупателю простым текстом', () => {
+  const product = {
+    id: 'single-item', name: 'Платье', category: 'all', price: 4990, oldPrice: null,
+    images: ['assets/preorder-hero.png'], colors: [{ id: 'black', name: 'Чёрный', hex: '#242424' }],
+    variants: [{ colorId: 'black', size: 'S', stock: 1 }], adminStatus: 'published',
+    description: '', composition: '', care: '', fit: '', model: '', measurements: {},
+  };
+  const { app, screen } = loadApp({
+    'fashion-store-preorder-reset-v1': '1',
+    'fashion-store-admin-products-v1': JSON.stringify([product]),
+  });
 
-  app.navigate('product', { productId: 'dress-air' });
+  app.navigate('product', { productId: 'single-item' });
   assert.match(screen.innerHTML, /data-action="select-color"/);
   assert.match(screen.innerHTML, /data-action="select-size"/);
-  assert.doesNotMatch(screen.innerHTML, /Как выбрать/);
-  assert.doesNotMatch(screen.innerHTML, /Посадка и параметры модели/);
-  assert.doesNotMatch(screen.innerHTML, /Состав и уход/);
-  assert.match(screen.innerHTML, /Перейти в корзину/);
+  assert.doesNotMatch(screen.innerHTML, /Осталась 1 шт\./);
 
-  screen.scrollTop = 180;
-  app.render({ preserveScroll: true });
-  assert.equal(screen.scrollTop, 180);
+  app.selectColor('black');
+  app.selectSize('S');
+  assert.match(screen.innerHTML, /Осталась 1 шт\./);
+  assert.doesNotMatch(screen.innerHTML, /<span class="badge">Осталась 1 шт/);
 });
