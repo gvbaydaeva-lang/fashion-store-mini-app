@@ -101,13 +101,21 @@
     });
   }
 
-  function applyViewportLayout() {
-    // visualViewport меняется при фокусе и системном увеличении iOS. Ширина Mini App
-    // должна оставаться шириной окна, иначе фиксированные элементы «уезжают».
+  function applyViewportWidth() {
+    // Ширину меняем только при открытии Mini App или повороте телефона. События
+    // клавиатуры и сохранения в Telegram не должны менять раскладку формы.
     const viewportWidth = window.innerWidth;
-    const viewportHeight = tg?.viewportHeight || window.visualViewport?.height || window.innerHeight;
     document.documentElement.style.setProperty('--app-width', `${UI.getMiniAppWidth(viewportWidth)}px`);
+  }
+
+  function applyViewportHeight() {
+    const viewportHeight = tg?.viewportHeight || window.visualViewport?.height || window.innerHeight;
     if (viewportHeight) document.documentElement.style.setProperty('--app-height', `${Math.round(viewportHeight)}px`);
+  }
+
+  function applyViewportLayout() {
+    applyViewportWidth();
+    applyViewportHeight();
   }
 
   function escapeHtml(value) {
@@ -1895,8 +1903,8 @@
     tg?.expand();
     tg?.BackButton?.onClick(goBack);
     tg?.onEvent?.('themeChanged', applyTelegramTheme);
-    tg?.onEvent?.('viewportChanged', applyViewportLayout);
-    window.addEventListener('resize', applyViewportLayout);
+    tg?.onEvent?.('viewportChanged', applyViewportHeight);
+    window.addEventListener('orientationchange', applyViewportLayout);
     window.setTimeout(() => {
       render();
       showFirstOpenOffer();

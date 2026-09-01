@@ -10,6 +10,7 @@ const Core = require('../core.js');
 const UI = require('../ui.js');
 
 const appSource = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+const indexSource = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 
 function createClassList() {
   const values = new Set();
@@ -99,6 +100,14 @@ function loadApp(initialStorage = {}, api = null) {
 test('админ-панель не меняет ширину при изменении visualViewport от фокуса', () => {
   assert.doesNotMatch(appSource, /window\.visualViewport\?\.width/);
   assert.doesNotMatch(appSource, /window\.visualViewport\?\.addEventListener\('resize', applyViewportLayout\)/);
+  assert.doesNotMatch(appSource, /tg\?\.onEvent\?\.\('viewportChanged', applyViewportLayout\)/);
+  assert.doesNotMatch(appSource, /window\.addEventListener\('resize', applyViewportLayout\)/);
+  assert.match(appSource, /tg\?\.onEvent\?\.\('viewportChanged', applyViewportHeight\)/);
+});
+
+test('Mini App запрещает автоматическое увеличение страницы в мобильном WebView', () => {
+  assert.match(indexSource, /maximum-scale=1/);
+  assert.match(indexSource, /user-scalable=no/);
 });
 
 test('новая версия один раз очищает только утверждённые локальные демо-ключи', () => {
