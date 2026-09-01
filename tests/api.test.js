@@ -160,4 +160,5 @@ test('пустые необязательные цены отправляютс�
   assert.equal(body.product.price, 0);
   assert.equal(body.product.old_price, null);
   assert.equal(body.product.wholesale_price, null);
+  assert.equal(body.product.seller_sku, null);
 });

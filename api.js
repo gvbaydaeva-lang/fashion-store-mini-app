@@ -23,6 +23,11 @@
     return Number.isFinite(number) ? number : value;
   }
 
+  function optionalText(value) {
+    const text = String(value ?? '').trim();
+    return text ? text : null;
+  }
+
   function requiredNumber(value) {
     const number = optionalNumber(value);
     return number == null || number === '' ? 0 : number;
@@ -84,7 +89,7 @@
       price: requiredNumber(product?.price),
       old_price: optionalNumber(product?.oldPrice),
       badge: product?.badge ?? null,
-      seller_sku: product?.sellerSku ?? '',
+      seller_sku: optionalText(product?.sellerSku),
       wholesale_price: optionalNumber(product?.wholesalePrice),
       supplier: product?.supplier ?? '',
       description: product?.description ?? '',
