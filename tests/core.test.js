@@ -19,6 +19,8 @@ const {
   getPublishedProducts,
   filterAdminProducts,
   buildProductVariants,
+  normalizeAdminOptionList,
+  createAdminCategory,
   validateAdminProduct,
   duplicateAdminProduct,
   getAdminProductStatus,
@@ -286,6 +288,18 @@ test('матрица вариантов не мутирует старые зн�
 
   assert.equal(result[0].enabled, false);
   assert.equal(previous[0].stock, 3);
+});
+
+test('ручные цвета и размеры принимают запятые и переносы строк, убирают дубли', () => {
+  assert.deepEqual(normalizeAdminOptionList('Чёрный, молочный\nЧёрный'), ['Чёрный', 'молочный']);
+  assert.deepEqual(normalizeAdminOptionList('42, 44\nXL'), ['42', '44', 'XL']);
+});
+
+test('пользовательская категория получает стабильный id и название для списка', () => {
+  assert.deepEqual(createAdminCategory('  Верхняя одежда  '), {
+    id: 'custom-верхняя-одежда',
+    title: 'Верхняя одежда',
+  });
 });
 
 test('публикация требует фото, название, цену, цвет и размер', () => {

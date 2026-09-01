@@ -180,6 +180,23 @@
     }));
   }
 
+  function normalizeAdminOptionList(value) {
+    const source = Array.isArray(value) ? value : String(value || '').split(/[\n,]+/);
+    const seen = new Set();
+    return source.map((item) => String(item || '').trim()).filter((item) => {
+      const key = item.toLocaleLowerCase('ru-RU');
+      if (!item || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  function createAdminCategory(value) {
+    const title = String(value || '').trim();
+    const slug = title.toLocaleLowerCase('ru-RU').replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '');
+    return { id: `custom-${slug}`, title };
+  }
+
   function validateAdminProduct(product, step = 4) {
     const errors = {};
     const shouldValidate = (targetStep) => step === 4 || step === targetStep;
@@ -260,6 +277,8 @@
     getPublishedProducts,
     filterAdminProducts,
     buildProductVariants,
+    normalizeAdminOptionList,
+    createAdminCategory,
     validateAdminProduct,
     duplicateAdminProduct,
     getAdminProductStatus,

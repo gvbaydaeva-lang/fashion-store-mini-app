@@ -43,7 +43,7 @@ function createElement() {
   };
 }
 
-function loadApp(initialStorage = {}) {
+function loadApp(initialStorage = {}, api = null) {
   const elements = new Map([
     ['#screen', createElement()],
     ['#app', createElement()],
@@ -66,6 +66,7 @@ function loadApp(initialStorage = {}) {
     FashionStoreData: Data,
     FashionStoreCore: Core,
     FashionStoreUI: UI,
+    FashionStoreApi: api,
     HTMLImageElement: class HTMLImageElement {},
     document,
     innerHeight: 800,
@@ -125,6 +126,30 @@ test('пустой каталог объясняет, что ассортиме�
   assert.match(screen.innerHTML, /Ассортимент скоро появится/);
 });
 
+test('приложение загружает покупательский каталог через API-клиент', async () => {
+  const remoteProduct = {
+    id: 'remote-dress',
+    name: 'Удалённое платье',
+    price: 4990,
+    category: 'all',
+    images: ['https://cdn.example/dress.webp'],
+    colors: [{ id: 'black', name: 'Чёрный', hex: '#242424' }],
+    sizes: ['S'],
+    variants: [{ colorId: 'black', size: 'S', stock: 2, enabled: true }],
+    adminStatus: 'published',
+  };
+  const { app, screen } = loadApp({}, {
+    createApiClient() {
+      return { getCatalog: async () => [remoteProduct] };
+    },
+  });
+
+  await app.loadRemoteCatalog();
+  app.navigate('catalog');
+
+  assert.match(screen.innerHTML, /Удалённое платье/);
+});
+
 test('административные экраны рендерятся из реального app.js без runtime-ошибки', () => {
   const { app, screen } = loadApp();
 
@@ -141,6 +166,13 @@ test('административные экраны рендерятся из р
   assert.match(screen.innerHTML, /Описание товара/);
   assert.match(screen.innerHTML, /Остатки по вариантам/);
   assert.match(screen.innerHTML, /name="description"/);
+  assert.match(screen.innerHTML, /name="adminColors"/);
+  assert.match(screen.innerHTML, /name="adminSizes"/);
+  assert.match(screen.innerHTML, /name="categoryNew"/);
+  assert.match(screen.innerHTML, /name="supplier"/);
+  assert.match(screen.innerHTML, /Применить цвета и размеры/);
+  assert.doesNotMatch(screen.innerHTML, /data-action="toggle-admin-color"/);
+  assert.doesNotMatch(screen.innerHTML, /data-action="toggle-admin-size"/);
   assert.doesNotMatch(screen.innerHTML, /name="composition"/);
   assert.doesNotMatch(screen.innerHTML, /name="fit"/);
   assert.doesNotMatch(screen.innerHTML, /name="care"/);
