@@ -1060,13 +1060,12 @@
           <div class="admin-form-heading"><div><p class="eyebrow">Количество товара</p><h2>Остатки по вариантам</h2><p>Введи цвет словами и размер цифрами или буквами, затем укажи количество.</p></div><span>${product.variants.length} вариантов</span></div>
           <label><span>Цвета словами</span><input name="adminColors" type="text" value="${escapeHtml(product.colors.map(({ name }) => name).join(', '))}" placeholder="Например: чёрный, молочный"><small>Разделяй цвета запятыми.</small></label>
           <label><span>Размеры цифрами или буквами</span><input name="adminSizes" type="text" value="${escapeHtml(product.sizes.join(', '))}" placeholder="Например: 42, 44, XL"><small>Разделяй размеры запятыми.</small></label>
-          <button class="secondary-button full-width" type="button" data-action="apply-admin-options">Применить цвета и размеры</button>
           ${adminFieldError('colors')}${adminFieldError('sizes')}
         </section>
         ${variantGroups || `<section class="empty-state card"><span aria-hidden="true">${icon('grid')}</span><h2>Сначала выбери варианты</h2><p>После выбора цвета и размера здесь появятся поля для количества.</p></section>`}
         ${adminFieldError('variants')}
         <div class="admin-editor-actions admin-editor-actions--final" aria-busy="${state.isSubmitting}">
-          <button class="secondary-button" type="button" data-action="${product.adminStatus === 'published' ? 'save-admin-changes' : 'save-admin-draft'}" ${state.isSubmitting ? 'disabled' : ''}>${state.isSubmitting ? 'Сохраняем…' : product.adminStatus === 'published' ? 'Сохранить изменения' : 'Сохранить черновик'}</button>
+          <button class="secondary-button" type="button" data-action="${product.adminStatus === 'published' ? 'save-admin-changes' : 'save-admin-draft'}" ${state.isSubmitting ? 'disabled' : ''}>${state.isSubmitting ? 'Сохраняем…' : 'Сохранить'}</button>
           ${product.adminStatus === 'published' ? '<span></span>' : `<button class="primary-button" type="button" data-action="publish-admin-product" ${state.isSubmitting ? 'disabled' : ''}>${state.isSubmitting ? 'Сохраняем…' : 'Опубликовать'}</button>`}
         </div>
       </form>`;
@@ -1387,21 +1386,6 @@
     state.adminDirty = true;
     state.adminSaveError = '';
     persistAdminDraft();
-  }
-
-  function applyAdminOptions() {
-    const form = document.querySelector('#admin-product-form');
-    if (!form || !state.adminDraft) return;
-    const colors = Core.normalizeAdminOptionList(form.elements.adminColors?.value);
-    const sizes = Core.normalizeAdminOptionList(form.elements.adminSizes?.value);
-    state.adminDraft.colors = colors.map((name) => ({
-      id: `color-${name.toLocaleLowerCase('ru-RU').replace(/[^\p{L}\p{N}]+/gu, '-')}`,
-      name,
-    }));
-    state.adminDraft.sizes = sizes;
-    rebuildAdminVariants();
-    persistAdminDraft();
-    render();
   }
 
   function focusFirstAdminError() {
@@ -1880,7 +1864,6 @@
     'save-admin-changes': () => void saveAdminProduct('published'),
     'publish-admin-product': () => void saveAdminProduct('published'),
     'confirm-leave-admin': confirmLeaveAdminEditor,
-    'apply-admin-options': applyAdminOptions,
     'toggle-admin-color': (control) => toggleAdminColor(control.dataset.colorId),
     'toggle-admin-size': (control) => toggleAdminSize(control.dataset.size),
     'toggle-admin-variant': (control) => toggleAdminVariant(control.dataset.colorId, control.dataset.size),
