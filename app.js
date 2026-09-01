@@ -743,15 +743,17 @@
   function sellerShell(section, content) {
     state.sellerSection = section;
     return `
-      <header class="seller-header">
-        <div><p class="eyebrow">Управление магазином</p><h1>Фэшн стор</h1></div>
-        <button class="secondary-button" type="button" data-action="exit-seller">В магазин</button>
-      </header>
-      <nav class="seller-main-tabs" aria-label="Разделы админ-панели">
-        <button class="${section === 'products' ? 'is-active' : ''}" type="button" data-action="set-seller-section" data-section="products" aria-current="${section === 'products' ? 'page' : 'false'}">Товары</button>
-        <button class="${section === 'orders' ? 'is-active' : ''}" type="button" data-action="set-seller-section" data-section="orders" aria-current="${section === 'orders' ? 'page' : 'false'}">Заказы</button>
-      </nav>
-      ${content}`;
+      <div class="seller-shell">
+        <header class="seller-header">
+          <div><p class="eyebrow">Управление магазином</p><h1>Фэшн стор</h1></div>
+          <button class="secondary-button" type="button" data-action="exit-seller">В магазин</button>
+        </header>
+        <nav class="seller-main-tabs" aria-label="Разделы админ-панели">
+          <button class="${section === 'products' ? 'is-active' : ''}" type="button" data-action="set-seller-section" data-section="products" aria-current="${section === 'products' ? 'page' : 'false'}">Товары</button>
+          <button class="${section === 'orders' ? 'is-active' : ''}" type="button" data-action="set-seller-section" data-section="orders" aria-current="${section === 'orders' ? 'page' : 'false'}">Заказы</button>
+        </nav>
+        ${content}
+      </div>`;
   }
 
   function renderSellerAccess() {

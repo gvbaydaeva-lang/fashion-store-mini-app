@@ -1297,3 +1297,125 @@ img { display: block; max-width: 100%; }
   .admin-editor-actions--final { grid-template-columns: 1fr; }
   .admin-variant-row { grid-template-columns: minmax(0, 1fr) 68px; }
 }
+
+/* Узкий мобильный слой админ-панели: 320–430 px. */
+@media (max-width: 430px) {
+  .seller-shell {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+    font-size: 14px;
+  }
+
+  .seller-shell h1,
+  .seller-shell h2,
+  .seller-shell p,
+  .seller-shell strong,
+  .seller-shell small,
+  .seller-shell span,
+  .seller-shell label,
+  .seller-shell legend {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .seller-shell button,
+  .seller-shell input,
+  .seller-shell select,
+  .seller-shell textarea,
+  .seller-shell summary {
+    min-height: 44px;
+  }
+
+  .seller-shell button:active,
+  .seller-shell [role="button"]:active {
+    transform: none;
+    filter: brightness(0.94);
+  }
+
+  .seller-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .seller-header .secondary-button {
+    width: 100%;
+  }
+
+  .seller-main-tabs {
+    gap: 8px;
+  }
+
+  .seller-main-tabs button {
+    min-width: 0;
+    padding: 8px 10px;
+    overflow-wrap: anywhere;
+  }
+
+  .admin-section-heading h2 { font-size: 30px; }
+  .admin-section-heading p { font-size: 14px; }
+  .admin-search input { font-size: 14px; }
+  .admin-progress__top,
+  .admin-progress__labels,
+  .admin-form-heading > span,
+  .admin-variant-group summary small,
+  .admin-preview-switch,
+  .admin-save-error small { font-size: 14px; }
+
+  .admin-filter-strip,
+  .admin-filter-tools {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    touch-action: pan-x;
+  }
+
+  .admin-filter-strip button,
+  .admin-filter-tools .filter-chip,
+  .admin-filter-select select {
+    font-size: 14px;
+  }
+
+  .admin-filter-select { flex-basis: 164px; }
+  .admin-product-row__content small,
+  .admin-product-row__content > span { font-size: 14px; }
+  .admin-status { min-height: 44px; padding: 8px 10px; font-size: 14px; }
+  .admin-product-row__more { top: 34px; right: 6px; }
+
+  .admin-form-section { padding: 12px; }
+  .admin-form-section label:not(.secondary-button),
+  .admin-form-section label small,
+  .admin-form-section > small,
+  .field-error { font-size: 14px; }
+  .admin-form-section input,
+  .admin-form-section select,
+  .admin-form-section textarea { font-size: 14px; }
+
+  .admin-photo > button:not(.icon-button) {
+    min-height: 44px;
+    padding: 8px 10px;
+    font-size: 14px;
+  }
+
+  .admin-photo .icon-button {
+    width: 44px;
+    height: 44px;
+  }
+
+  .admin-variant-row > button {
+    min-height: 44px;
+    font-size: 14px;
+  }
+
+  .admin-variant-row > span,
+  .admin-variant-row input { font-size: 14px; }
+  .admin-preview-switch { font-size: 14px; }
+  .admin-preview-switch span,
+  .admin-preview-switch strong { min-height: 44px; }
+  .admin-preview-card__body { padding: 16px; }
+  .admin-preview-card__body h2 { font-size: 30px; }
+
+  .admin-action-list button { min-height: 64px; font-size: 14px; }
+  .admin-action-list button > span small { font-size: 14px; }
+}
