@@ -58,10 +58,41 @@
       sellerSku: product.seller_sku ?? product.sellerSku ?? '',
       wholesalePrice: product.wholesale_price ?? product.wholesalePrice ?? null,
       adminStatus: product.status ?? product.adminStatus ?? 'published',
+      updatedAt: product.updated_at ?? product.updatedAt ?? null,
       images,
       colors,
       sizes,
       variants,
+    };
+  }
+
+  function serializeProduct(product) {
+    return {
+      category: product?.category,
+      name: product?.name,
+      price: product?.price,
+      old_price: product?.oldPrice ?? null,
+      badge: product?.badge ?? null,
+      seller_sku: product?.sellerSku ?? '',
+      wholesale_price: product?.wholesalePrice ?? null,
+      supplier: product?.supplier ?? '',
+      description: product?.description ?? '',
+      composition: product?.composition ?? '',
+      fit: product?.fit ?? '',
+      care: product?.care ?? '',
+      measurements: product?.measurements ?? {},
+      is_new: product?.badge === 'Новинка',
+      status: product?.adminStatus === 'published' ? 'published' : product?.adminStatus === 'archived' ? 'archived' : 'draft',
+      variants: Array.isArray(product?.variants) ? product.variants.map((variant) => ({
+        ...(variant.id == null ? {} : { id: variant.id }),
+        color_id: variant.colorId,
+        color_name: variant.colorName ?? variant.color?.name ?? variant.colorId,
+        color_hex: variant.colorHex ?? variant.color?.hex ?? null,
+        size: variant.size,
+        stock: variant.stock,
+        is_enabled: variant.enabled !== false,
+      })) : [],
+      images: Array.isArray(product?.images) ? product.images.filter((image) => typeof image === 'string' && !image.startsWith('data:')) : [],
     };
   }
 
@@ -121,11 +152,11 @@
         return (Array.isArray(data.products) ? data.products : []).map(normalizeProduct);
       },
       async createAdminProduct(product) {
-        const data = await adminRequest('create', { product });
+        const data = await adminRequest('create', { product: serializeProduct(product) });
         return normalizeProduct(data.product);
       },
       async updateAdminProduct(product) {
-        const data = await adminRequest('update', { productId: product?.id, product });
+        const data = await adminRequest('update', { productId: product?.id, updatedAt: product?.updatedAt, product: serializeProduct(product) });
         return normalizeProduct(data.product);
       },
       async publishAdminProduct(productId) {
@@ -136,7 +167,8 @@
         return adminRequest('archive', { productId });
       },
       async updateAdminStock(productId, variantId, stock, isEnabled) {
-        return adminRequest('update-stock', { productId, variantId, stock, isEnabled });
+        const data = await adminRequest('update-stock', { productId, variantId, stock, isEnabled });
+        return data.variant || data;
       },
       async getAdminUploadUrl(productId, file) {
         const extension = String(file?.name || '').split('.').pop().toLowerCase();

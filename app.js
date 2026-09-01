@@ -17,7 +17,6 @@
   const ORDER_KEY = 'fashion-store-order-v1';
   const OFFER_KEY = 'fashion-store-offer-seen-v1';
   const ADMIN_PRODUCTS_KEY = 'fashion-store-admin-products-v1';
-  const ADMIN_CATEGORIES_KEY = 'fashion-store-admin-categories-v1';
   const PREORDER_RESET_KEY = 'fashion-store-preorder-reset-v1';
   const MAIN_APP_URL = Core.buildMainMiniAppUrl('fashion_katalog_bot');
   const OFFER_BOT_URL = 'https://t.me/fashion_katalog_bot?start=from_app';
@@ -76,6 +75,8 @@
     isSubmitting: false,
     catalogStatus: 'idle',
     catalogError: '',
+    sellerAuthStatus: 'idle',
+    sellerAuthError: '',
   };
 
   let toastTimer = null;
@@ -132,19 +133,14 @@
   function loadPersistedState() {
     const cart = readStored(CART_KEY, []);
     const order = readStored(ORDER_KEY, null);
-    const storedAdminProducts = readStored(ADMIN_PRODUCTS_KEY, null);
     state.cart = Array.isArray(cart)
       ? cart.filter((item) => item && typeof item.key === 'string' && item.quantity > 0)
       : [];
     state.order = order && typeof order === 'object' && typeof order.id === 'string'
       ? order
       : null;
-    state.adminProducts = Array.isArray(storedAdminProducts)
-      && storedAdminProducts.every((product) => product && typeof product.id === 'string')
-      ? Core.createAdminCatalog(storedAdminProducts)
-      : Core.createAdminCatalog(Data.PRODUCTS);
-    const storedCategories = readStored(ADMIN_CATEGORIES_KEY, []);
-    state.adminCategories = Array.isArray(storedCategories) ? storedCategories : [];
+    state.adminProducts = [];
+    state.adminCategories = [];
     state.adminProducts.forEach((product) => {
       if (!product.category || product.category === 'all') return;
       if (!state.adminCategories.some(({ id }) => id === product.category)) {
@@ -164,24 +160,6 @@
     window.localStorage.setItem(CART_KEY, JSON.stringify(state.cart));
     if (state.order) window.localStorage.setItem(ORDER_KEY, JSON.stringify(state.order));
     else window.localStorage.removeItem(ORDER_KEY);
-  }
-
-  function saveAdminProducts(products = state.adminProducts) {
-    try {
-      window.localStorage.setItem(ADMIN_PRODUCTS_KEY, JSON.stringify(products));
-      return true;
-    } catch (_error) {
-      showToast('Не удалось сохранить товары: хранилище переполнено');
-      return false;
-    }
-  }
-
-  function saveAdminCategories() {
-    try {
-      window.localStorage.setItem(ADMIN_CATEGORIES_KEY, JSON.stringify(state.adminCategories));
-    } catch (_error) {
-      showToast('Не удалось сохранить категории');
-    }
   }
 
   function applyTelegramTheme() {
@@ -252,20 +230,6 @@
     state.adminDirty = false;
     state.adminErrors = {};
     navigate('seller-product-edit', { productId: state.adminDraft.id });
-  }
-
-  function persistAdminProduct(product) {
-    const exists = state.adminProducts.some(({ id }) => id === product.id);
-    const nextProducts = exists
-      ? state.adminProducts.map((item) => (item.id === product.id ? cloneAdminProduct(product) : item))
-      : [cloneAdminProduct(product), ...state.adminProducts];
-    if (!saveAdminProducts(nextProducts)) return false;
-    state.adminProducts = nextProducts;
-    if (product.category && product.category !== 'all' && !state.adminCategories.some(({ id }) => id === product.category)) {
-      state.adminCategories = [...state.adminCategories, { id: product.category, title: product.category }];
-      saveAdminCategories();
-    }
-    return true;
   }
 
   function getAdminCategories() {
@@ -748,7 +712,7 @@
     state.sellerSection = section;
     return `
       <header class="seller-header">
-        <div><p class="eyebrow">Демо-управление</p><h1>Фэшн стор</h1></div>
+        <div><p class="eyebrow">Управление магазином</p><h1>Фэшн стор</h1></div>
         <button class="secondary-button" type="button" data-action="exit-seller">В магазин</button>
       </header>
       <nav class="seller-main-tabs" aria-label="Разделы админ-панели">
@@ -759,20 +723,23 @@
   }
 
   function renderSellerAccess() {
+    if (state.sellerAuthStatus === 'loading') return `<section class="seller-access"><div class="brand-mark" aria-hidden="true">Ф</div><p class="eyebrow">Проверка доступа</p><h1>Подключаем панель</h1><p>Проверяю настоящий Telegram-сеанс и загружаю товары.</p></section>`;
+    if (state.sellerAuthStatus === 'error') return `<section class="seller-access"><div class="brand-mark" aria-hidden="true">Ф</div><p class="eyebrow">Доступ закрыт</p><h1>Не удалось открыть панель</h1><section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>${escapeHtml(state.sellerAuthError || 'Открой Mini App из Telegram и повтори вход.')}</p></section><button class="primary-button full-width" type="button" data-action="enter-seller">Повторить</button><button class="text-button text-button--center" type="button" data-action="exit-seller">Вернуться в магазин</button></section>`;
     return `
       <section class="seller-access">
         <div class="brand-mark" aria-hidden="true">Ф</div>
         <p class="eyebrow">Закрытая зона</p>
         <h1>Управление магазином</h1>
-        <p>Здесь можно проверить демонстрационный сценарий товаров и заказов.</p>
-        <section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p><strong>Это демо-доступ.</strong> Серверная проверка Telegram ID пока не подключена.</p></section>
-        <button class="primary-button full-width" type="button" data-action="open-seller-demo">Открыть демо-панель</button>
+        <p>Панель доступна только авторизованному продавцу в Telegram.</p>
+        <section class="notice-card"><span aria-hidden="true">${icon('lock')}</span><p><strong>Закрытая зона.</strong> Доступ проверяется сервером по Telegram-сеансу.</p></section>
+        <button class="primary-button full-width" type="button" data-action="enter-seller">Войти через Telegram</button>
         <button class="text-button text-button--center" type="button" data-action="exit-seller">Вернуться в магазин</button>
       </section>`;
   }
 
   function adminStatusMeta(product) {
     const status = Core.getAdminProductStatus(product);
+    if (status === 'archived') return { label: 'В архиве', className: 'archived' };
     if (status === 'draft') return { label: 'Черновик', className: 'draft' };
     if (status === 'out') return { label: 'Нет в наличии', className: 'out' };
     return { label: 'Опубликован', className: 'published' };
@@ -845,7 +812,7 @@
       ${products.length
         ? `<div class="admin-product-list">${products.map(renderAdminProductRow).join('')}</div>`
         : `<section class="empty-state card"><span aria-hidden="true">${icon('package')}</span><h2>${state.adminProducts.length ? 'Ничего не найдено' : 'Товаров пока нет'}</h2><p>${state.adminProducts.length ? 'Измени запрос или выбери другой статус.' : 'Добавь первый товар — он сохранится как черновик.'}</p><button class="primary-button" type="button" data-action="add-admin-product">Добавить товар</button></section>`}
-      <section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>Товары и остатки сохраняются только на этом устройстве. Это демонстрация без базы данных.</p></section>`;
+      <section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>Товары и остатки загружаются с сервера. После обновления они доступны на другом устройстве.</p></section>`;
     return sellerShell('products', content);
   }
 
@@ -1314,11 +1281,14 @@
     state.sellerMode = true;
     state.sellerSection = 'products';
     state.sellerTab = state.order?.status === 'ready' ? 'ready' : 'collect';
+    state.sellerAuthStatus = 'loading';
+    state.sellerAuthError = '';
     navigate('seller-access');
+    void loadRemoteAdminProducts();
   }
 
   function openSellerDemo() {
-    navigate('seller-products');
+    enterSellerMode();
   }
 
   function exitSellerMode() {
@@ -1348,7 +1318,6 @@
       state.adminDraft.category = category.id;
       if (!state.adminCategories.some(({ id }) => id === category.id)) {
         state.adminCategories = [...state.adminCategories, category];
-        saveAdminCategories();
       }
     } else {
       state.adminDraft.category = String(formData.get('category') || 'all');
@@ -1413,35 +1382,6 @@
     state.adminErrors = {};
     state.adminStep = Math.min(4, state.adminStep + 1);
     render();
-  }
-
-  function saveAdminProduct(status) {
-    const form = document.querySelector('#admin-product-form');
-    syncAdminForm(form);
-    if (!state.adminDraft) return;
-    if (status === 'published') {
-      state.adminErrors = Core.validateAdminProduct(state.adminDraft, 4);
-      if (Object.keys(state.adminErrors).length) {
-        state.adminStep = 4;
-        render();
-        showToast('Исправь ошибки перед публикацией');
-        return;
-      }
-    }
-    const nextProduct = {
-      ...cloneAdminProduct(state.adminDraft),
-      adminStatus: status,
-    };
-    if (!persistAdminProduct(nextProduct)) return;
-    state.adminDraft = null;
-    state.adminDirty = false;
-    state.adminErrors = {};
-    state.adminStep = 1;
-    state.history = [];
-    state.screen = 'seller-products';
-    state.params = {};
-    render();
-    showToast(status === 'published' ? 'Товар опубликован' : 'Черновик сохранён');
   }
 
   function confirmLeaveAdminEditor() {
@@ -1526,6 +1466,22 @@
     state.adminDirty = true;
   }
 
+  async function persistAdminVariantStock(control) {
+    const productId = state.adminDraft?.id;
+    const variant = getAdminVariant(control.dataset.colorId, control.dataset.size);
+    if (!apiClient || !/^\d+$/.test(String(productId)) || !variant?.id) return;
+    try {
+      const saved = await apiClient.updateAdminStock(productId, variant.id, variant.stock, variant.enabled !== false);
+      variant.stock = Number(saved.stock);
+      variant.enabled = saved.is_enabled ?? saved.isEnabled ?? variant.enabled;
+      state.adminProducts = state.adminProducts.map((product) => product.id === String(productId)
+        ? { ...product, variants: product.variants.map((item) => item.id === variant.id ? { ...item, ...variant } : item) }
+        : product);
+    } catch (error) {
+      showToast(error?.message || 'Не удалось сохранить остаток.');
+    }
+  }
+
   function readImageFile(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -1587,9 +1543,25 @@
         <button type="button" data-action="edit-admin-product" data-product-id="${escapeHtml(product.id)}">${icon('edit')}<span><strong>Редактировать</strong><small>Изменить данные и остатки</small></span>${icon('chevron-right')}</button>
         <button type="button" data-action="preview-admin-product" data-product-id="${escapeHtml(product.id)}">${icon('image')}<span><strong>Как увидит покупатель</strong><small>Открыть предпросмотр карточки</small></span>${icon('chevron-right')}</button>
         <button type="button" data-action="duplicate-admin-product" data-product-id="${escapeHtml(product.id)}">${icon('copy')}<span><strong>Создать похожий</strong><small>Остатки не перенесутся</small></span>${icon('chevron-right')}</button>
+        ${product.adminStatus !== 'archived' ? `<button type="button" data-action="archive-admin-product" data-product-id="${escapeHtml(product.id)}">${icon('archive')}<span><strong>Убрать в архив</strong><small>Скрыть товар без удаления истории</small></span>${icon('chevron-right')}</button>` : ''}
       </div>
       <button class="secondary-button full-width" type="button" data-action="close-sheet">Отмена</button>
     `, { title: 'Действия с товаром' });
+  }
+
+  async function archiveAdminProduct(productId) {
+    if (!apiClient) return;
+    try {
+      await apiClient.archiveAdminProduct(productId);
+      state.adminProducts = state.adminProducts.map((product) => (
+        product.id === productId ? { ...product, adminStatus: 'archived' } : product
+      ));
+      closeSheet();
+      render();
+      showToast('Товар убран в архив');
+    } catch (error) {
+      showToast(error?.message || 'Не удалось архивировать товар.');
+    }
   }
 
   function duplicateProduct(productId) {
@@ -1643,6 +1615,38 @@
     render();
   }
 
+  async function loadRemoteAdminProducts() {
+    if (!apiClient) {
+      state.sellerAuthStatus = 'error';
+      state.sellerAuthError = 'Открой Mini App в Telegram: в обычном браузере нет подтверждённого Telegram-сеанса.';
+      render();
+      return false;
+    }
+    try {
+      const products = await apiClient.getAdminProducts();
+      state.adminProducts = Core.createAdminCatalog(products);
+      state.adminCategories = state.adminProducts
+        .filter((product) => product.category && product.category !== 'all')
+        .map((product) => ({ id: product.category, title: product.category }))
+        .filter((category, index, all) => all.findIndex(({ id }) => id === category.id) === index);
+      state.sellerAuthStatus = 'ready';
+      state.screen = 'seller-products';
+      state.history = [];
+      render();
+      return true;
+    } catch (error) {
+      state.sellerAuthStatus = 'error';
+      state.sellerAuthError = error?.status === 403
+        ? 'У тебя нет доступа к панели продавца.'
+        : error?.status === 401
+          ? 'Не удалось подтвердить Telegram-сеанс. Открой Mini App заново.'
+          : error?.message || 'Сервер временно недоступен.';
+      state.adminProducts = [];
+      render();
+      return false;
+    }
+  }
+
   async function loadRemoteCatalog() {
     if (!apiClient) return false;
     state.catalogStatus = 'loading';
@@ -1659,6 +1663,48 @@
       state.catalogError = error?.message || 'Каталог временно недоступен.';
       render();
       return false;
+    }
+  }
+
+  async function saveAdminProduct(status) {
+    const form = document.querySelector('#admin-product-form');
+    syncAdminForm(form);
+    if (!state.adminDraft || !apiClient) return;
+    if (status === 'published') {
+      state.adminErrors = Core.validateAdminProduct(state.adminDraft, 4);
+      if (Object.keys(state.adminErrors).length) {
+        state.adminStep = 4;
+        render();
+        showToast('Исправь ошибки перед публикацией');
+        return;
+      }
+    }
+    state.isSubmitting = true;
+    render();
+    try {
+      const saved = state.adminDraft.id && /^\d+$/.test(String(state.adminDraft.id))
+        ? await apiClient.updateAdminProduct({ ...state.adminDraft, adminStatus: 'draft' })
+        : await apiClient.createAdminProduct({ ...state.adminDraft, adminStatus: 'draft' });
+      const finalProduct = status === 'published'
+        ? await apiClient.publishAdminProduct(saved.id)
+        : saved;
+      state.adminProducts = state.adminProducts.some(({ id }) => id === finalProduct.id)
+        ? state.adminProducts.map((item) => item.id === finalProduct.id ? finalProduct : item)
+        : [finalProduct, ...state.adminProducts];
+      state.adminDraft = null;
+      state.adminDirty = false;
+      state.adminErrors = {};
+      state.adminStep = 1;
+      state.history = [];
+      state.screen = 'seller-products';
+      state.params = {};
+      state.isSubmitting = false;
+      render();
+      showToast(status === 'published' ? 'Товар опубликован' : 'Черновик сохранён');
+    } catch (error) {
+      state.isSubmitting = false;
+      render();
+      showToast(error?.status === 409 ? 'Товар изменён на другом устройстве. Обнови список.' : (error?.message || 'Не удалось сохранить товар.'));
     }
   }
 
@@ -1743,6 +1789,7 @@
       startAdminDraft(product);
     },
     'admin-product-menu': (control) => openAdminProductMenu(control.dataset.productId),
+    'archive-admin-product': (control) => void archiveAdminProduct(control.dataset.productId),
     'preview-admin-product': (control) => previewAdminProduct(control.dataset.productId),
     'duplicate-admin-product': (control) => duplicateProduct(control.dataset.productId),
     'set-admin-filter': (control) => {
@@ -1770,9 +1817,9 @@
       render();
     },
     'admin-editor-back': adminEditorBack,
-    'save-admin-draft': () => saveAdminProduct('draft'),
-    'save-admin-changes': () => saveAdminProduct('published'),
-    'publish-admin-product': () => saveAdminProduct('published'),
+    'save-admin-draft': () => void saveAdminProduct('draft'),
+    'save-admin-changes': () => void saveAdminProduct('published'),
+    'publish-admin-product': () => void saveAdminProduct('published'),
     'confirm-leave-admin': confirmLeaveAdminEditor,
     'apply-admin-options': applyAdminOptions,
     'toggle-admin-color': (control) => toggleAdminColor(control.dataset.colorId),
@@ -1825,6 +1872,7 @@
     if (control?.dataset.action === 'toggle-new') actions['toggle-new'](control);
     if (control?.dataset.action === 'set-admin-category') actions['set-admin-category'](control);
     if (control?.dataset.action === 'set-admin-supplier') actions['set-admin-supplier'](control);
+    if (control?.dataset.action === 'admin-stock') void persistAdminVariantStock(control);
     if (control?.dataset.action === 'admin-photo-input') {
       handleAdminPhotos(control.files || []);
       control.value = '';

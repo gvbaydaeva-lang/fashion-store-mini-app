@@ -128,7 +128,8 @@
   function createAdminCatalog(products) {
     return products.map((product) => ({
       ...cloneAdminProduct(product),
-      adminStatus: product.adminStatus === 'draft' ? 'draft' : 'published',
+      adminStatus: ['draft', 'published', 'archived'].includes(product.adminStatus)
+        ? product.adminStatus : 'published',
     }));
   }
 
@@ -137,6 +138,7 @@
   }
 
   function getAdminProductStatus(product) {
+    if (product.adminStatus === 'archived') return 'archived';
     if (product.adminStatus === 'draft') return 'draft';
     const hasStock = (product.variants || []).some((variant) => (
       variant.enabled !== false && Number(variant.stock) > 0

@@ -84,3 +84,61 @@ test('клиент не маскирует сетевую ошибку успе�
     (error) => error.status === 500 && error.message === 'Каталог временно недоступен.',
   );
 });
+
+test('архивирование отправляет productId и возвращает серверный результат', async () => {
+  const calls = [];
+  const client = API.createApiClient({
+    initData: 'signed-telegram-data',
+    fetch: async (url, options) => {
+      calls.push({ url, options });
+      return { ok: true, async json() { return { ok: true, data: { archived: true } }; } };
+    },
+  });
+
+  const result = await client.archiveAdminProduct(12);
+
+  assert.deepEqual(result, { archived: true });
+  assert.deepEqual(JSON.parse(calls[0].options.body), {
+    action: 'archive', initData: 'signed-telegram-data', productId: 12,
+  });
+});
+
+test('изменение остатка отправляет variantId, stock и состояние варианта', async () => {
+  const calls = [];
+  const client = API.createApiClient({
+    initData: 'signed-telegram-data',
+    fetch: async (_url, options) => {
+      calls.push(options);
+      return { ok: true, async json() { return { ok: true, data: { stock: 4, isEnabled: false } }; } };
+    },
+  });
+
+  const result = await client.updateAdminStock(12, 34, 4, false);
+
+  assert.deepEqual(result, { stock: 4, isEnabled: false });
+  assert.deepEqual(JSON.parse(calls[0].body), {
+    action: 'update-stock', initData: 'signed-telegram-data',
+    productId: 12, variantId: 34, stock: 4, isEnabled: false,
+  });
+});
+
+test('сохранение товара переводит поля и варианты в серверный формат', async () => {
+  let body;
+  const client = API.createApiClient({
+    fetch: async (_url, options) => {
+      body = JSON.parse(options.body);
+      return { ok: true, async json() { return { ok: true, data: { product: { id: 9, status: 'draft' } } }; } };
+    },
+  });
+
+  await client.createAdminProduct({
+    name: 'Платье', price: 5000, oldPrice: 6000, sellerSku: 'DR-1',
+    adminStatus: 'draft', images: ['data:image/png;base64,local'],
+    variants: [{ colorId: 'black', size: 'S', stock: 2, enabled: true }],
+  });
+
+  assert.equal(body.product.old_price, 6000);
+  assert.equal(body.product.seller_sku, 'DR-1');
+  assert.deepEqual(body.product.variants, [{ color_id: 'black', color_name: 'black', color_hex: null, size: 'S', stock: 2, is_enabled: true }]);
+  assert.deepEqual(body.product.images, []);
+});

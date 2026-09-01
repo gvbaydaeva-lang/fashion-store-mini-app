@@ -154,7 +154,8 @@ test('административные экраны рендерятся из р
   const { app, screen } = loadApp();
 
   app.navigate('seller-access');
-  assert.match(screen.innerHTML, /Открыть демо-панель/);
+  assert.match(screen.innerHTML, /Войти через Telegram/);
+  assert.doesNotMatch(screen.innerHTML, /Открыть демо-панель/);
 
   app.navigate('seller-products');
   assert.match(screen.innerHTML, /Добавить товар/);
@@ -178,18 +179,20 @@ test('административные экраны рендерятся из р
   assert.doesNotMatch(screen.innerHTML, /name="care"/);
 });
 
-test('остаток одной единицы показывается покупателю простым текстом', () => {
+test('остаток одной единицы показывается покупателю простым текстом', async () => {
   const product = {
     id: 'single-item', name: 'Платье', category: 'all', price: 4990, oldPrice: null,
     images: ['assets/preorder-hero.png'], colors: [{ id: 'black', name: 'Чёрный', hex: '#242424' }],
     variants: [{ colorId: 'black', size: 'S', stock: 1 }], adminStatus: 'published',
     description: '', composition: '', care: '', fit: '', model: '', measurements: {},
   };
-  const { app, screen } = loadApp({
-    'fashion-store-preorder-reset-v1': '1',
-    'fashion-store-admin-products-v1': JSON.stringify([product]),
+  const { app, screen } = loadApp({}, {
+    createApiClient() {
+      return { getCatalog: async () => [product] };
+    },
   });
 
+  await app.loadRemoteCatalog();
   app.navigate('product', { productId: 'single-item' });
   assert.match(screen.innerHTML, /data-action="select-color"/);
   assert.match(screen.innerHTML, /data-action="select-size"/);
