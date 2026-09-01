@@ -1262,6 +1262,13 @@ img { display: block; max-width: 100%; }
 }
 
 @media (max-width: 640px) {
+  html,
+  body { min-width: 0; }
+  .app-shell,
+  .screen { max-width: none; min-width: 0; }
+  .screen > * { min-width: 0; max-width: 100%; }
+  .seller-main-tabs,
+  .admin-filter-strip { margin-right: 0; margin-left: 0; padding-right: 0; padding-left: 0; }
   .admin-editor-header h1 { font-size: 25px; }
   .admin-section-heading { align-items: stretch; flex-direction: column; }
   .admin-add-button { width: 100%; min-width: 0; }
@@ -1276,7 +1283,7 @@ img { display: block; max-width: 100%; }
   .admin-price-grid,
   .admin-editor-grid { grid-template-columns: 1fr; }
   .admin-editor-actions { padding-right: 12px; padding-left: 12px; }
-  .admin-editor-actions button { min-width: 0; overflow-wrap: anywhere; }
+  .admin-editor-actions button { min-width: 0; min-height: 44px; padding: 8px 10px; overflow-wrap: anywhere; font-size: 13px; }
   .admin-variant-row { grid-template-columns: minmax(0, 1fr) 72px; grid-template-areas: "toggle stock" "size label"; padding-right: 10px; padding-left: 10px; }
   .admin-variant-row > button { grid-area: toggle; justify-self: start; }
   .admin-variant-row > strong { grid-area: size; }
