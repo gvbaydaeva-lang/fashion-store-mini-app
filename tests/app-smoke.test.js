@@ -9,6 +9,8 @@ const Data = require('../data.js');
 const Core = require('../core.js');
 const UI = require('../ui.js');
 
+const appSource = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+
 function createClassList() {
   const values = new Set();
   return {
@@ -80,8 +82,7 @@ function loadApp(initialStorage = {}, api = null) {
     clearTimeout() {},
     setTimeout(callback) { callback(); return 1; },
   };
-  const source = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
-  vm.runInNewContext(source, {
+  vm.runInNewContext(appSource, {
     window,
     document,
     FormData: class FormData {},
@@ -94,6 +95,11 @@ function loadApp(initialStorage = {}, api = null) {
   window.FashionStoreApp.init();
   return { app: window.FashionStoreApp, screen: elements.get('#screen'), storage };
 }
+
+test('админ-панель не меняет ширину при изменении visualViewport от фокуса', () => {
+  assert.doesNotMatch(appSource, /window\.visualViewport\?\.width/);
+  assert.doesNotMatch(appSource, /window\.visualViewport\?\.addEventListener\('resize', applyViewportLayout\)/);
+});
 
 test('новая версия один раз очищает только утверждённые локальные демо-ключи', () => {
   const { storage } = loadApp({

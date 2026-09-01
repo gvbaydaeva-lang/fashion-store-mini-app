@@ -102,7 +102,9 @@
   }
 
   function applyViewportLayout() {
-    const viewportWidth = window.visualViewport?.width || window.innerWidth;
+    // visualViewport меняется при фокусе и системном увеличении iOS. Ширина Mini App
+    // должна оставаться шириной окна, иначе фиксированные элементы «уезжают».
+    const viewportWidth = window.innerWidth;
     const viewportHeight = tg?.viewportHeight || window.visualViewport?.height || window.innerHeight;
     document.documentElement.style.setProperty('--app-width', `${UI.getMiniAppWidth(viewportWidth)}px`);
     if (viewportHeight) document.documentElement.style.setProperty('--app-height', `${Math.round(viewportHeight)}px`);
@@ -1894,7 +1896,6 @@
     tg?.BackButton?.onClick(goBack);
     tg?.onEvent?.('themeChanged', applyTelegramTheme);
     tg?.onEvent?.('viewportChanged', applyViewportLayout);
-    window.visualViewport?.addEventListener('resize', applyViewportLayout);
     window.addEventListener('resize', applyViewportLayout);
     window.setTimeout(() => {
       render();
