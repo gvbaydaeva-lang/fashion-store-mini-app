@@ -17,6 +17,17 @@
     return String(value || DEFAULT_BASE_URL).replace(/\/+$/, '');
   }
 
+  function optionalNumber(value) {
+    if (value == null || String(value).trim() === '') return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : value;
+  }
+
+  function requiredNumber(value) {
+    const number = optionalNumber(value);
+    return number == null || number === '' ? 0 : number;
+  }
+
   function normalizeProduct(product) {
     const variants = Array.isArray(product?.product_variants)
       ? product.product_variants.map((variant) => ({
@@ -70,11 +81,11 @@
     return {
       category: product?.category,
       name: product?.name,
-      price: product?.price,
-      old_price: product?.oldPrice ?? null,
+      price: requiredNumber(product?.price),
+      old_price: optionalNumber(product?.oldPrice),
       badge: product?.badge ?? null,
       seller_sku: product?.sellerSku ?? '',
-      wholesale_price: product?.wholesalePrice ?? null,
+      wholesale_price: optionalNumber(product?.wholesalePrice),
       supplier: product?.supplier ?? '',
       description: product?.description ?? '',
       composition: product?.composition ?? '',

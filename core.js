@@ -262,6 +262,21 @@
     };
   }
 
+  function serializeAdminDraft(draft, step) {
+    return JSON.stringify({ draft, step });
+  }
+
+  function parseAdminDraft(raw) {
+    try {
+      const value = JSON.parse(raw);
+      if (!value || typeof value.draft !== 'object' || value.draft === null) return null;
+      const step = Number(value.step);
+      return { draft: value.draft, step: Number.isInteger(step) && step >= 1 && step <= 4 ? step : 1 };
+    } catch (_error) {
+      return null;
+    }
+  }
+
   return {
     filterProducts,
     sortProducts,
@@ -285,5 +300,7 @@
     duplicateAdminProduct,
     getAdminProductStatus,
     popScreenHistory,
+    serializeAdminDraft,
+    parseAdminDraft,
   };
 });

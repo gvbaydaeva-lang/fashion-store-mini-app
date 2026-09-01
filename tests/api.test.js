@@ -142,3 +142,22 @@ test('сохранение товара переводит поля и вари�
   assert.deepEqual(body.product.variants, [{ color_id: 'black', color_name: 'black', color_hex: null, size: 'S', stock: 2, is_enabled: true }]);
   assert.deepEqual(body.product.images, []);
 });
+
+test('пустые необязательные цены отправляются на сервер как null', async () => {
+  let body;
+  const client = API.createApiClient({
+    fetch: async (_url, options) => {
+      body = JSON.parse(options.body);
+      return { ok: true, async json() { return { ok: true, data: { product: { id: 10, status: 'draft' } } }; } };
+    },
+  });
+
+  await client.createAdminProduct({
+    name: 'Жакет', price: '', oldPrice: '', wholesalePrice: '',
+    adminStatus: 'draft', variants: [], images: [],
+  });
+
+  assert.equal(body.product.price, 0);
+  assert.equal(body.product.old_price, null);
+  assert.equal(body.product.wholesale_price, null);
+});

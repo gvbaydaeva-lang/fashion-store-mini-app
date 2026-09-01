@@ -17,6 +17,7 @@
   const ORDER_KEY = 'fashion-store-order-v1';
   const OFFER_KEY = 'fashion-store-offer-seen-v1';
   const ADMIN_PRODUCTS_KEY = 'fashion-store-admin-products-v1';
+  const ADMIN_DRAFT_KEY = 'fashion-store-admin-draft-v1';
   const PREORDER_RESET_KEY = 'fashion-store-preorder-reset-v1';
   const MAIN_APP_URL = Core.buildMainMiniAppUrl('fashion_katalog_bot');
   const OFFER_BOT_URL = 'https://t.me/fashion_katalog_bot?start=from_app';
@@ -72,6 +73,7 @@
     adminStep: 1,
     adminDirty: false,
     adminErrors: {},
+    adminSaveError: '',
     isSubmitting: false,
     catalogStatus: 'idle',
     catalogError: '',
@@ -162,6 +164,32 @@
     else window.localStorage.removeItem(ORDER_KEY);
   }
 
+  function persistAdminDraft() {
+    if (!state.adminDraft) return;
+    try {
+      window.localStorage.setItem(ADMIN_DRAFT_KEY, Core.serializeAdminDraft(state.adminDraft, state.adminStep));
+    } catch (_error) {
+      // Черновик остаётся в памяти до конца текущего открытия приложения.
+    }
+  }
+
+  function readAdminDraft() {
+    try {
+      const stored = Core.parseAdminDraft(window.localStorage.getItem(ADMIN_DRAFT_KEY));
+      return stored ? { ...stored, draft: cloneAdminProduct(stored.draft) } : null;
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function clearAdminDraft() {
+    try {
+      window.localStorage.removeItem(ADMIN_DRAFT_KEY);
+    } catch (_error) {
+      // Невозможность очистить локальное хранилище не должна ломать сохранение.
+    }
+  }
+
   function applyTelegramTheme() {
     const params = tg?.themeParams || {};
     document.documentElement.dataset.theme = tg?.colorScheme === 'dark' ? 'dark' : 'light';
@@ -203,6 +231,7 @@
       wholesalePrice: null,
       supplier: '',
       category: 'all',
+      categoryNew: '',
       price: '',
       oldPrice: null,
       badge: null,
@@ -225,10 +254,13 @@
   }
 
   function startAdminDraft(product = null) {
-    state.adminDraft = product ? cloneAdminProduct(product) : createBlankAdminProduct();
-    state.adminStep = 1;
-    state.adminDirty = false;
+    const restored = !product ? readAdminDraft() : null;
+    state.adminDraft = product ? cloneAdminProduct(product) : restored?.draft || createBlankAdminProduct();
+    state.adminStep = restored?.step || 1;
+    state.adminDirty = Boolean(restored);
     state.adminErrors = {};
+    state.adminSaveError = '';
+    persistAdminDraft();
     navigate('seller-product-edit', { productId: state.adminDraft.id });
   }
 
@@ -996,6 +1028,7 @@
     }).join('');
     return `
       ${adminEditorHeader()}
+      ${state.adminSaveError ? `<section class="notice-card admin-save-error" role="alert"><span aria-hidden="true">${icon('info')}</span><p>${escapeHtml(state.adminSaveError)}<br><small>Введённые данные сохранены на этом устройстве. Исправь ошибку и повтори сохранение.</small></p></section>` : ''}
       <form id="admin-product-form" class="admin-editor-form admin-editor-form--single" novalidate>
         <section class="admin-form-section card">
           <div class="admin-form-heading"><div><p class="eyebrow">Карточка товара</p><h2>Основная информация</h2></div><span>${product.images.length}/4 фото</span></div>
@@ -1009,7 +1042,7 @@
             <label><span>Название товара</span><input name="name" type="text" maxlength="80" value="${escapeHtml(product.name)}" placeholder="Например, Платье Миди" autocomplete="off"></label>
             <label><span>Артикул продавца</span><input name="sellerSku" type="text" maxlength="40" value="${escapeHtml(product.sellerSku)}" placeholder="Например, DR-204" autocomplete="off"></label>
             <label><span>Категория</span><select name="category"><option value="all" ${product.category === 'all' ? 'selected' : ''}>Выбери категорию</option>${categories}</select></label>
-            <label><span>Новая категория</span><input name="categoryNew" type="text" maxlength="60" value="" placeholder="Можно добавить вручную" autocomplete="off"></label>
+            <label><span>Новая категория</span><input name="categoryNew" type="text" maxlength="60" value="${escapeHtml(product.categoryNew || '')}" placeholder="Можно добавить вручную" autocomplete="off"></label>
             <label><span>Цена, ₽</span><input name="price" type="number" min="1" step="1" inputmode="numeric" value="${product.price || ''}" placeholder="5990"></label>
             <label><span>Старая цена, ₽</span><input name="oldPrice" type="number" min="1" step="1" inputmode="numeric" value="${product.oldPrice || ''}" placeholder="Необязательно"></label>
             <label><span>Оптовая цена, ₽</span><input name="wholesalePrice" type="number" min="1" step="1" inputmode="numeric" value="${product.wholesalePrice || ''}" placeholder="Необязательно"></label>
@@ -1313,6 +1346,7 @@
     state.adminDraft.name = String(formData.get('name') || '').trim();
     state.adminDraft.sellerSku = String(formData.get('sellerSku') || '').trim();
     const newCategoryTitle = String(formData.get('categoryNew') || '').trim();
+    state.adminDraft.categoryNew = newCategoryTitle;
     if (newCategoryTitle) {
       const category = Core.createAdminCategory(newCategoryTitle);
       state.adminDraft.category = category.id;
@@ -1349,6 +1383,8 @@
       }
     }
     state.adminDirty = true;
+    state.adminSaveError = '';
+    persistAdminDraft();
   }
 
   function applyAdminOptions() {
@@ -1362,6 +1398,7 @@
     }));
     state.adminDraft.sizes = sizes;
     rebuildAdminVariants();
+    persistAdminDraft();
     render();
   }
 
@@ -1381,6 +1418,7 @@
     }
     state.adminErrors = {};
     state.adminStep = Math.min(4, state.adminStep + 1);
+    persistAdminDraft();
     render();
   }
 
@@ -1388,8 +1426,10 @@
     state.adminDirty = false;
     closeSheet();
     state.adminDraft = null;
+    clearAdminDraft();
     state.adminStep = 1;
     state.adminErrors = {};
+    state.adminSaveError = '';
     leaveAdminEditor();
   }
 
@@ -1404,6 +1444,7 @@
   function adminEditorBack() {
     if (!state.adminDirty) {
       state.adminDraft = null;
+      clearAdminDraft();
       leaveAdminEditor();
       return;
     }
@@ -1422,6 +1463,7 @@
     );
     state.adminDirty = true;
     state.adminErrors = {};
+    persistAdminDraft();
   }
 
   function toggleAdminColor(colorId) {
@@ -1432,6 +1474,7 @@
       ? state.adminDraft.colors.filter(({ id }) => id !== colorId)
       : [...state.adminDraft.colors, { ...color }];
     rebuildAdminVariants();
+    persistAdminDraft();
     render();
   }
 
@@ -1441,6 +1484,7 @@
       ? state.adminDraft.sizes.filter((item) => item !== size)
       : ADMIN_SIZES.filter((item) => [...state.adminDraft.sizes, size].includes(item));
     rebuildAdminVariants();
+    persistAdminDraft();
     render();
   }
 
@@ -1464,6 +1508,8 @@
     const stock = Number(control.value);
     variant.stock = Number.isInteger(stock) && stock >= 0 ? stock : -1;
     state.adminDirty = true;
+    state.adminSaveError = '';
+    persistAdminDraft();
   }
 
   async function persistAdminVariantStock(control) {
@@ -1477,7 +1523,9 @@
       state.adminProducts = state.adminProducts.map((product) => product.id === String(productId)
         ? { ...product, variants: product.variants.map((item) => item.id === variant.id ? { ...item, ...variant } : item) }
         : product);
+      persistAdminDraft();
     } catch (error) {
+      persistAdminDraft();
       showToast(error?.message || 'Не удалось сохранить остаток.');
     }
   }
@@ -1512,6 +1560,7 @@
       state.adminDraft.images = [...state.adminDraft.images, ...images];
       state.adminDirty = true;
       state.adminErrors = {};
+      persistAdminDraft();
       render();
     } catch (_error) {
       showToast('Не удалось прочитать фотографию');
@@ -1524,6 +1573,7 @@
     const [selected] = images.splice(index, 1);
     state.adminDraft.images = [selected, ...images];
     state.adminDirty = true;
+    persistAdminDraft();
     render();
   }
 
@@ -1531,6 +1581,7 @@
     if (!state.adminDraft?.images[index]) return;
     state.adminDraft.images = state.adminDraft.images.filter((_image, itemIndex) => itemIndex !== index);
     state.adminDirty = true;
+    persistAdminDraft();
     render();
   }
 
@@ -1679,6 +1730,7 @@
         return;
       }
     }
+    persistAdminDraft();
     state.isSubmitting = true;
     render();
     try {
@@ -1692,8 +1744,10 @@
         ? state.adminProducts.map((item) => item.id === finalProduct.id ? finalProduct : item)
         : [finalProduct, ...state.adminProducts];
       state.adminDraft = null;
+      clearAdminDraft();
       state.adminDirty = false;
       state.adminErrors = {};
+      state.adminSaveError = '';
       state.adminStep = 1;
       state.history = [];
       state.screen = 'seller-products';
@@ -1703,8 +1757,10 @@
       showToast(status === 'published' ? 'Товар опубликован' : 'Черновик сохранён');
     } catch (error) {
       state.isSubmitting = false;
+      state.adminSaveError = error?.message || 'Не удалось сохранить товар на сервере.';
+      persistAdminDraft();
       render();
-      showToast(error?.status === 409 ? 'Товар изменён на другом устройстве. Обнови список.' : (error?.message || 'Не удалось сохранить товар.'));
+      showToast(error?.status === 409 ? 'Товар изменён на другом устройстве. Обнови список.' : 'Данные сохранены в черновик. Исправь ошибку и повтори.');
     }
   }
 

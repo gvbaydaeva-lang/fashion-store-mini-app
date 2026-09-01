@@ -25,6 +25,8 @@ const {
   duplicateAdminProduct,
   getAdminProductStatus,
   popScreenHistory,
+  serializeAdminDraft,
+  parseAdminDraft,
 } = require('../core.js');
 
 const TEST_PRODUCTS = [
@@ -396,4 +398,14 @@ test('выход из редактора получает предыдущий �
   assert.deepEqual(result.target, { screen: 'seller-products', params: { filter: 'draft' } });
   assert.deepEqual(result.history, [{ screen: 'store', params: {} }]);
   assert.equal(history.length, 2);
+});
+
+test('черновик редактора восстанавливает введённые данные и шаг формы', () => {
+  const draft = { id: 'admin-draft', name: 'Жакет', price: '', variants: [] };
+
+  const stored = serializeAdminDraft(draft, 2);
+  const restored = parseAdminDraft(stored);
+
+  assert.deepEqual(restored, { draft, step: 2 });
+  assert.equal(parseAdminDraft('{invalid'), null);
 });

@@ -1073,6 +1073,11 @@ img { display: block; max-width: 100%; }
 
 .admin-editor-form { display: grid; padding-bottom: calc(84px + var(--safe-bottom)); gap: 12px; }
 .admin-editor-form--single { gap: 14px; }
+.admin-editor-form,
+.admin-form-section,
+.admin-form-heading,
+.admin-editor-grid,
+.admin-price-grid { min-width: 0; }
 .admin-form-section { padding: 18px; border-radius: 14px; box-shadow: none; }
 .admin-form-heading { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; gap: 12px; }
 .admin-form-heading h2,
@@ -1147,6 +1152,9 @@ img { display: block; max-width: 100%; }
 .admin-preview-card__body .color-button { pointer-events: none; }
 .admin-validation { padding: 18px; border-color: color-mix(in srgb, var(--danger) 35%, var(--border)); box-shadow: none; }
 .admin-validation ul { margin: 10px 0 0; padding-left: 20px; color: var(--danger); }
+.admin-save-error { border-color: color-mix(in srgb, var(--danger) 35%, var(--border)); }
+.admin-save-error p { min-width: 0; overflow-wrap: anywhere; }
+.admin-save-error small { color: var(--muted); }
 .notice-card--success { border-color: rgba(21, 128, 61, 0.28); }
 .notice-card--success > span { color: #166534; }
 
@@ -1251,4 +1259,27 @@ img { display: block; max-width: 100%; }
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+@media (max-width: 640px) {
+  .admin-section-heading { align-items: stretch; flex-direction: column; }
+  .admin-add-button { width: 100%; min-width: 0; }
+  .admin-form-section { padding: 14px; }
+  .admin-form-heading { flex-direction: column; }
+  .admin-price-grid,
+  .admin-editor-grid { grid-template-columns: 1fr; }
+  .admin-editor-actions { padding-right: 12px; padding-left: 12px; }
+  .admin-editor-actions button { min-width: 0; overflow-wrap: anywhere; }
+  .admin-variant-row { grid-template-columns: minmax(0, 1fr) 72px; grid-template-areas: "toggle stock" "size label"; padding-right: 10px; padding-left: 10px; }
+  .admin-variant-row > button { grid-area: toggle; justify-self: start; }
+  .admin-variant-row > strong { grid-area: size; }
+  .admin-variant-row > span { grid-area: label; text-align: left; }
+  .admin-variant-row > input { grid-area: stock; justify-self: end; }
+}
+
+@media (max-width: 380px) {
+  .admin-editor-form { padding-bottom: calc(142px + var(--safe-bottom)); }
+  .admin-editor-actions,
+  .admin-editor-actions--final { grid-template-columns: 1fr; }
+  .admin-variant-row { grid-template-columns: minmax(0, 1fr) 68px; }
 }
