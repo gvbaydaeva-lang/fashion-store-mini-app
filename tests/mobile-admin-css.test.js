@@ -11,4 +11,6 @@ test('админ-панель на мобильной ширине защище�
   assert.match(styles, /\.seller-shell[\s\S]*?font-size:\s*14px/);
   assert.match(styles, /\.seller-shell[\s\S]*?min-height:\s*44px/);
   assert.match(styles, /\.seller-shell[\s\S]*?:active[\s\S]*?transform:\s*none/);
+  assert.match(styles, /\.seller-shell[\s\S]*?\.admin-form-section input,[\s\S]*?font-size:\s*16px/);
+  assert.match(styles, /\.seller-shell[\s\S]*?\.admin-search input[\s\S]*?font-size:\s*16px/);
 });

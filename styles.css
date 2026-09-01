@@ -1305,6 +1305,7 @@ img { display: block; max-width: 100%; }
     max-width: 100%;
     overflow-x: hidden;
     font-size: 14px;
+    -webkit-text-size-adjust: 100%;
   }
 
   .seller-shell h1,
@@ -1355,7 +1356,13 @@ img { display: block; max-width: 100%; }
 
   .admin-section-heading h2 { font-size: 30px; }
   .admin-section-heading p { font-size: 14px; }
-  .admin-search input { font-size: 14px; }
+  /* iOS/Telegram приближает страницу при фокусе на поле меньше 16 px. */
+  .seller-shell .admin-search input,
+  .seller-shell .admin-form-section input,
+  .seller-shell .admin-form-section select,
+  .seller-shell .admin-form-section textarea,
+  .seller-shell .admin-filter-select select,
+  .seller-shell .admin-variant-row input { font-size: 16px; }
   .admin-progress__top,
   .admin-progress__labels,
   .admin-form-heading > span,
