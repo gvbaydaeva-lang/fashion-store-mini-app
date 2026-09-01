@@ -137,9 +137,39 @@
     const requestFetch = options.fetch || window.fetch?.bind(window);
     const baseUrl = normalizeBaseUrl(options.baseUrl || window.FashionStoreConfig?.apiBaseUrl);
     const getInitData = options.getInitData || (() => window.Telegram?.WebApp?.initData || '');
+    const timeoutMs = Number.isFinite(Number(options.timeoutMs)) ? Number(options.timeoutMs) : 15000;
 
     if (typeof requestFetch !== 'function') {
       throw new FashionStoreApiError('В браузере недоступен сетевой клиент.');
+    }
+
+    function requestWithTimeout(url, requestOptions) {
+      const controller = typeof AbortController === 'function' ? new AbortController() : null;
+      const optionsWithSignal = controller ? { ...requestOptions, signal: controller.signal } : requestOptions;
+
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        let timer;
+        const finish = (callback, value) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          callback(value);
+        };
+        timer = setTimeout(() => {
+          controller?.abort();
+          finish(reject, new FashionStoreApiError('Сервер не ответил вовремя. Проверь интернет и повтори.', 408, 'timeout'));
+        }, timeoutMs);
+
+        requestFetch(url, optionsWithSignal)
+          .then((response) => finish(resolve, response))
+          .catch((error) => finish(
+            reject,
+            error?.name === 'AbortError'
+              ? new FashionStoreApiError('Сервер не ответил вовремя. Проверь интернет и повтори.', 408, 'timeout')
+              : error,
+          ));
+      });
     }
 
     async function getCatalog(filters = {}) {
@@ -149,13 +179,13 @@
         query.set(key, Array.isArray(value) ? value.join(',') : String(value));
       });
       const suffix = query.toString() ? `?${query.toString()}` : '';
-      const response = await requestFetch(`${baseUrl}/catalog-api${suffix}`, { method: 'GET' });
+      const response = await requestWithTimeout(`${baseUrl}/catalog-api${suffix}`, { method: 'GET' });
       const data = await readResponse(response);
       return (Array.isArray(data.products) ? data.products : []).map(normalizeProduct);
     }
 
     async function adminRequest(action, payload = {}) {
-      const response = await requestFetch(`${baseUrl}/admin-api`, {
+      const response = await requestWithTimeout(`${baseUrl}/admin-api`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, initData: options.initData ?? getInitData(), ...payload }),

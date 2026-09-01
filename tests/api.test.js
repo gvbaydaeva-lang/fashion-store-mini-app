@@ -164,3 +164,26 @@ test('пустые необязательные цены отправляютс�
   assert.equal(body.product.category, 'all');
   assert.equal(body.product.name, 'Без названия');
 });
+
+test('админский запрос завершается понятной ошибкой, если сервер не отвечает', async () => {
+  let aborted = false;
+  const client = API.createApiClient({
+    timeoutMs: 10,
+    fetch: async (_url, options) => new Promise((_resolve, reject) => {
+      options.signal.addEventListener('abort', () => {
+        aborted = true;
+        const error = new Error('aborted');
+        error.name = 'AbortError';
+        reject(error);
+      }, { once: true });
+    }),
+  });
+
+  await assert.rejects(
+    () => client.getAdminProducts(),
+    (error) => error.name === 'FashionStoreApiError'
+      && error.status === 408
+      && error.message === 'Сервер не ответил вовремя. Проверь интернет и повтори.',
+  );
+  assert.equal(aborted, true);
+});

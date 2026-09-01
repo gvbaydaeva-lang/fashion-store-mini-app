@@ -1065,9 +1065,9 @@
         </section>
         ${variantGroups || `<section class="empty-state card"><span aria-hidden="true">${icon('grid')}</span><h2>Сначала выбери варианты</h2><p>После выбора цвета и размера здесь появятся поля для количества.</p></section>`}
         ${adminFieldError('variants')}
-        <div class="admin-editor-actions admin-editor-actions--final">
-          <button class="secondary-button" type="button" data-action="${product.adminStatus === 'published' ? 'save-admin-changes' : 'save-admin-draft'}">${product.adminStatus === 'published' ? 'Сохранить изменения' : 'Сохранить черновик'}</button>
-          ${product.adminStatus === 'published' ? '<span></span>' : '<button class="primary-button" type="button" data-action="publish-admin-product">Опубликовать</button>'}
+        <div class="admin-editor-actions admin-editor-actions--final" aria-busy="${state.isSubmitting}">
+          <button class="secondary-button" type="button" data-action="${product.adminStatus === 'published' ? 'save-admin-changes' : 'save-admin-draft'}" ${state.isSubmitting ? 'disabled' : ''}>${state.isSubmitting ? 'Сохраняем…' : product.adminStatus === 'published' ? 'Сохранить изменения' : 'Сохранить черновик'}</button>
+          ${product.adminStatus === 'published' ? '<span></span>' : `<button class="primary-button" type="button" data-action="publish-admin-product" ${state.isSubmitting ? 'disabled' : ''}>${state.isSubmitting ? 'Сохраняем…' : 'Опубликовать'}</button>`}
         </div>
       </form>`;
   }
@@ -1720,6 +1720,7 @@
   }
 
   async function saveAdminProduct(status) {
+    if (state.isSubmitting) return;
     const form = document.querySelector('#admin-product-form');
     syncAdminForm(form);
     if (!state.adminDraft || !apiClient) return;
