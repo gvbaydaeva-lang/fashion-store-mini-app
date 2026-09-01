@@ -1095,6 +1095,8 @@ img { display: block; max-width: 100%; }
 .admin-form-section legend { margin-bottom: 10px; font-weight: 750; }
 .admin-form-section > small { display: block; margin-top: 8px; color: var(--muted); }
 .admin-form-section label small { color: var(--muted); font-size: 11px; font-weight: 500; }
+.admin-add-variant-button { width: 100%; margin-top: 12px; }
+.admin-variant-hint { display: block; margin-top: 7px; color: var(--muted); }
 .admin-price-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .admin-editor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .admin-editor-grid label { margin-top: 14px !important; }

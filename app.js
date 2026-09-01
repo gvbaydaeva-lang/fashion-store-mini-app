@@ -276,7 +276,20 @@
   }
 
   function getAdminCategories() {
-    return [...Data.CATEGORIES.filter(({ id }) => id !== 'all'), ...state.adminCategories]
+    return state.adminCategories
+      .filter((category, index, categories) => categories.findIndex(({ id }) => id === category.id) === index);
+  }
+
+  function normalizeAdminProductCategory(product) {
+    const category = Core.createAdminCategory(product.category);
+    return { ...product, category: category.id || 'all' };
+  }
+
+  function rebuildAdminCategories() {
+    state.adminProducts = state.adminProducts.map(normalizeAdminProductCategory);
+    state.adminCategories = state.adminProducts
+      .filter((product) => product.category && product.category !== 'all')
+      .map((product) => Core.createAdminCategory(product.category))
       .filter((category, index, categories) => categories.findIndex(({ id }) => id === category.id) === index);
   }
 
@@ -1070,6 +1083,8 @@
         <section class="admin-form-section card">
           <div class="admin-form-heading"><div><p class="eyebrow">Количество товара</p><h2>Остатки по вариантам</h2><p>Введи цвет словами и размер цифрами или буквами, затем укажи количество.</p></div><span>${product.variants.length} вариантов</span></div>
           <label><span>Цвета словами</span><input name="adminColors" type="text" value="${escapeHtml(product.colors.map(({ name }) => name).join(', '))}" placeholder="Например: чёрный, молочный"><small>Разделяй цвета запятыми.</small></label>
+          <button class="secondary-button admin-add-variant-button" type="button" data-action="add-admin-variant">Добавить вариант</button>
+          <small class="admin-variant-hint">Нажми кнопку, введи новый цвет и сохрани: все цвета останутся вариантами одной карточки.</small>
           <label><span>Размеры цифрами или буквами</span><input name="adminSizes" type="text" value="${escapeHtml(product.sizes.join(', '))}" placeholder="Например: 42, 44, XL"><small>Разделяй размеры запятыми.</small></label>
           ${adminFieldError('colors')}${adminFieldError('sizes')}
         </section>
@@ -1362,9 +1377,6 @@
     if (newCategoryTitle) {
       const category = Core.createAdminCategory(newCategoryTitle);
       state.adminDraft.category = category.id;
-      if (!state.adminCategories.some(({ id }) => id === category.id)) {
-        state.adminCategories = [...state.adminCategories, category];
-      }
     } else {
       state.adminDraft.category = String(formData.get('category') || 'all');
     }
@@ -1483,6 +1495,16 @@
     rebuildAdminVariants();
     persistAdminDraft();
     render();
+  }
+
+  function addAdminVariant() {
+    const colorField = document.querySelector('#admin-product-form [name="adminColors"]');
+    if (!colorField) return;
+    const value = colorField.value;
+    if (value.trim() && !/[,\n]\s*$/.test(value)) colorField.value = `${value.trimEnd()}, `;
+    colorField.focus();
+    colorField.setSelectionRange?.(colorField.value.length, colorField.value.length);
+    state.adminDirty = true;
   }
 
   function getAdminVariant(colorId, size) {
@@ -1678,10 +1700,7 @@
     try {
       const products = await apiClient.getAdminProducts();
       state.adminProducts = Core.createAdminCatalog(products);
-      state.adminCategories = state.adminProducts
-        .filter((product) => product.category && product.category !== 'all')
-        .map((product) => ({ id: product.category, title: product.category }))
-        .filter((category, index, all) => all.findIndex(({ id }) => id === category.id) === index);
+      rebuildAdminCategories();
       state.sellerAuthStatus = 'ready';
       state.screen = 'seller-products';
       state.history = [];
@@ -1762,9 +1781,11 @@
       const finalProduct = status === 'published'
         ? await apiClient.publishAdminProduct(saved.id)
         : saved;
-      state.adminProducts = state.adminProducts.some(({ id }) => id === finalProduct.id)
-        ? state.adminProducts.map((item) => item.id === finalProduct.id ? finalProduct : item)
-        : [finalProduct, ...state.adminProducts];
+      const normalizedProduct = normalizeAdminProductCategory(finalProduct);
+      state.adminProducts = state.adminProducts.some(({ id }) => id === normalizedProduct.id)
+        ? state.adminProducts.map((item) => item.id === normalizedProduct.id ? normalizedProduct : item)
+        : [normalizedProduct, ...state.adminProducts];
+      rebuildAdminCategories();
       state.adminDraft = null;
       clearAdminDraft();
       state.adminDirty = false;
@@ -1901,6 +1922,7 @@
     'confirm-leave-admin': confirmLeaveAdminEditor,
     'toggle-admin-color': (control) => toggleAdminColor(control.dataset.colorId),
     'toggle-admin-size': (control) => toggleAdminSize(control.dataset.size),
+    'add-admin-variant': addAdminVariant,
     'toggle-admin-variant': (control) => toggleAdminVariant(control.dataset.colorId, control.dataset.size),
     'admin-photo-main': (control) => makeAdminPhotoMain(Number(control.dataset.index)),
     'admin-photo-remove': (control) => removeAdminPhoto(Number(control.dataset.index)),

@@ -184,6 +184,7 @@ test('административные экраны рендерятся из р
   assert.match(screen.innerHTML, /name="description"/);
   assert.match(screen.innerHTML, /name="adminColors"/);
   assert.match(screen.innerHTML, /name="adminSizes"/);
+  assert.match(screen.innerHTML, /data-action="add-admin-variant"/);
   assert.match(screen.innerHTML, /name="categoryNew"/);
   assert.match(screen.innerHTML, /name="supplier"/);
   assert.doesNotMatch(screen.innerHTML, /Применить цвета и размеры/);

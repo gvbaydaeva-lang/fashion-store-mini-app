@@ -195,9 +195,11 @@
   }
 
   function createAdminCategory(value) {
-    const title = String(value || '').trim();
-    const slug = title.toLocaleLowerCase('ru-RU').replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '');
-    return { id: `custom-${slug}`, title };
+    const source = String(value || '').trim();
+    const title = source.startsWith('custom-')
+      ? source.slice('custom-'.length).replace(/-/g, ' ')
+      : source;
+    return { id: title, title };
   }
 
   function validateAdminProduct(product, step = 4) {
