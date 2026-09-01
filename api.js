@@ -33,6 +33,28 @@
     return number == null || number === '' ? 0 : number;
   }
 
+  function parseDataImage(value) {
+    const match = String(value || '').match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+    if (!match) throw new FashionStoreApiError('Поддерживаются JPG, PNG и WebP.');
+    const mimeType = match[1];
+    return {
+      mimeType,
+      extension: mimeType === 'image/jpeg' ? 'jpg' : mimeType.slice('image/'.length),
+      base64: match[2],
+    };
+  }
+
+  function dataImageToBlob(value) {
+    const { mimeType, base64 } = parseDataImage(value);
+    const decode = window.atob || globalThis.atob;
+    if (typeof decode !== 'function' || typeof Blob !== 'function') {
+      throw new FashionStoreApiError('В браузере не удалось подготовить фотографию.');
+    }
+    const binary = decode(base64);
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    return new Blob([bytes], { type: mimeType });
+  }
+
   function normalizeProduct(product) {
     const variants = Array.isArray(product?.product_variants)
       ? product.product_variants.map((variant) => ({
@@ -43,12 +65,16 @@
         enabled: variant.is_enabled ?? variant.enabled ?? true,
       }))
       : Array.isArray(product?.variants) ? product.variants : [];
-    const images = Array.isArray(product?.product_images)
+    const imageRecords = Array.isArray(product?.product_images)
       ? [...product.product_images]
         .sort((left, right) => (left.sort_order || 0) - (right.sort_order || 0))
-        .map((image) => image.signed_url || image.url || image.object_path)
-        .filter(Boolean)
+      : [];
+    const images = imageRecords.length
+      ? imageRecords.map((image) => image.signed_url || image.url || image.object_path).filter(Boolean)
       : Array.isArray(product?.images) ? product.images : [];
+    const imagePaths = imageRecords.length
+      ? imageRecords.map((image) => image.object_path).filter(Boolean)
+      : Array.isArray(product?.imagePaths) ? product.imagePaths : images.filter((image) => !String(image).startsWith('data:'));
     const explicitColors = Array.isArray(product?.product_colors)
       ? product.product_colors.map((color) => ({ id: color.id, name: color.name }))
       : Array.isArray(product?.colors) ? product.colors : [];
@@ -76,6 +102,7 @@
       adminStatus: product.status ?? product.adminStatus ?? 'published',
       updatedAt: product.updated_at ?? product.updatedAt ?? null,
       images,
+      imagePaths,
       colors,
       sizes,
       variants,
@@ -110,7 +137,9 @@
         stock: variant.stock,
         is_enabled: variant.enabled !== false,
       })) : [],
-      images: Array.isArray(product?.images) ? product.images.filter((image) => typeof image === 'string' && !image.startsWith('data:')) : [],
+      images: Array.isArray(product?.imagePaths)
+        ? product.imagePaths.filter((image) => typeof image === 'string')
+        : Array.isArray(product?.images) ? product.images.filter((image) => typeof image === 'string' && !image.startsWith('data:')) : [],
     };
   }
 
@@ -193,6 +222,21 @@
       return readResponse(response);
     }
 
+    async function uploadAdminImage(productId, image) {
+      const { mimeType, extension } = parseDataImage(image);
+      const data = await adminRequest('upload-url', { productId, fileExtension: extension });
+      const objectPath = data?.objectPath;
+      const signedUrl = data?.upload?.signedUrl;
+      if (!objectPath || !signedUrl) throw new FashionStoreApiError('Сервер не подготовил загрузку фотографии.');
+      const response = await requestWithTimeout(signedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': mimeType },
+        body: dataImageToBlob(image),
+      });
+      if (!response.ok) throw new FashionStoreApiError('Не удалось загрузить фотографию.', response.status || 0);
+      return objectPath;
+    }
+
     return {
       getCatalog,
       async getAdminProducts(filters) {
@@ -222,6 +266,7 @@
         const extension = String(file?.name || '').split('.').pop().toLowerCase();
         return adminRequest('upload-url', { productId, fileExtension: extension });
       },
+      uploadAdminImage,
     };
   }
 

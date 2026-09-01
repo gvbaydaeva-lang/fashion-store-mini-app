@@ -246,6 +246,7 @@
       oldPrice: null,
       badge: null,
       images: [],
+      imagePaths: [],
       colors: [],
       sizes: [],
       description: '',
@@ -1554,6 +1555,7 @@
     try {
       const images = await Promise.all(selectedFiles.map(readImageFile));
       state.adminDraft.images = [...state.adminDraft.images, ...images];
+      state.adminDraft.imagePaths = [...(state.adminDraft.imagePaths || []), ...images.map(() => null)];
       state.adminDirty = true;
       state.adminErrors = {};
       persistAdminDraft();
@@ -1566,8 +1568,11 @@
   function makeAdminPhotoMain(index) {
     if (!state.adminDraft?.images[index]) return;
     const images = [...state.adminDraft.images];
+    const imagePaths = [...(state.adminDraft.imagePaths || [])];
     const [selected] = images.splice(index, 1);
+    const [selectedPath] = imagePaths.splice(index, 1);
     state.adminDraft.images = [selected, ...images];
+    state.adminDraft.imagePaths = [selectedPath, ...imagePaths];
     state.adminDirty = true;
     persistAdminDraft();
     render();
@@ -1576,6 +1581,7 @@
   function removeAdminPhoto(index) {
     if (!state.adminDraft?.images[index]) return;
     state.adminDraft.images = state.adminDraft.images.filter((_image, itemIndex) => itemIndex !== index);
+    state.adminDraft.imagePaths = (state.adminDraft.imagePaths || []).filter((_image, itemIndex) => itemIndex !== index);
     state.adminDirty = true;
     persistAdminDraft();
     render();
@@ -1731,9 +1737,28 @@
     state.isSubmitting = true;
     render();
     try {
-      const saved = state.adminDraft.id && /^\d+$/.test(String(state.adminDraft.id))
+      let saved = state.adminDraft.id && /^\d+$/.test(String(state.adminDraft.id))
         ? await apiClient.updateAdminProduct({ ...state.adminDraft, adminStatus: 'draft' })
         : await apiClient.createAdminProduct({ ...state.adminDraft, adminStatus: 'draft' });
+      const imagesToUpload = state.adminDraft.images
+        .map((image, index) => ({ image, objectPath: state.adminDraft.imagePaths?.[index] || null }))
+        .filter(({ image }) => String(image).startsWith('data:'));
+      state.adminDraft = { ...state.adminDraft, id: saved.id, updatedAt: saved.updatedAt, imagePaths: saved.imagePaths || state.adminDraft.imagePaths || [] };
+      persistAdminDraft();
+      if (imagesToUpload.length) {
+        const imagePaths = await Promise.all(state.adminDraft.images.map((image, index) => (
+          String(image).startsWith('data:')
+            ? apiClient.uploadAdminImage(saved.id, image)
+            : state.adminDraft.imagePaths?.[index] || image
+        )));
+        saved = await apiClient.updateAdminProduct({
+          ...state.adminDraft,
+          id: saved.id,
+          updatedAt: saved.updatedAt,
+          imagePaths,
+          adminStatus: 'draft',
+        });
+      }
       const finalProduct = status === 'published'
         ? await apiClient.publishAdminProduct(saved.id)
         : saved;

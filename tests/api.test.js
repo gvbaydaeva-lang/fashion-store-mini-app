@@ -88,6 +88,7 @@ test('клиент не маскирует сетевую ошибку успе�
 test('архивирование отправляет productId и возвращает серверный результат', async () => {
   const calls = [];
   const client = API.createApiClient({
+    baseUrl: 'https://example.supabase.co/functions/v1',
     initData: 'signed-telegram-data',
     fetch: async (url, options) => {
       calls.push({ url, options });
@@ -141,6 +142,42 @@ test('сохранение товара переводит поля и вари�
   assert.equal(body.product.seller_sku, 'DR-1');
   assert.deepEqual(body.product.variants, [{ color_id: 'black', color_name: 'black', color_hex: null, size: 'S', stock: 2, is_enabled: true }]);
   assert.deepEqual(body.product.images, []);
+});
+
+test('фотография загружается по разовой ссылке и возвращает путь Storage', async () => {
+  const calls = [];
+  const client = API.createApiClient({
+    baseUrl: 'https://example.supabase.co/functions/v1',
+    initData: 'signed-telegram-data',
+    fetch: async (url, options) => {
+      calls.push({ url, options });
+      if (url === 'https://example.supabase.co/functions/v1/admin-api') {
+        return {
+          ok: true,
+          async json() {
+            return {
+              ok: true,
+              data: {
+                objectPath: '12/photo.png',
+                upload: { signedUrl: 'https://storage.example/upload/photo' },
+              },
+            };
+          },
+        };
+      }
+      return { ok: true, async json() { return {}; } };
+    },
+  });
+
+  const objectPath = await client.uploadAdminImage(12, 'data:image/png;base64,AA==');
+
+  assert.equal(objectPath, '12/photo.png');
+  assert.deepEqual(JSON.parse(calls[0].options.body), {
+    action: 'upload-url', initData: 'signed-telegram-data', productId: 12, fileExtension: 'png',
+  });
+  assert.equal(calls[1].url, 'https://storage.example/upload/photo');
+  assert.equal(calls[1].options.method, 'PUT');
+  assert.equal(calls[1].options.headers['Content-Type'], 'image/png');
 });
 
 test('пустые необязательные цены отправляются на сервер как null', async () => {

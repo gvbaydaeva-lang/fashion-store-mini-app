@@ -116,6 +116,7 @@
     return {
       ...product,
       images: Array.isArray(product.images) ? [...product.images] : [],
+      imagePaths: Array.isArray(product.imagePaths) ? [...product.imagePaths] : [],
       colors: Array.isArray(product.colors)
         ? product.colors.map((color) => ({ ...color }))
         : [],
