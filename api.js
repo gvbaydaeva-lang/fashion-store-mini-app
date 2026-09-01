@@ -83,9 +83,11 @@
   }
 
   function serializeProduct(product) {
+    const category = String(product?.category ?? '').trim();
+    const name = String(product?.name ?? '').trim();
     return {
-      category: product?.category,
-      name: product?.name,
+      category: category || 'all',
+      name: name || 'Без названия',
       price: requiredNumber(product?.price),
       old_price: optionalNumber(product?.oldPrice),
       badge: product?.badge ?? null,

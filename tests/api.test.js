@@ -153,7 +153,7 @@ test('пустые необязательные цены отправляютс�
   });
 
   await client.createAdminProduct({
-    name: 'Жакет', price: '', oldPrice: '', wholesalePrice: '',
+    name: '', category: '', price: '', oldPrice: '', wholesalePrice: '',
     adminStatus: 'draft', variants: [], images: [],
   });
 
@@ -161,4 +161,6 @@ test('пустые необязательные цены отправляютс�
   assert.equal(body.product.old_price, null);
   assert.equal(body.product.wholesale_price, null);
   assert.equal(body.product.seller_sku, null);
+  assert.equal(body.product.category, 'all');
+  assert.equal(body.product.name, 'Без названия');
 });
