@@ -111,8 +111,8 @@ test('Mini App запрещает автоматическое увеличен�
 });
 
 test('страница запрашивает новую версию стилей и редактора после мобильной правки', () => {
-  assert.match(indexSource, /styles\.css\?v=20260902-mobile-size-editor/);
-  assert.match(indexSource, /app\.js\?v=20260902-mobile-size-editor/);
+  assert.match(indexSource, /styles\.css\?v=20260902-mobile-variants-2/);
+  assert.match(indexSource, /app\.js\?v=20260902-mobile-variants-2/);
 });
 
 test('новая версия один раз очищает только утверждённые локальные демо-ключи', () => {
