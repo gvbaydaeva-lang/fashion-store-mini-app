@@ -14,3 +14,10 @@ test('админ-панель на мобильной ширине защище�
   assert.match(styles, /\.seller-shell[\s\S]*?\.admin-form-section input,[\s\S]*?font-size:\s*16px/);
   assert.match(styles, /\.seller-shell[\s\S]*?\.admin-search input[\s\S]*?font-size:\s*16px/);
 });
+
+test('редактор товара на iPhone не увеличивается при вводе цвета и размера', () => {
+  assert.match(styles, /@media \(max-width: 430px\)[\s\S]*?\.admin-editor-form \{[^}]*overflow-x:\s*hidden/);
+  assert.match(styles, /@media \(max-width: 430px\)[\s\S]*?\.admin-editor-form \.admin-color-block \{[^}]*min-width:\s*0/);
+  assert.match(styles, /@media \(max-width: 430px\)[\s\S]*?\.admin-editor-form \.admin-color-block input \{[^}]*font-size:\s*16px/);
+  assert.match(styles, /@media \(max-width: 430px\)[\s\S]*?\.admin-size-row \{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/);
+});

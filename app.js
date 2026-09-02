@@ -71,6 +71,7 @@
     adminOnlyNew: false,
     adminDraft: null,
     adminColorEmptyRows: 0,
+    adminSizeEmptyRows: {},
     adminStep: 1,
     adminDirty: false,
     adminErrors: {},
@@ -278,6 +279,7 @@
     state.adminErrors = {};
     state.adminSaveError = '';
     state.adminColorEmptyRows = 0;
+    state.adminSizeEmptyRows = {};
     persistAdminDraft();
     navigate('seller-product-edit', { productId: state.adminDraft.id });
   }
@@ -1049,28 +1051,30 @@
       </figure>`).join('');
     const categories = getAdminCategories().map((category) => `
       <option value="${category.id}" ${product.category === category.id ? 'selected' : ''}>${escapeHtml(category.title)}</option>`).join('');
-    const colorBlocks = product.colors.map((color, index) => {
+    const renderColorBlock = (color, index, isNew = false) => {
       const variants = product.variants.filter(({ colorId }) => colorId === color.id);
+      const emptySizeCount = isNew ? 1 : (state.adminSizeEmptyRows[color.id] || 0);
+      const sizeRows = [
+        ...variants.map((variant) => `
+          <div class="admin-size-row ${variant.enabled === false ? 'is-disabled' : ''}">
+            <label><span>Размер</span><input data-admin-size-name type="text" maxlength="20" value="${escapeHtml(variant.size)}" placeholder="Например, 42" autocomplete="off"></label>
+            <label><span>Остаток</span><input type="number" min="0" step="1" inputmode="numeric" value="${variant.stock}" data-action="admin-stock" data-color-id="${variant.colorId}" data-size="${variant.size}" ${variant.enabled === false ? 'disabled' : ''} aria-label="Количество ${escapeHtml(color.name)}, размер ${variant.size}"></label>
+          </div>`),
+        ...Array.from({ length: emptySizeCount }, () => `
+          <div class="admin-size-row"><label><span>Размер</span><input data-admin-size-name type="text" maxlength="20" value="" placeholder="Например, 42" autocomplete="off"></label></div>`),
+      ].join('');
       return `
         <section class="admin-color-block card" data-admin-color-block data-admin-color-index="${index}" data-color-id="${escapeHtml(color.id)}">
-          <div class="admin-form-heading"><div><p class="eyebrow">Вариант цвета ${index + 1}</p><h3>${escapeHtml(color.name || 'Новый цвет')}</h3></div><button class="text-button" type="button" data-action="remove-admin-color">Удалить цвет</button></div>
-          <label><span>Цвет</span><input data-admin-color-name type="text" maxlength="120" value="${escapeHtml(color.name)}" placeholder="Например, коричневый, шоколадный" autocomplete="off"><small>Можно указать другое название этого же цвета через запятую.</small></label>
-          <label><span>Размеры этого цвета</span><input data-admin-color-sizes type="text" value="${escapeHtml(variants.map(({ size }) => size).join(', '))}" placeholder="Например, 42, 44, XL" autocomplete="off"><small>Разделяй размеры запятыми.</small></label>
-          <div class="admin-color-block__stock">${variants.map((variant) => `
-            <label class="admin-variant-row ${variant.enabled === false ? 'is-disabled' : ''}">
-              <button type="button" data-action="toggle-admin-variant" data-color-id="${variant.colorId}" data-size="${variant.size}" aria-pressed="${variant.enabled !== false}">${variant.enabled === false ? 'Выкл.' : 'Вкл.'}</button>
-              <strong>${variant.size}</strong>
-              <span>Количество</span>
-              <input type="number" min="0" step="1" inputmode="numeric" value="${variant.stock}" data-action="admin-stock" data-color-id="${variant.colorId}" data-size="${variant.size}" ${variant.enabled === false ? 'disabled' : ''} aria-label="Количество ${escapeHtml(color.name)}, размер ${variant.size}">
-            </label>`).join('')}</div>
+          <div class="admin-form-heading"><div><p class="eyebrow">Вариант товара</p><h3>${escapeHtml(color.name || 'Цвет')}</h3></div>${isNew ? '' : '<button class="text-button" type="button" data-action="remove-admin-color">Удалить цвет</button>'}</div>
+          <label><span>Цвет</span><input data-admin-color-name type="text" maxlength="120" value="${escapeHtml(color.name)}" placeholder="Например, чёрный" autocomplete="off"></label>
+          <div class="admin-size-list">${sizeRows}</div>
+          <button class="text-button admin-add-size-button" type="button" data-action="add-admin-size">Добавить размер</button>
         </section>`;
-    }).join('');
-    const emptyColorBlocks = Array.from({ length: state.adminColorEmptyRows }, (_value, index) => `
-      <section class="admin-color-block card" data-admin-color-block data-admin-color-index="${product.colors.length + index}" data-color-id="">
-        <div class="admin-form-heading"><div><p class="eyebrow">Новый вариант цвета</p><h3>Цвет</h3></div><button class="text-button" type="button" data-action="remove-admin-color">Удалить цвет</button></div>
-        <label><span>Цвет</span><input data-admin-color-name type="text" maxlength="120" value="" placeholder="Например, коричневый, шоколадный" autocomplete="off"><small>Можно указать другое название этого же цвета через запятую.</small></label>
-        <label><span>Размеры этого цвета</span><input data-admin-color-sizes type="text" value="" placeholder="Например, 42, 44, XL" autocomplete="off"><small>Разделяй размеры запятыми.</small></label>
-      </section>`).join('');
+    };
+    const colorBlocks = product.colors.map((color, index) => renderColorBlock(color, index)).join('');
+    const emptyColorBlocks = Array.from({ length: state.adminColorEmptyRows }, (_value, index) => (
+      renderColorBlock({ id: '', name: '' }, product.colors.length + index, true)
+    )).join('');
     return `
       ${adminEditorHeader()}
       ${state.adminSaveError ? `<section class="notice-card admin-save-error" role="alert"><span aria-hidden="true">${icon('info')}</span><p>${escapeHtml(state.adminSaveError)}<br><small>Введённые данные сохранены на этом устройстве. Исправь ошибку и повтори сохранение.</small></p></section>` : ''}
@@ -1101,12 +1105,11 @@
           ${adminFieldError('description')}
         </section>
         <section class="admin-form-section card">
-          <div class="admin-form-heading"><div><p class="eyebrow">Количество товара</p><h2>Остатки по размерам</h2><p>У этого цвета свои размеры и остатки.</p></div><span>${product.variants.length} вариантов</span></div>
-          <button class="secondary-button admin-add-variant-button" type="button" data-action="add-admin-product-option">Добавить вариант товара</button>
-          <small class="admin-variant-hint">Новый вариант откроется отдельной полной карточкой в этой же склейке: со своими фото, ценой и описанием.</small>
+          <div class="admin-form-heading"><div><p class="eyebrow">Варианты товара</p><h2>Цвет и размеры</h2></div><span>${product.variants.length} размеров</span></div>
+          <button class="secondary-button admin-add-variant-button" type="button" data-action="add-admin-product-option">Добавить цвет</button>
           ${adminFieldError('colors')}${adminFieldError('sizes')}
         </section>
-        ${colorBlocks || emptyColorBlocks || `<section class="admin-color-block card" data-admin-color-block data-admin-color-index="0" data-color-id=""><div class="admin-form-heading"><div><p class="eyebrow">Цвет товара</p><h3>Цвет</h3></div></div><label><span>Цвет</span><input data-admin-color-name type="text" maxlength="120" value="" placeholder="Например, чёрный" autocomplete="off"><small>Можно указать другое название этого же цвета через запятую.</small></label><label><span>Размеры этого цвета</span><input data-admin-color-sizes type="text" value="" placeholder="Например, S, M" autocomplete="off"><small>Разделяй размеры запятыми.</small></label></section>`}
+        ${colorBlocks || emptyColorBlocks || renderColorBlock({ id: '', name: '' }, 0, true)}
         ${adminFieldError('variants')}
         <div class="admin-editor-actions admin-editor-actions--final" aria-busy="${state.isSubmitting}">
           <button class="secondary-button" type="button" data-action="${product.adminStatus === 'published' ? 'save-admin-changes' : 'save-admin-draft'}" ${state.isSubmitting ? 'disabled' : ''}>${state.isSubmitting ? 'Сохраняем…' : 'Сохранить'}</button>
@@ -1421,7 +1424,9 @@
       const usedIds = new Set();
       const parsedBlocks = colorBlocks.map((block) => {
         const name = String(block.querySelector('[data-admin-color-name]')?.value || '').trim();
-        const sizes = Core.normalizeAdminOptionList(block.querySelector('[data-admin-color-sizes]')?.value || '');
+        const sizes = [...block.querySelectorAll('[data-admin-size-name]')]
+          .map((input) => String(input.value || '').trim())
+          .filter(Boolean);
         const savedId = String(block.dataset.colorId || '').trim();
         const baseId = name.toLocaleLowerCase('ru-RU').replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '') || 'variant';
         let id = savedId || baseId;
@@ -1439,6 +1444,7 @@
         Core.buildColorVariants({ id, name }, sizes, previousVariants)
       ));
       state.adminColorEmptyRows = 0;
+      state.adminSizeEmptyRows = {};
     }
     state.adminDirty = true;
     state.adminSaveError = '';
@@ -1534,6 +1540,21 @@
   function addAdminVariant() {
     syncAdminForm(document.querySelector('#admin-product-form'));
     state.adminColorEmptyRows += 1;
+    state.adminDirty = true;
+    render({ preserveScroll: true });
+  }
+
+  function addAdminSize(control) {
+    const form = document.querySelector('#admin-product-form');
+    const block = control.closest('[data-admin-color-block]');
+    if (!form || !block) return;
+    syncAdminForm(form);
+    const color = state.adminDraft?.colors[Number(block.dataset.adminColorIndex)];
+    if (!color) {
+      showToast('Сначала укажи цвет');
+      return;
+    }
+    state.adminSizeEmptyRows[color.id] = (state.adminSizeEmptyRows[color.id] || 0) + 1;
     state.adminDirty = true;
     render({ preserveScroll: true });
   }
@@ -1981,6 +2002,7 @@
     'toggle-admin-color': (control) => toggleAdminColor(control.dataset.colorId),
     'toggle-admin-size': (control) => toggleAdminSize(control.dataset.size),
     'add-admin-product-option': addAdminProductOption,
+    'add-admin-size': (control) => addAdminSize(control),
     'remove-admin-color': (control) => removeAdminColor(control),
     'toggle-admin-variant': (control) => toggleAdminVariant(control.dataset.colorId, control.dataset.size),
     'admin-photo-main': (control) => makeAdminPhotoMain(Number(control.dataset.index)),

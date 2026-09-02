@@ -1403,7 +1403,7 @@ img { display: block; max-width: 100%; }
   .field-error { font-size: 14px; }
   .admin-form-section input,
   .admin-form-section select,
-  .admin-form-section textarea { font-size: 14px; }
+  .admin-form-section textarea { font-size: 16px; }
 
   .admin-photo > button:not(.icon-button) {
     min-height: 44px;
@@ -1422,7 +1422,12 @@ img { display: block; max-width: 100%; }
   }
 
   .admin-variant-row > span,
-  .admin-variant-row input { font-size: 14px; }
+  .admin-variant-row input { font-size: 16px; }
+  .admin-editor-form { min-width: 0; max-width: 100%; overflow-x: hidden; }
+  .admin-editor-form .admin-color-block { min-width: 0; max-width: 100%; }
+  .admin-editor-form .admin-color-block input { font-size: 16px; }
+  .admin-size-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0; }
+  .admin-size-row label { min-width: 0; }
   .admin-preview-switch { font-size: 14px; }
   .admin-preview-switch span,
   .admin-preview-switch strong { min-height: 44px; }
