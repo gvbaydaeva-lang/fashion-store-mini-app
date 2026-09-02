@@ -553,6 +553,9 @@
   function renderProduct(productId) {
     const product = getProduct(productId);
     if (!product) return renderNotFound();
+    const galleryImages = Array.isArray(product.images) && product.images.length
+      ? product.images
+      : ['assets/preorder-hero-bags.png'];
     const groupedProducts = getProductGroup(product);
     const colorButtons = groupedProducts.map((option) => {
       const color = option.colors[0] || { id: option.id, name: 'Цвет' };
@@ -581,9 +584,11 @@
 
     return `
       ${productBackHeader()}
-      <section class="product-gallery card">
-        <img src="${product.images[0]}" alt="${escapeHtml(product.name)}">
-        <span class="gallery-counter">1 / ${product.images.length}</span>
+      <section class="product-gallery card" aria-label="Фотографии ${escapeHtml(product.name)}">
+        <div class="product-gallery__track">
+          ${galleryImages.map((image, index) => `<img src="${escapeHtml(image)}" alt="${escapeHtml(product.name)} — фото ${index + 1}" ${index ? 'loading="lazy"' : ''}>`).join('')}
+        </div>
+        <div class="gallery-dots" aria-hidden="true">${galleryImages.map((_, index) => `<span class="gallery-dot${index === 0 ? ' is-active' : ''}"></span>`).join('')}</div>
         ${product.badge ? `<span class="badge">${escapeHtml(product.badge)}</span>` : ''}
       </section>
       <section class="product-info">
@@ -618,7 +623,7 @@
     const summary = Core.getCartSummary(state.cart, 0);
     const items = state.cart.map((item) => `
       <article class="cart-item card">
-        <button class="cart-item__image" type="button" data-action="open-product" data-product-id="${item.productId}" aria-label="Открыть ${escapeHtml(item.name)}"><img src="${item.image}" alt="${escapeHtml(item.name)}"></button>
+        <button class="cart-item__image" type="button" data-action="open-product" data-product-id="${item.productId}" aria-label="Открыть ${escapeHtml(item.name)}"><img src="${escapeHtml(getProductImage(item))}" alt="${escapeHtml(item.name)}"></button>
         <div class="cart-item__body">
           <strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.colorName)}, ${escapeHtml(item.size)}</small><b>${money(item.price)}</b>
           <div class="quantity-control" aria-label="Количество ${escapeHtml(item.name)}">
@@ -764,8 +769,12 @@
   }
 
   function getOrderItemImage(item) {
-    return item?.image
-      || getProduct(item?.productId)?.images?.[0]
+    return getProductImage(item);
+  }
+
+  function getProductImage(item) {
+    return getProduct(item?.productId)?.images?.[0]
+      || item?.image
       || getAdminProduct(item?.productId)?.images?.[0]
       || 'assets/preorder-hero-bags.png';
   }

@@ -113,7 +113,7 @@ test('Mini App запрещает автоматическое увеличен�
 test('страница запрашивает новую версию стилей и редактора после мобильной правки', () => {
   assert.match(indexSource, /data\.js\?v=20260902-fashion-style-1/);
   assert.match(indexSource, /styles\.css\?v=20260902-admin-stability-6/);
-  assert.match(indexSource, /app\.js\?v=20260902-order-preview-1/);
+  assert.match(indexSource, /app\.js\?v=20260902-order-gallery-1/);
 });
 
 test('заказ не показывает битую картинку, если у позиции нет сохранённого изображения', () => {
@@ -127,6 +127,18 @@ test('каталог покупателя не заменяется списко
   assert.match(appSource, /catalogProducts: \[\],/);
   assert.match(appSource, /Core\.getPublishedProducts\(state\.catalogProducts\)/);
   assert.match(appSource, /state\.catalogProducts = Core\.createAdminCatalog\(products\);/);
+});
+
+test('корзина и заказ используют актуальное первое фото товара поверх старого localStorage', () => {
+  assert.match(appSource, /function getProductImage\(item\)/);
+  assert.match(appSource, /getProduct\(item\?\.productId\)\?\.images\?\.\[0\]/);
+  assert.match(appSource, /src="\$\{escapeHtml\(getProductImage\(item\)\)\}"/);
+});
+
+test('карточка товара содержит горизонтальную галерею всех фотографий', () => {
+  assert.match(appSource, /product-gallery__track/);
+  assert.match(appSource, /product\.images\.map/);
+  assert.match(appSource, /gallery-dot/);
 });
 
 test('добавление размера определяет цвет из текущей карточки, даже до blur поля', () => {
