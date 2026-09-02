@@ -110,6 +110,11 @@ test('Mini App запрещает автоматическое увеличен�
   assert.match(indexSource, /user-scalable=no/);
 });
 
+test('страница запрашивает новую версию стилей и редактора после мобильной правки', () => {
+  assert.match(indexSource, /styles\.css\?v=20260902-mobile-size-editor/);
+  assert.match(indexSource, /app\.js\?v=20260902-mobile-size-editor/);
+});
+
 test('новая версия один раз очищает только утверждённые локальные демо-ключи', () => {
   const { storage } = loadApp({
     'fashion-store-cart-v1': '[{"key":"demo"}]',
