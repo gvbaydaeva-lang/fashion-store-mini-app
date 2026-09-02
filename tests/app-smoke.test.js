@@ -111,8 +111,19 @@ test('Mini App запрещает автоматическое увеличен�
 });
 
 test('страница запрашивает новую версию стилей и редактора после мобильной правки', () => {
-  assert.match(indexSource, /styles\.css\?v=20260902-mobile-variants-2/);
-  assert.match(indexSource, /app\.js\?v=20260902-mobile-variants-2/);
+  assert.match(indexSource, /styles\.css\?v=20260902-admin-stability-3/);
+  assert.match(indexSource, /app\.js\?v=20260902-admin-stability-3/);
+});
+
+test('заказ не показывает битую картинку, если у позиции нет сохранённого изображения', () => {
+  assert.match(appSource, /assets\/preorder-hero\.png/);
+  assert.match(appSource, /order-item-image/);
+  assert.match(appSource, /item\.image \|\| 'assets\/preorder-hero\.png'/);
+});
+
+test('добавление размера определяет цвет из текущей карточки, даже до blur поля', () => {
+  assert.match(appSource, /data-admin-color-name/);
+  assert.match(appSource, /querySelector\('\[data-admin-color-name\]'\)/);
 });
 
 test('новая версия один раз очищает только утверждённые локальные демо-ключи', () => {

@@ -760,7 +760,7 @@
 
   function orderItems(order) {
     return order.items.map((item) => `
-      <li class="order-item"><img src="${item.image}" alt="${escapeHtml(item.name)}"><span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.colorName)}, ${escapeHtml(item.size)} · ${item.quantity} шт.</small></span><b>${money(item.price * item.quantity)}</b></li>`).join('');
+      <li class="order-item"><img class="order-item-image" src="${escapeHtml(item.image || 'assets/preorder-hero.png')}" alt="${escapeHtml(item.name)}" data-order-item-image><span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.colorName)}, ${escapeHtml(item.size)} · ${item.quantity} шт.</small></span><b>${money(item.price * item.quantity)}</b></li>`).join('');
   }
 
   function renderOrderDetail() {
@@ -1550,8 +1550,10 @@
     const form = document.querySelector('#admin-product-form');
     const block = control.closest('[data-admin-color-block]');
     if (!form || !block) return;
+    const colorName = block.querySelector('[data-admin-color-name]')?.value.trim() || '';
     syncAdminForm(form);
-    const color = state.adminDraft?.colors[Number(block.dataset.adminColorIndex)];
+    const color = state.adminDraft?.colors.find((item) => item.name === colorName)
+      || state.adminDraft?.colors[Number(block.dataset.adminColorIndex)];
     if (!color) {
       showToast('Сначала укажи цвет');
       return;
@@ -2117,8 +2119,15 @@
   document.addEventListener('keydown', handleModalKeydown);
   document.addEventListener('error', (event) => {
     if (event.target instanceof HTMLImageElement) {
-      event.target.closest('.product-card__media, .product-gallery, .category-card, .store-visual')?.classList.add('image-fallback');
-      event.target.hidden = true;
+      const image = event.target;
+      if (image.dataset.fallbackApplied !== '1') {
+        image.dataset.fallbackApplied = '1';
+        image.src = 'assets/preorder-hero.png';
+        image.hidden = false;
+        return;
+      }
+      image.closest('.product-card__media, .product-gallery, .category-card, .store-visual')?.classList.add('image-fallback');
+      image.hidden = true;
     }
   }, true);
 
