@@ -180,14 +180,16 @@ test('административные экраны рендерятся из р
   assert.doesNotMatch(screen.innerHTML, /Шаг 1 из 4/);
   assert.match(screen.innerHTML, /Основная информация/);
   assert.match(screen.innerHTML, /Описание товара/);
-  assert.match(screen.innerHTML, /Остатки по вариантам/);
+  assert.match(screen.innerHTML, /Остатки по размерам/);
   assert.match(screen.innerHTML, /name="description"/);
   assert.match(screen.innerHTML, /data-admin-color-index="0"/);
-  assert.match(screen.innerHTML, /Цвет \/ синонимы/);
+  assert.match(screen.innerHTML, /<span>Цвет<\/span>/);
+  assert.doesNotMatch(screen.innerHTML, /синонимы/);
   assert.match(screen.innerHTML, /Размеры этого цвета/);
   assert.doesNotMatch(screen.innerHTML, /name="adminColors"/);
   assert.doesNotMatch(screen.innerHTML, /name="adminSizes"/);
-  assert.match(screen.innerHTML, /data-action="add-admin-variant"/);
+  assert.match(screen.innerHTML, /data-action="add-admin-product-option"/);
+  assert.match(screen.innerHTML, /Добавить вариант товара/);
   assert.match(screen.innerHTML, /name="categoryNew"/);
   assert.match(screen.innerHTML, /name="supplier"/);
   assert.doesNotMatch(screen.innerHTML, /Применить цвета и размеры/);
@@ -214,7 +216,7 @@ test('остаток одной единицы показывается поку
 
   await app.loadRemoteCatalog();
   app.navigate('product', { productId: 'single-item' });
-  assert.match(screen.innerHTML, /data-action="select-color"/);
+  assert.match(screen.innerHTML, /data-action="select-product-option"/);
   assert.match(screen.innerHTML, /data-action="select-size"/);
   assert.doesNotMatch(screen.innerHTML, /Осталась 1 шт\./);
 
@@ -222,4 +224,26 @@ test('остаток одной единицы показывается поку
   app.selectSize('S');
   assert.match(screen.innerHTML, /Осталась 1 шт\./);
   assert.doesNotMatch(screen.innerHTML, /<span class="badge">Осталась 1 шт/);
+});
+
+test('переключение цвета в склейке меняет данные без выхода из карточки', async () => {
+  const products = [
+    {
+      id: 'black-dress', groupId: 'dress-group', name: 'Платье чёрное', category: 'all', price: 4990,
+      images: ['black.webp'], colors: [{ id: 'black', name: 'Чёрный' }], variants: [{ colorId: 'black', size: 'S', stock: 1 }], adminStatus: 'published', description: 'Чёрное',
+    },
+    {
+      id: 'milk-dress', groupId: 'dress-group', name: 'Платье молочное', category: 'all', price: 5490,
+      images: ['milk.webp'], colors: [{ id: 'milk', name: 'Молочный' }], variants: [{ colorId: 'milk', size: 'M', stock: 2 }], adminStatus: 'published', description: 'Молочное',
+    },
+  ];
+  const { app, screen } = loadApp({}, { createApiClient() { return { getCatalog: async () => products }; } });
+
+  await app.loadRemoteCatalog();
+  app.navigate('product', { productId: 'black-dress' });
+  assert.match(screen.innerHTML, /Чёрный/);
+  assert.match(screen.innerHTML, /Молочный/);
+  app.selectProductOption('milk-dress');
+  assert.match(screen.innerHTML, /Платье молочное/);
+  assert.match(screen.innerHTML, /5 490 ₽/);
 });

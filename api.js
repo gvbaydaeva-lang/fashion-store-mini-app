@@ -96,6 +96,7 @@
     return {
       ...product,
       id: String(product.id),
+      groupId: String(product.group_id ?? product.groupId ?? product.id),
       oldPrice: product.old_price ?? product.oldPrice ?? null,
       sellerSku: product.seller_sku ?? product.sellerSku ?? '',
       wholesalePrice: product.wholesale_price ?? product.wholesalePrice ?? null,
@@ -129,6 +130,7 @@
       measurements: product?.measurements ?? {},
       is_new: product?.badge === 'Новинка',
       status: product?.adminStatus === 'published' ? 'published' : product?.adminStatus === 'archived' ? 'archived' : 'draft',
+      group_id: product?.groupId && /^\d+$/.test(String(product.groupId)) ? Number(product.groupId) : null,
       variants: Array.isArray(product?.variants) ? product.variants.map((variant) => ({
         ...(variant.id == null ? {} : { id: variant.id }),
         color_id: variant.colorId,

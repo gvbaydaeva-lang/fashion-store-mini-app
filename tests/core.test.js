@@ -6,6 +6,8 @@ const {
   filterProducts,
   sortProducts,
   getAvailableOptions,
+  flattenCatalogProductGroups,
+  getSelectedProductOption,
   addCartItem,
   setCartItemQuantity,
   removeCartItem,
@@ -98,6 +100,26 @@ test('варианты возвращают размеры и остатки в�
 
   assert.ok(options.length > 0);
   assert.ok(options.every((variant) => variant.colorId === colorId));
+});
+
+test('склейка разворачивается в каталоге в отдельные карточки цветов', () => {
+  const group = {
+    id: 'group-12',
+    category: 'dresses',
+    options: [
+      { id: 'option-black', name: 'Платье', colorName: 'Чёрный', price: 7000, images: ['black.webp'], sizes: [] },
+      { id: 'option-milk', name: 'Платье', colorName: 'Молочный', price: 7200, images: ['milk.webp'], sizes: [] },
+    ],
+  };
+  const cards = flattenCatalogProductGroups([group]);
+
+  assert.deepEqual(cards.map(({ id, groupId, optionId, colorName, price, images }) => ({
+    id, groupId, optionId, colorName, price, images,
+  })), [
+    { id: 'group-12:option-black', groupId: 'group-12', optionId: 'option-black', colorName: 'Чёрный', price: 7000, images: ['black.webp'] },
+    { id: 'group-12:option-milk', groupId: 'group-12', optionId: 'option-milk', colorName: 'Молочный', price: 7200, images: ['milk.webp'] },
+  ]);
+  assert.equal(getSelectedProductOption(group, 'option-milk').colorName, 'Молочный');
 });
 
 test('одинаковый вариант объединяется и ограничивается остатком', () => {

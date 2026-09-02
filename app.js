@@ -230,6 +230,11 @@
     return getCatalogProducts().find((product) => product.id === productId) || null;
   }
 
+  function getProductGroup(product) {
+    if (!product) return [];
+    return getCatalogProducts().filter((item) => item.groupId === product.groupId);
+  }
+
   function getAdminProduct(productId) {
     return state.adminProducts.find((product) => product.id === productId) || null;
   }
@@ -465,7 +470,7 @@
           <span class="product-card__body">
             <strong>${escapeHtml(product.name)}</strong>
             <span class="price-row"><b>${money(product.price)}</b>${product.oldPrice ? `<s>${money(product.oldPrice)}</s>` : ''}</span>
-            <small>${sizes.length ? `Размеры: ${sizes.join(', ')}` : 'Нет в наличии'}</small>
+            <small>${escapeHtml(product.colors[0]?.name || 'Цвет не указан')} · ${sizes.length ? `Размеры: ${sizes.join(', ')}` : 'Нет в наличии'}</small>
           </span>
         </button>
       </article>`;
@@ -546,10 +551,14 @@
   function renderProduct(productId) {
     const product = getProduct(productId);
     if (!product) return renderNotFound();
-    const colorButtons = product.colors.map((color) => `
-      <button class="color-button ${state.selectedColorId === color.id ? 'is-active' : ''}" type="button" data-action="select-color" data-color-id="${color.id}" aria-pressed="${state.selectedColorId === color.id}">
-        <span style="--swatch:${color.hex}" aria-hidden="true"></span>${escapeHtml(color.name)}
-      </button>`).join('');
+    const groupedProducts = getProductGroup(product);
+    const colorButtons = groupedProducts.map((option) => {
+      const color = option.colors[0] || { id: option.id, name: 'Цвет' };
+      return `
+      <button class="color-button ${option.id === product.id ? 'is-active' : ''}" type="button" data-action="select-product-option" data-product-id="${escapeHtml(option.id)}" aria-pressed="${option.id === product.id}">
+        <span style="--swatch:${color.hex || '#8e8e93'}" aria-hidden="true"></span>${escapeHtml(color.name)}
+      </button>`;
+    }).join('');
     const sizes = product.sizes?.length
       ? product.sizes
       : [...new Set(product.variants.map(({ size }) => size))];
@@ -582,7 +591,7 @@
         <p>${escapeHtml(product.description)}</p>
       </section>
       <section class="choice-section" id="product-choice">
-        <div class="section-heading"><h2>Цвет</h2><span>${state.selectedColorId ? escapeHtml(getColor(product, state.selectedColorId)?.name) : 'Выберите'}</span></div>
+        <div class="section-heading"><h2>Цвет</h2><span>${escapeHtml(product.colors[0]?.name || 'Не указан')}</span></div>
         <div class="choice-grid choice-grid--colors">${colorButtons}</div>
         <div class="section-heading"><h2>Размер</h2></div>
         <div class="choice-grid">${sizeButtons}</div>
@@ -1045,7 +1054,7 @@
       return `
         <section class="admin-color-block card" data-admin-color-block data-admin-color-index="${index}" data-color-id="${escapeHtml(color.id)}">
           <div class="admin-form-heading"><div><p class="eyebrow">Вариант цвета ${index + 1}</p><h3>${escapeHtml(color.name || 'Новый цвет')}</h3></div><button class="text-button" type="button" data-action="remove-admin-color">Удалить цвет</button></div>
-          <label><span>Цвет / синонимы</span><input data-admin-color-name type="text" maxlength="120" value="${escapeHtml(color.name)}" placeholder="Например, коричневый, шоколадный" autocomplete="off"><small>Запятая означает другое название этого же цвета.</small></label>
+          <label><span>Цвет</span><input data-admin-color-name type="text" maxlength="120" value="${escapeHtml(color.name)}" placeholder="Например, коричневый, шоколадный" autocomplete="off"><small>Можно указать другое название этого же цвета через запятую.</small></label>
           <label><span>Размеры этого цвета</span><input data-admin-color-sizes type="text" value="${escapeHtml(variants.map(({ size }) => size).join(', '))}" placeholder="Например, 42, 44, XL" autocomplete="off"><small>Разделяй размеры запятыми.</small></label>
           <div class="admin-color-block__stock">${variants.map((variant) => `
             <label class="admin-variant-row ${variant.enabled === false ? 'is-disabled' : ''}">
@@ -1059,7 +1068,7 @@
     const emptyColorBlocks = Array.from({ length: state.adminColorEmptyRows }, (_value, index) => `
       <section class="admin-color-block card" data-admin-color-block data-admin-color-index="${product.colors.length + index}" data-color-id="">
         <div class="admin-form-heading"><div><p class="eyebrow">Новый вариант цвета</p><h3>Цвет</h3></div><button class="text-button" type="button" data-action="remove-admin-color">Удалить цвет</button></div>
-        <label><span>Цвет / синонимы</span><input data-admin-color-name type="text" maxlength="120" value="" placeholder="Например, коричневый, шоколадный" autocomplete="off"><small>Запятая означает другое название этого же цвета.</small></label>
+        <label><span>Цвет</span><input data-admin-color-name type="text" maxlength="120" value="" placeholder="Например, коричневый, шоколадный" autocomplete="off"><small>Можно указать другое название этого же цвета через запятую.</small></label>
         <label><span>Размеры этого цвета</span><input data-admin-color-sizes type="text" value="" placeholder="Например, 42, 44, XL" autocomplete="off"><small>Разделяй размеры запятыми.</small></label>
       </section>`).join('');
     return `
@@ -1092,12 +1101,12 @@
           ${adminFieldError('description')}
         </section>
         <section class="admin-form-section card">
-          <div class="admin-form-heading"><div><p class="eyebrow">Количество товара</p><h2>Остатки по вариантам</h2><p>Каждый цвет — отдельная строка со своими размерами и остатками.</p></div><span>${product.variants.length} вариантов</span></div>
-          <button class="secondary-button admin-add-variant-button" type="button" data-action="add-admin-variant">Добавить вариант цвета</button>
-          <small class="admin-variant-hint">Добавь отдельную карточку для нового цвета. Внутри одного цвета можно указать несколько названий через запятую.</small>
+          <div class="admin-form-heading"><div><p class="eyebrow">Количество товара</p><h2>Остатки по размерам</h2><p>У этого цвета свои размеры и остатки.</p></div><span>${product.variants.length} вариантов</span></div>
+          <button class="secondary-button admin-add-variant-button" type="button" data-action="add-admin-product-option">Добавить вариант товара</button>
+          <small class="admin-variant-hint">Новый вариант откроется отдельной полной карточкой в этой же склейке: со своими фото, ценой и описанием.</small>
           ${adminFieldError('colors')}${adminFieldError('sizes')}
         </section>
-        ${colorBlocks || emptyColorBlocks || `<section class="admin-color-block card" data-admin-color-block data-admin-color-index="0" data-color-id=""><div class="admin-form-heading"><div><p class="eyebrow">Первый вариант цвета</p><h3>Цвет</h3></div></div><label><span>Цвет / синонимы</span><input data-admin-color-name type="text" maxlength="120" value="" placeholder="Например, чёрный" autocomplete="off"><small>Запятая означает другое название этого же цвета.</small></label><label><span>Размеры этого цвета</span><input data-admin-color-sizes type="text" value="" placeholder="Например, S, M" autocomplete="off"><small>Разделяй размеры запятыми.</small></label></section>`}
+        ${colorBlocks || emptyColorBlocks || `<section class="admin-color-block card" data-admin-color-block data-admin-color-index="0" data-color-id=""><div class="admin-form-heading"><div><p class="eyebrow">Цвет товара</p><h3>Цвет</h3></div></div><label><span>Цвет</span><input data-admin-color-name type="text" maxlength="120" value="" placeholder="Например, чёрный" autocomplete="off"><small>Можно указать другое название этого же цвета через запятую.</small></label><label><span>Размеры этого цвета</span><input data-admin-color-sizes type="text" value="" placeholder="Например, S, M" autocomplete="off"><small>Разделяй размеры запятыми.</small></label></section>`}
         ${adminFieldError('variants')}
         <div class="admin-editor-actions admin-editor-actions--final" aria-busy="${state.isSubmitting}">
           <button class="secondary-button" type="button" data-action="${product.adminStatus === 'published' ? 'save-admin-changes' : 'save-admin-draft'}" ${state.isSubmitting ? 'disabled' : ''}>${state.isSubmitting ? 'Сохраняем…' : 'Сохранить'}</button>
@@ -1187,6 +1196,15 @@
 
   function selectColor(colorId) {
     state.selectedColorId = colorId;
+    state.selectedSize = null;
+    render({ preserveScroll: true });
+  }
+
+  function selectProductOption(productId) {
+    const product = getProduct(productId);
+    if (!product) return;
+    state.params = { ...state.params, productId: product.id };
+    state.selectedColorId = product.colors[0]?.id || null;
     state.selectedSize = null;
     render({ preserveScroll: true });
   }
@@ -1518,6 +1536,23 @@
     state.adminColorEmptyRows += 1;
     state.adminDirty = true;
     render({ preserveScroll: true });
+  }
+
+  function addAdminProductOption() {
+    const form = document.querySelector('#admin-product-form');
+    syncAdminForm(form);
+    const source = state.adminDraft;
+    if (!source) return;
+    if (!/^\d+$/.test(String(source.id))) {
+      persistAdminDraft();
+      showToast('Сначала сохрани первый вариант как черновик');
+      return;
+    }
+    const option = createBlankAdminProduct();
+    option.groupId = source.groupId || source.id;
+    option.category = source.category;
+    startAdminDraft(option);
+    showToast('Заполни новый вариант товара');
   }
 
   function removeAdminColor(control) {
@@ -1877,6 +1912,7 @@
       render();
     },
     'select-color': (control) => selectColor(control.dataset.colorId),
+    'select-product-option': (control) => selectProductOption(control.dataset.productId),
     'select-size': (control) => selectSize(control.dataset.size),
     'add-to-cart': () => addSelectedProduct(false),
     'buy-now': () => addSelectedProduct(true),
@@ -1944,7 +1980,7 @@
     'confirm-leave-admin': confirmLeaveAdminEditor,
     'toggle-admin-color': (control) => toggleAdminColor(control.dataset.colorId),
     'toggle-admin-size': (control) => toggleAdminSize(control.dataset.size),
-    'add-admin-variant': addAdminVariant,
+    'add-admin-product-option': addAdminProductOption,
     'remove-admin-color': (control) => removeAdminColor(control),
     'toggle-admin-variant': (control) => toggleAdminVariant(control.dataset.colorId, control.dataset.size),
     'admin-photo-main': (control) => makeAdminPhotoMain(Number(control.dataset.index)),
@@ -2054,6 +2090,6 @@
     }
   }, true);
 
-  window.FashionStoreApp = { init, navigate, goBack, render, selectColor, selectSize, loadRemoteCatalog };
+  window.FashionStoreApp = { init, navigate, goBack, render, selectColor, selectProductOption, selectSize, loadRemoteCatalog };
   document.addEventListener('DOMContentLoaded', init, { once: true });
 })(window, document);

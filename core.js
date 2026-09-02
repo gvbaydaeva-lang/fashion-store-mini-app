@@ -32,6 +32,25 @@
     return product.variants.filter((variant) => variant.colorId === colorId);
   }
 
+  function flattenCatalogProductGroups(groups) {
+    return (Array.isArray(groups) ? groups : []).flatMap((group) => (
+      (Array.isArray(group.options) ? group.options : []).map((option) => ({
+        ...group,
+        ...option,
+        id: `${group.id}:${option.id}`,
+        groupId: String(group.id),
+        optionId: String(option.id),
+        images: Array.isArray(option.images) ? [...option.images] : [],
+        sizes: Array.isArray(option.sizes) ? option.sizes.map((size) => ({ ...size })) : [],
+      }))
+    ));
+  }
+
+  function getSelectedProductOption(group, optionId) {
+    const options = Array.isArray(group?.options) ? group.options : [];
+    return options.find((option) => String(option.id) === String(optionId)) || options[0] || null;
+  }
+
   function addCartItem(cart, item, stock) {
     if (stock <= 0) return [...cart];
     const current = cart.find((entry) => entry.key === item.key);
@@ -315,6 +334,8 @@
     filterProducts,
     sortProducts,
     getAvailableOptions,
+    flattenCatalogProductGroups,
+    getSelectedProductOption,
     addCartItem,
     setCartItemQuantity,
     removeCartItem,
