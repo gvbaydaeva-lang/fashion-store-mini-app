@@ -305,9 +305,81 @@ test('переключение цвета в склейке меняет дан�
   assert.match(screen.innerHTML, /5 490 ₽/);
 });
 
+test('после публикации продавцом покупательский каталог обновляется до уведомления', () => {
+  const saveSource = appSource.match(/async function saveAdminProduct\(status\) \{[\s\S]*?\n  \}\n\n  const actions/);
+
+  assert.ok(saveSource, 'не найден полный обработчик сохранения товара');
+  assert.match(saveSource[0], /status === 'published'[\s\S]*?await loadRemoteCatalog\(\)/);
+  assert.match(saveSource[0], /await loadRemoteCatalog\(\)[\s\S]*?showToast\(status === 'published'/);
+});
+
+test('после изменения остатка продавцом запускается повторная загрузка buyer-каталога', () => {
+  const stockSource = appSource.match(/async function persistAdminVariantStock\(control\) \{[\s\S]*?\n  \}\n\n  function readImageFile/);
+
+  assert.ok(stockSource, 'не найден обработчик сохранения остатка');
+  assert.match(stockSource[0], /await apiClient\.updateAdminStock/);
+  assert.match(stockSource[0], /await loadRemoteCatalog\(\)/);
+});
+
+test('после архивации продавцом buyer-каталог загружается заново', () => {
+  const archiveSource = appSource.match(/async function archiveAdminProduct\(productId\) \{[\s\S]*?\n  \}\n\n  function duplicateProduct/);
+
+  assert.ok(archiveSource, 'не найден обработчик архивации товара');
+  assert.match(archiveSource[0], /await apiClient\.archiveAdminProduct/);
+  assert.match(archiveSource[0], /await loadRemoteCatalog\(\)/);
+});
+
+test('ошибка buyer-refresh сохраняет последний корректный каталог', async () => {
+  let shouldFail = false;
+  const product = {
+    id: 'stable-product', name: 'Стабильное платье', category: 'all', price: 4990,
+    images: ['stable.webp'], colors: [{ id: 'black', name: 'Чёрный' }],
+    variants: [{ colorId: 'black', size: 'S', stock: 2 }], adminStatus: 'published',
+  };
+  const { app, screen } = loadApp({}, {
+    createApiClient() {
+      return { getCatalog: async () => {
+        if (shouldFail) throw new Error('Сбой сети');
+        return [product];
+      } };
+    },
+  });
+
+  await app.loadRemoteCatalog();
+  shouldFail = true;
+  assert.equal(await app.loadRemoteCatalog(), false);
+  app.navigate('catalog');
+  assert.match(screen.innerHTML, /Стабильное платье/);
+});
+
+test('buyer-рендер не показывает черновик после обновления каталога', async () => {
+  const { app, screen } = loadApp({}, {
+    createApiClient() {
+      return { getCatalog: async () => [
+        { id: 'published', name: 'Опубликовано', category: 'all', price: 1, images: [], colors: [], variants: [], adminStatus: 'published' },
+        { id: 'draft', name: 'Черновик', category: 'all', price: 1, images: [], colors: [], variants: [], adminStatus: 'draft' },
+      ] };
+    },
+  });
+
+  await app.loadRemoteCatalog();
+  app.navigate('catalog');
+  assert.match(screen.innerHTML, /Опубликовано/);
+  assert.doesNotMatch(screen.innerHTML, /Черновик/);
+});
+
+test('сохранение товара блокирует повторный submit до завершения запроса', () => {
+  const saveSource = appSource.match(/async function saveAdminProduct\(status\) \{[\s\S]*?\n  \}/);
+
+  assert.ok(saveSource, 'не найден обработчик сохранения товара');
+  assert.match(saveSource[0], /if \(state\.isSubmitting\) return;/);
+  assert.match(saveSource[0], /state\.isSubmitting = true;/);
+});
+
 test('редактор показывает удаление только сохранённого варианта с подтверждением', () => {
   assert.match(appSource, /data-action="delete-admin-product"/);
   assert.match(appSource, /Удалить этот вариант/);
   assert.match(appSource, /data-action="confirm-delete-admin-product"/);
   assert.match(appSource, /apiClient\.deleteAdminProduct/);
+  assert.match(appSource, /deletedProductId/);
 });

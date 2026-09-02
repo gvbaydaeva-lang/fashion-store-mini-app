@@ -156,7 +156,11 @@
     if (!response.ok) {
       const error = body.error;
       const message = typeof error === 'string' ? error : error?.message;
-      throw new FashionStoreApiError(message || 'Сервер временно недоступен.', response.status, error?.code || '');
+      const code = error?.code || '';
+      const safeMessage = code === 'INTERNAL_ERROR'
+        ? 'Сервер временно недоступен.'
+        : message;
+      throw new FashionStoreApiError(safeMessage || 'Сервер временно недоступен.', response.status, code);
     }
     if (body.ok === false) {
       const error = body.error || {};
@@ -262,7 +266,11 @@
         return adminRequest('archive', { productId });
       },
       async deleteAdminProduct(productId) {
-        return adminRequest('delete', { productId });
+        const data = await adminRequest('delete', { productId });
+        if (Number(data?.deletedProductId) !== Number(productId)) {
+          throw new FashionStoreApiError('Сервер не подтвердил удаление варианта.', 500, 'INVALID_DELETE_RESPONSE');
+        }
+        return data;
       },
       async updateAdminStock(productId, variantId, stock, isEnabled) {
         const data = await adminRequest('update-stock', { productId, variantId, stock, isEnabled });

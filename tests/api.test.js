@@ -229,6 +229,74 @@ test('удаление варианта передаёт отдельное се
   assert.deepEqual(body, { action: 'delete', initData: 'signed-telegram-data', productId: 12 });
 });
 
+test('клиент отклоняет успешный ответ без подтверждения удалённого товара', async () => {
+  const client = API.createApiClient({
+    initData: 'signed-telegram-data',
+    fetch: async () => ({ ok: true, async json() { return { ok: true, data: {} }; } }),
+  });
+
+  await assert.rejects(
+    () => client.deleteAdminProduct(12),
+    (error) => error.name === 'FashionStoreApiError'
+      && error.message === 'Сервер не подтвердил удаление варианта.',
+  );
+});
+
+test('обновление товара передаёт снимок вариантов и путей изображений одной операцией', async () => {
+  let body;
+  const client = API.createApiClient({
+    initData: 'signed-telegram-data',
+    fetch: async (_url, options) => {
+      body = JSON.parse(options.body);
+      return { ok: true, async json() {
+        return { ok: true, data: { product: {
+          id: 12, updated_at: '2026-09-02T10:00:00.000Z', status: 'draft',
+          product_variants: [], product_images: [],
+        } } };
+      } };
+    },
+  });
+
+  await client.updateAdminProduct({
+    id: 12,
+    updatedAt: '2026-09-02T09:00:00.000Z',
+    name: 'Платье',
+    imagePaths: ['12/photo.png'],
+    variants: [{ id: 34, colorId: 'black', colorName: 'Чёрный', size: 'S', stock: 2, enabled: true }],
+  });
+
+  assert.equal(body.action, 'update');
+  assert.equal(body.updatedAt, '2026-09-02T09:00:00.000Z');
+  assert.deepEqual(body.product.images, ['12/photo.png']);
+  assert.deepEqual(body.product.variants, [{
+    id: 34, color_id: 'black', color_name: 'Чёрный', color_hex: null,
+    size: 'S', stock: 2, is_enabled: true,
+  }]);
+});
+
+test('клиент скрывает внутренний текст неожиданной ошибки 500', async () => {
+  const client = API.createApiClient({
+    fetch: async () => ({
+      ok: false,
+      status: 500,
+      async json() {
+        return { ok: false, error: {
+          code: 'INTERNAL_ERROR', message: 'Postgres constraint products_group_id_fkey failed at stack.ts:44',
+        } };
+      },
+    }),
+  });
+
+  await assert.rejects(
+    () => client.getCatalog(),
+    (error) => error.status === 500
+      && error.code === 'INTERNAL_ERROR'
+      && error.message === 'Сервер временно недоступен.'
+      && !error.message.includes('Postgres')
+      && !error.message.includes('stack.ts'),
+  );
+});
+
 test('админский запрос завершается понятной ошибкой, если сервер не отвечает', async () => {
   let aborted = false;
   const client = API.createApiClient({

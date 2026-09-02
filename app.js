@@ -1649,6 +1649,7 @@
         ? { ...product, variants: product.variants.map((item) => item.id === variant.id ? { ...item, ...variant } : item) }
         : product);
       persistAdminDraft();
+      await loadRemoteCatalog();
     } catch (error) {
       persistAdminDraft();
       showToast(error?.message || 'Не удалось сохранить остаток.');
@@ -1735,7 +1736,7 @@
     if (!product || !/^\d+$/.test(String(product.id))) return;
     openSheet(`
       <div class="sheet__header"><p class="eyebrow">Удаление варианта</p><h2>Удалить «${escapeHtml(product.name || 'Без названия')}»?</h2></div>
-      <p>Будет удалена только эта карточка товара вместе с её фото, цветами и размерами. Остальные варианты останутся без изменений.</p>
+      <p>Будет удалена только эта карточка товара вместе с её фото, цветами и размерами. Остальные цветовые варианты сохранятся; если это владелец группы, они продолжат работать как самостоятельные карточки.</p>
       <div class="sheet__actions"><button class="secondary-button" type="button" data-action="close-sheet">Отмена</button><button class="danger-button" type="button" data-action="confirm-delete-admin-product">Удалить</button></div>
     `, { title: 'Подтверждение удаления' });
   }
@@ -1744,7 +1745,10 @@
     const productId = state.adminDraft?.id;
     if (!apiClient || !/^\d+$/.test(String(productId))) return;
     try {
-      await apiClient.deleteAdminProduct(productId);
+      const result = await apiClient.deleteAdminProduct(productId);
+      if (Number(result?.deletedProductId) !== Number(productId)) {
+        throw new Error('Сервер не подтвердил удаление варианта.');
+      }
       state.adminProducts = state.adminProducts.filter((product) => product.id !== String(productId));
       state.adminDraft = null;
       state.adminDirty = false;
@@ -1768,6 +1772,7 @@
       state.adminProducts = state.adminProducts.map((product) => (
         product.id === productId ? { ...product, adminStatus: 'archived' } : product
       ));
+      await loadRemoteCatalog();
       closeSheet();
       render();
       showToast('Товар убран в архив');
@@ -1923,6 +1928,7 @@
         ? state.adminProducts.map((item) => item.id === normalizedProduct.id ? normalizedProduct : item)
         : [normalizedProduct, ...state.adminProducts];
       rebuildAdminCategories();
+      if (status === 'published') await loadRemoteCatalog();
       state.adminDraft = null;
       clearAdminDraft();
       state.adminDirty = false;
