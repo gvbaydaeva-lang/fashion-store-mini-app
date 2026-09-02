@@ -113,7 +113,7 @@ test('Mini App запрещает автоматическое увеличен�
 test('страница запрашивает новую версию стилей и редактора после мобильной правки', () => {
   assert.match(indexSource, /data\.js\?v=20260902-fashion-style-1/);
   assert.match(indexSource, /styles\.css\?v=20260902-admin-stability-6/);
-  assert.match(indexSource, /app\.js\?v=20260902-admin-stability-6/);
+  assert.match(indexSource, /app\.js\?v=20260902-order-preview-1/);
 });
 
 test('заказ не показывает битую картинку, если у позиции нет сохранённого изображения', () => {
@@ -121,6 +121,12 @@ test('заказ не показывает битую картинку, если
   assert.match(appSource, /order-item-image/);
   assert.match(appSource, /function getOrderItemImage\(item\)/);
   assert.match(appSource, /getProduct\(item\?\.productId\)\?\.images\?\.\[0\]/);
+});
+
+test('каталог покупателя не заменяется списком товаров админки перед показом фото заказа', () => {
+  assert.match(appSource, /catalogProducts: \[\],/);
+  assert.match(appSource, /Core\.getPublishedProducts\(state\.catalogProducts\)/);
+  assert.match(appSource, /state\.catalogProducts = Core\.createAdminCatalog\(products\);/);
 });
 
 test('добавление размера определяет цвет из текущей карточки, даже до blur поля', () => {

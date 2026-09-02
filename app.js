@@ -61,6 +61,7 @@
     sellerMode: false,
     sellerSection: 'products',
     sellerTab: 'collect',
+    catalogProducts: [],
     adminProducts: [],
     adminCategories: [],
     adminQuery: '',
@@ -221,7 +222,7 @@
   }
 
   function getCatalogProducts() {
-    return Core.getPublishedProducts(state.adminProducts).map((product) => ({
+    return Core.getPublishedProducts(state.catalogProducts).map((product) => ({
       ...product,
       variants: product.variants.filter(({ enabled }) => enabled !== false),
     }));
@@ -1821,7 +1822,7 @@
     render();
     try {
       const products = await apiClient.getCatalog(state.filters);
-      state.adminProducts = Core.createAdminCatalog(products);
+      state.catalogProducts = Core.createAdminCatalog(products);
       state.catalogStatus = 'ready';
       render();
       return true;
