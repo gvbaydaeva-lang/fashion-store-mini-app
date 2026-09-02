@@ -66,6 +66,19 @@ button { cursor: pointer; }
 
 .primary-button:hover { background: var(--accent-dark); }
 
+.danger-button {
+  min-height: 48px;
+  padding: 11px 16px;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+  color: var(--danger);
+  font-weight: 750;
+}
+
+.danger-button:hover { background: color-mix(in srgb, var(--danger) 16%, var(--surface)); }
+.admin-delete-product-button { margin-top: 26px; }
+
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,

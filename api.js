@@ -261,6 +261,9 @@
       async archiveAdminProduct(productId) {
         return adminRequest('archive', { productId });
       },
+      async deleteAdminProduct(productId) {
+        return adminRequest('delete', { productId });
+      },
       async updateAdminStock(productId, variantId, stock, isEnabled) {
         const data = await adminRequest('update-stock', { productId, variantId, stock, isEnabled });
         return data.variant || data;

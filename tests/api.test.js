@@ -214,6 +214,21 @@ test('пустые необязательные цены отправляютс�
   assert.equal(body.product.name, 'Без названия');
 });
 
+test('удаление варианта передаёт отдельное серверное действие', async () => {
+  let body;
+  const client = API.createApiClient({
+    initData: 'signed-telegram-data',
+    fetch: async (_url, options) => {
+      body = JSON.parse(options.body);
+      return { ok: true, async json() { return { ok: true, data: { deletedProductId: 12 } }; } };
+    },
+  });
+
+  const result = await client.deleteAdminProduct(12);
+  assert.deepEqual(result, { deletedProductId: 12 });
+  assert.deepEqual(body, { action: 'delete', initData: 'signed-telegram-data', productId: 12 });
+});
+
 test('админский запрос завершается понятной ошибкой, если сервер не отвечает', async () => {
   let aborted = false;
   const client = API.createApiClient({

@@ -1128,6 +1128,7 @@
           <button class="secondary-button" type="button" data-action="${product.adminStatus === 'published' ? 'save-admin-changes' : 'save-admin-draft'}" ${state.isSubmitting ? 'disabled' : ''}>${state.isSubmitting ? 'Сохраняем…' : 'Сохранить'}</button>
           ${product.adminStatus === 'published' ? '<span></span>' : `<button class="primary-button" type="button" data-action="publish-admin-product" ${state.isSubmitting ? 'disabled' : ''}>${state.isSubmitting ? 'Сохраняем…' : 'Опубликовать'}</button>`}
         </div>
+        ${/^\d+$/.test(String(product.id)) ? '<button class="danger-button full-width admin-delete-product-button" type="button" data-action="delete-admin-product">Удалить этот вариант</button>' : ''}
       </form>`;
   }
 
@@ -1729,6 +1730,37 @@
     `, { title: 'Действия с товаром' });
   }
 
+  function confirmDeleteAdminProduct() {
+    const product = state.adminDraft;
+    if (!product || !/^\d+$/.test(String(product.id))) return;
+    openSheet(`
+      <div class="sheet__header"><p class="eyebrow">Удаление варианта</p><h2>Удалить «${escapeHtml(product.name || 'Без названия')}»?</h2></div>
+      <p>Будет удалена только эта карточка товара вместе с её фото, цветами и размерами. Остальные варианты останутся без изменений.</p>
+      <div class="sheet__actions"><button class="secondary-button" type="button" data-action="close-sheet">Отмена</button><button class="danger-button" type="button" data-action="confirm-delete-admin-product">Удалить</button></div>
+    `, { title: 'Подтверждение удаления' });
+  }
+
+  async function deleteAdminProduct() {
+    const productId = state.adminDraft?.id;
+    if (!apiClient || !/^\d+$/.test(String(productId))) return;
+    try {
+      await apiClient.deleteAdminProduct(productId);
+      state.adminProducts = state.adminProducts.filter((product) => product.id !== String(productId));
+      state.adminDraft = null;
+      state.adminDirty = false;
+      state.adminErrors = {};
+      clearAdminDraft();
+      closeSheet();
+      state.history = [];
+      state.screen = 'seller-products';
+      state.params = {};
+      render();
+      showToast('Вариант удалён');
+    } catch (error) {
+      showToast(error?.message || 'Не удалось удалить вариант.');
+    }
+  }
+
   async function archiveAdminProduct(productId) {
     if (!apiClient) return;
     try {
@@ -2026,6 +2058,8 @@
     'save-admin-changes': () => void saveAdminProduct('published'),
     'publish-admin-product': () => void saveAdminProduct('published'),
     'confirm-leave-admin': confirmLeaveAdminEditor,
+    'delete-admin-product': confirmDeleteAdminProduct,
+    'confirm-delete-admin-product': () => void deleteAdminProduct(),
     'toggle-admin-color': (control) => toggleAdminColor(control.dataset.colorId),
     'toggle-admin-size': (control) => toggleAdminSize(control.dataset.size),
     'add-admin-product-option': addAdminProductOption,

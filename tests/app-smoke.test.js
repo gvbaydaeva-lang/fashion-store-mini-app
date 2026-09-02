@@ -113,7 +113,7 @@ test('Mini App запрещает автоматическое увеличен�
 test('страница запрашивает новую версию стилей и редактора после мобильной правки', () => {
   assert.match(indexSource, /data\.js\?v=20260902-fashion-style-1/);
   assert.match(indexSource, /styles\.css\?v=20260902-admin-stability-6/);
-  assert.match(indexSource, /app\.js\?v=20260902-order-gallery-1/);
+  assert.match(indexSource, /app\.js\?v=20260902-admin-delete-1/);
 });
 
 test('заказ не показывает битую картинку, если у позиции нет сохранённого изображения', () => {
@@ -303,4 +303,11 @@ test('переключение цвета в склейке меняет дан�
   app.selectProductOption('milk-dress');
   assert.match(screen.innerHTML, /Платье молочное/);
   assert.match(screen.innerHTML, /5 490 ₽/);
+});
+
+test('редактор показывает удаление только сохранённого варианта с подтверждением', () => {
+  assert.match(appSource, /data-action="delete-admin-product"/);
+  assert.match(appSource, /Удалить этот вариант/);
+  assert.match(appSource, /data-action="confirm-delete-admin-product"/);
+  assert.match(appSource, /apiClient\.deleteAdminProduct/);
 });
