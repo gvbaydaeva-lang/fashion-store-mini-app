@@ -6,11 +6,15 @@ const path = require('node:path');
 
 const { STORE, CATEGORIES, PRODUCTS, DELIVERY_METHODS } = require('../data.js');
 
-test('стартовый каталог пуст, а условия предзаказа зафиксированы', () => {
-  assert.equal(STORE.name, 'Fashion Store');
-  assert.equal(STORE.tagline, 'Трендовые модели без лишних наценок.');
-  assert.equal(STORE.description, 'Стиль, который не требует переплаты.');
-  assert.equal(STORE.preorderTerms.delivery, 'Цена указана с учётом доставки до Элисты');
+test('стартовый каталог пуст, а главная использует утверждённое позиционирование и условия заказа', () => {
+  assert.equal(STORE.name, 'Fashion Style');
+  assert.equal(STORE.tagline, 'Трендовая одежда для стильных образов без лишних наценок.');
+  assert.equal(STORE.description, 'Выбирайте в каталоге и оформляйте заказ прямо в Telegram.');
+  assert.equal(STORE.preorderTerms.payment, 'Полная оплата при оформлении заказа.');
+  assert.equal(STORE.preorderTerms.orderPeriod, 'Заказ можно оформить только в период действующего закупа.');
+  assert.equal(STORE.preorderTerms.leadTime, 'Срок поступления: 7–10 дней.');
+  assert.equal(STORE.preorderTerms.pickup, 'Самовывоз в Элисте.');
+  assert.equal(STORE.preorderTerms.delivery, 'Цены указаны с учётом доставки до Элисты.');
   assert.deepEqual(CATEGORIES.map(({ id }) => id), ['all']);
   assert.deepEqual(PRODUCTS, []);
   assert.deepEqual(DELIVERY_METHODS.map(({ id }) => id), ['pickup']);

@@ -582,7 +582,7 @@ img { display: block; max-width: 100%; }
 .seller-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 14px; padding: 4px; border-radius: 14px; background: color-mix(in srgb, var(--muted) 10%, transparent); }
 .seller-tabs button { min-height: 42px; border: 0; border-radius: 11px; background: transparent; color: var(--muted); font-weight: 700; }
 .seller-tabs button.is-active { background: var(--surface); color: var(--text); box-shadow: 0 4px 12px rgba(23, 33, 43, 0.08); }
-.seller-order-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; width: 100%; min-height: 132px; padding: 16px; gap: 12px; color: var(--text); text-align: left; }
+.seller-order-card { display: grid; grid-template-columns: 54px minmax(0, 1fr) auto; width: 100%; min-height: 132px; padding: 16px; gap: 12px; color: var(--text); text-align: left; }
 .seller-order-card .status-pill { grid-column: 1 / -1; justify-self: start; }
 .seller-order-card strong, .seller-order-card small { display: block; }
 .seller-order-card small { margin-top: 4px; color: var(--muted); }

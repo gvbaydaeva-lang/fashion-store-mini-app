@@ -111,8 +111,8 @@ test('Mini App запрещает автоматическое увеличен�
 });
 
 test('страница запрашивает новую версию стилей и редактора после мобильной правки', () => {
-  assert.match(indexSource, /styles\.css\?v=20260902-admin-stability-3/);
-  assert.match(indexSource, /app\.js\?v=20260902-admin-stability-3/);
+  assert.match(indexSource, /styles\.css\?v=20260902-admin-stability-4/);
+  assert.match(indexSource, /app\.js\?v=20260902-admin-stability-4/);
 });
 
 test('заказ не показывает битую картинку, если у позиции нет сохранённого изображения', () => {
@@ -124,6 +124,15 @@ test('заказ не показывает битую картинку, если
 test('добавление размера определяет цвет из текущей карточки, даже до blur поля', () => {
   assert.match(appSource, /data-admin-color-name/);
   assert.match(appSource, /querySelector\('\[data-admin-color-name\]'\)/);
+});
+
+test('фокус полей админки принудительно сбрасывает горизонтальный scroll offset', () => {
+  assert.match(appSource, /addEventListener\('focusin'/);
+  assert.match(appSource, /scrollLeft\s*=\s*0/);
+});
+
+test('список заказов показывает превью первого товара', () => {
+  assert.match(appSource, /seller-order-card[\s\S]*order-item-image/);
 });
 
 test('новая версия один раз очищает только утверждённые локальные демо-ключи', () => {
@@ -139,13 +148,18 @@ test('новая версия один раз очищает только утв
   assert.equal(storage.get('fashion-store-preorder-reset-v1'), '1');
 });
 
-test('главная использует утверждённый текст и четыре условия предзаказа', () => {
+test('главная использует утверждённый текст и пять условий заказа', () => {
   const { screen } = loadApp();
 
-  assert.match(screen.innerHTML, /Трендовые модели без лишних наценок/);
-  assert.match(screen.innerHTML, /Стиль, который не требует переплаты/);
-  assert.match(screen.innerHTML, /Полная оплата при оформлении предзаказа/);
-  assert.match(screen.innerHTML, /Цена указана с учётом доставки до Элисты/);
+  assert.match(screen.innerHTML, /Fashion Style/);
+  assert.match(screen.innerHTML, /Трендовая одежда для стильных образов без лишних наценок/);
+  assert.match(screen.innerHTML, /Выбирайте в каталоге и оформляйте заказ прямо в Telegram/);
+  assert.match(screen.innerHTML, /Полная оплата при оформлении заказа/);
+  assert.match(screen.innerHTML, /Заказ можно оформить только в период действующего закупа/);
+  assert.match(screen.innerHTML, /Срок поступления: 7–10 дней/);
+  assert.match(screen.innerHTML, /Самовывоз в Элисте/);
+  assert.match(screen.innerHTML, /Цены указаны с учётом доставки до Элисты/);
+  assert.doesNotMatch(screen.innerHTML, /<p class="eyebrow">Fashion Store<\/p>/);
   assert.match(screen.innerHTML, /preorder-terms--compact/);
   assert.doesNotMatch(screen.innerHTML, /preorder-terms card/);
 });

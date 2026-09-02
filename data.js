@@ -5,18 +5,19 @@
   root.FashionStoreData = data;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function createData() {
   const STORE = {
-    name: 'Fashion Store',
-    tagline: 'Трендовые модели без лишних наценок.',
-    description: 'Стиль, который не требует переплаты.',
+    name: 'Fashion Style',
+    tagline: 'Трендовая одежда для стильных образов без лишних наценок.',
+    description: 'Выбирайте в каталоге и оформляйте заказ прямо в Telegram.',
     address: 'Самовывоз в Элисте — адрес сообщим после оформления заказа.',
     hours: '',
     support: '',
     phone: '',
     preorderTerms: {
-      payment: 'Полная оплата при оформлении предзаказа',
-      leadTime: 'Срок поступления: 7–10 дней',
-      pickup: 'Самовывоз в Элисте',
-      delivery: 'Цена указана с учётом доставки до Элисты',
+      payment: 'Полная оплата при оформлении заказа.',
+      orderPeriod: 'Заказ можно оформить только в период действующего закупа.',
+      leadTime: 'Срок поступления: 7–10 дней.',
+      pickup: 'Самовывоз в Элисте.',
+      delivery: 'Цены указаны с учётом доставки до Элисты.',
     },
   };
 

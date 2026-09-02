@@ -490,7 +490,6 @@
       <section class="hero card">
         <span class="hero__orb hero__orb--one" aria-hidden="true"></span>
         <span class="hero__orb hero__orb--two" aria-hidden="true"></span>
-        <p class="eyebrow">Fashion Store</p>
         <h2>${Data.STORE.tagline}</h2>
         <p>${escapeHtml(Data.STORE.description)}</p>
         <button class="secondary-button" type="button" data-action="navigate" data-screen="catalog">Открыть каталог</button>
@@ -1130,7 +1129,7 @@
     const collectCount = state.order?.status === 'paid' ? 1 : 0;
     const readyCount = state.order?.status === 'ready' ? 1 : 0;
     const content = orderMatchesTab
-      ? `<button class="seller-order-card card" type="button" data-action="seller-open-order"><span class="status-pill status-pill--${state.order.status === 'ready' ? 'ready' : 'paid'}">${state.order.status === 'ready' ? 'Заказ собран' : 'Оплачен, собираем'}</span><span><strong>${escapeHtml(state.order.id)}</strong><small>${formatOrderTime(state.order.createdAt)} · ${escapeHtml(state.order.customer.name)} · ${state.order.items.length} позиций</small><small>${escapeHtml(state.order.delivery.title)}</small></span><b>${money(state.order.total)}</b></button>`
+      ? `<button class="seller-order-card card" type="button" data-action="seller-open-order"><span class="status-pill status-pill--${state.order.status === 'ready' ? 'ready' : 'paid'}">${state.order.status === 'ready' ? 'Заказ собран' : 'Оплачен, собираем'}</span><img class="order-item-image" src="${escapeHtml(state.order.items[0]?.image || 'assets/preorder-hero.png')}" alt="${escapeHtml(state.order.items[0]?.name || 'Товар заказа')}" data-order-item-image><span><strong>${escapeHtml(state.order.id)}</strong><small>${formatOrderTime(state.order.createdAt)} · ${escapeHtml(state.order.customer.name)} · ${state.order.items.length} позиций</small><small>${escapeHtml(state.order.delivery.title)}</small></span><b>${money(state.order.total)}</b></button>`
       : `<section class="empty-state card"><span aria-hidden="true">${icon('package')}</span><h2>${state.sellerTab === 'ready' ? 'Готовых заказов пока нет' : 'Нет заказов на сборку'}</h2><p>Оплаченный демо-заказ появится в нужной вкладке.</p></section>`;
     return sellerShell('orders', `
       <section class="admin-section-heading"><div><p class="eyebrow">Рабочая очередь</p><h2>Заказы</h2><p>Только один локальный демо-заказ</p></div></section>
@@ -2117,6 +2116,17 @@
   });
 
   document.addEventListener('keydown', handleModalKeydown);
+  document.addEventListener('focusin', (event) => {
+    if (!event.target.closest?.('#admin-product-form')) return;
+    const resetHorizontalScroll = () => {
+      screenElement.scrollLeft = 0;
+      appShell.scrollLeft = 0;
+      document.documentElement.scrollLeft = 0;
+      document.body.scrollLeft = 0;
+    };
+    resetHorizontalScroll();
+    window.setTimeout(resetHorizontalScroll, 0);
+  });
   document.addEventListener('error', (event) => {
     if (event.target instanceof HTMLImageElement) {
       const image = event.target;
