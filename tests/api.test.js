@@ -291,9 +291,27 @@ test('клиент скрывает внутренний текст неожид
     () => client.getCatalog(),
     (error) => error.status === 500
       && error.code === 'INTERNAL_ERROR'
-      && error.message === 'Сервер временно недоступен.'
+      && error.message === 'Не удалось выполнить запрос.'
       && !error.message.includes('Postgres')
       && !error.message.includes('stack.ts'),
+  );
+});
+
+test('клиент не показывает технические сообщения Supabase и PostgreSQL', async () => {
+  const client = API.createApiClient({
+    fetch: async () => ({
+      ok: false,
+      status: 500,
+      async json() {
+        return { error: 'PostgreSQL relation missing in Supabase Edge Function' };
+      },
+    }),
+  });
+
+  await assert.rejects(
+    () => client.getCatalog(),
+    (error) => error.message === 'Не удалось выполнить запрос.'
+      && !/supabase|postgresql|edge function/i.test(error.message),
   );
 });
 
@@ -346,6 +364,70 @@ test('создание заказа отправляет позиции и idemp
   assert.deepEqual(body.items, [{ productId: 7, variantId: 9, quantity: 1 }]);
   assert.equal(body.total, undefined);
   assert.equal(body.status, undefined);
+});
+
+test('создание заказа отправляет две позиции разных цветов с productId, variantId и quantity', async () => {
+  let body;
+  const client = API.createApiClient({
+    initData: 'raw-telegram-init-data',
+    fetch: async (_url, options) => {
+      body = JSON.parse(options.body);
+      return {
+        ok: true,
+        async json() {
+          return {
+            ok: true,
+            data: {
+              order: {
+                id: 'order-two-colors',
+                status: 'demo',
+                order_items: [
+                  { product_id: 7, variant_id: 9, product_name: 'Платье', color_name: 'Чёрный', size: 'M', quantity: 1, unit_price: 4990 },
+                  { product_id: 8, variant_id: 10, product_name: 'Жакет', color_name: 'Молочный', size: 'S', quantity: 2, unit_price: 6990 },
+                ],
+              },
+            },
+          };
+        },
+      };
+    },
+  });
+
+  const order = await client.createOrder({
+    idempotencyKey: 'checkout-two-colors',
+    customer: { name: 'Анна', phone: '+79990000000' },
+    deliveryId: 'pickup',
+    items: [
+      { productId: 7, variantId: 9, colorName: 'Чёрный', quantity: 1 },
+      { productId: 8, variantId: 10, colorName: 'Молочный', quantity: 2 },
+    ],
+  });
+
+  assert.deepEqual(body.items, [
+    { productId: 7, variantId: 9, quantity: 1 },
+    { productId: 8, variantId: 10, quantity: 2 },
+  ]);
+  assert.deepEqual(order.items.map(({ productId, variantId, quantity }) => ({ productId, variantId, quantity })), [
+    { productId: '7', variantId: 9, quantity: 1 },
+    { productId: '8', variantId: 10, quantity: 2 },
+  ]);
+});
+
+test('повторная отправка использует тот же idempotency key', async () => {
+  const bodies = [];
+  const client = API.createApiClient({
+    initData: 'raw-telegram-init-data',
+    fetch: async (_url, options) => {
+      bodies.push(JSON.parse(options.body));
+      return { ok: true, async json() { return { ok: true, data: { order: { id: 'order-1', status: 'demo' } } }; } };
+    },
+  });
+
+  await client.createOrder({ idempotencyKey: 'same-checkout-key', deliveryId: 'pickup', items: [{ productId: 7, variantId: 9, quantity: 1 }] });
+  await client.createOrder({ idempotencyKey: 'same-checkout-key', deliveryId: 'pickup', items: [{ productId: 7, variantId: 9, quantity: 1 }] });
+
+  assert.equal(bodies.length, 2);
+  assert.equal(bodies[0].idempotencyKey, bodies[1].idempotencyKey);
 });
 
 test('seller order API передаёт raw initData и разделяет list/get/mark-ready', async () => {

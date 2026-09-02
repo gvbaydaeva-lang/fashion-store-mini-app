@@ -155,11 +155,37 @@ test('список заказов показывает превью первог
   assert.match(appSource, /seller-order-card[\s\S]*order-item-image/);
 });
 
-test('локальный fallback помечается черновиком, а серверный заказ имеет отдельный тип', () => {
-  assert.match(appSource, /orderType: 'draft'/);
-  assert.match(appSource, /serverOrder/);
-  assert.match(appSource, /Серверный заказ не создан/);
-  assert.match(appSource, /status === 'pending_payment'/);
+test('тестовый заказ имеет отдельный статус и не называется оплаченным', () => {
+  assert.match(appSource, /order\.orderType === 'server' && order\.status === 'demo'/);
+  assert.match(appSource, /Тестовый заказ создан/);
+  assert.match(appSource, /order\.status === 'paid'/);
+});
+
+test('checkout отправляет весь снимок корзины и очищает её только после ответа сервера', () => {
+  assert.match(appSource, /items: state\.cart/);
+  assert.match(appSource, /const serverOrder = await apiClient\.createOrder/);
+  assert.match(appSource, /const serverOrder = await apiClient\.createOrder[\s\S]*state\.order = serverOrder;[\s\S]*state\.cart = \[\];/);
+  assert.match(appSource, /state\.order = serverOrder;[\s\S]*navigate\('payment-success'\)/);
+  assert.match(appSource, /review-items">\$\{orderItems\(state\.order\)\}/);
+});
+
+test('ошибка checkout сохраняет корзину и не создаёт ложный локальный заказ', () => {
+  assert.match(appSource, /catch \(_error\) \{[\s\S]*state\.cart/);
+  assert.doesNotMatch(appSource, /catch \(_error\) \{[\s\S]*Core\.createDemoOrder/);
+  assert.doesNotMatch(appSource, /Сервер недоступен: сохранён только черновик/);
+  assert.match(appSource, /Не удалось создать заказ\. Проверь интернет и попробуй ещё раз/);
+});
+
+test('buyer UI использует понятный текст без лишних демо и технических слов', () => {
+  assert.match(appSource, /Подтвердить тестовый заказ \$\{money\(summary\.total\)\}/);
+  assert.match(appSource, /Подтвердить тестовый заказ\?/);
+  assert.match(appSource, /<p>Деньги не списываются<\/p>/);
+  assert.doesNotMatch(appSource, /Демо-оплата|Подтвердить демо-оплату|Демонстрационный контакт|Демонстрационные условия|Итог с сервера|загружаются с сервера/);
+});
+
+test('тестовый заказ не отображается в оплаченной очереди продавца', () => {
+  assert.match(appSource, /order\.status === 'paid'/);
+  assert.doesNotMatch(appSource, /order\.status === 'demo'[^\n]*seller/);
 });
 
 test('новая версия один раз очищает только утверждённые локальные демо-ключи', () => {

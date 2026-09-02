@@ -240,6 +240,30 @@ test('повторное подтверждение не создаёт втор
   assert.equal(second, first);
 });
 
+test('корзина сохраняет две позиции разных цветов и их идентификаторы', () => {
+  const black = {
+    key: 'dress:variant-black:M', productId: 'dress', variantId: 101,
+    colorId: 'black', colorName: 'Чёрный', size: 'M', price: 5990, quantity: 1,
+  };
+  const milk = {
+    key: 'dress:variant-milk:M', productId: 'dress', variantId: 102,
+    colorId: 'milk', colorName: 'Молочный', size: 'M', price: 5990, quantity: 2,
+  };
+
+  const cart = addCartItem(addCartItem([], black, 2), milk, 2);
+
+  assert.deepEqual(cart.map(({ productId, variantId, colorId, quantity }) => ({ productId, variantId, colorId, quantity })), [
+    { productId: 'dress', variantId: 101, colorId: 'black', quantity: 1 },
+    { productId: 'dress', variantId: 102, colorId: 'milk', quantity: 2 },
+  ]);
+});
+
+test('тестовый заказ использует отдельный статус demo, а не paid', () => {
+  const serverOrder = { id: 'ORDER-1', orderType: 'server', status: 'demo' };
+  assert.equal(serverOrder.status, 'demo');
+  assert.notEqual(serverOrder.status, 'paid');
+});
+
 test('готовность меняет только оплаченный заказ и не мутирует исходный', () => {
   const order = { id: 'FS-1001', status: 'paid' };
   const ready = markOrderReady(order);

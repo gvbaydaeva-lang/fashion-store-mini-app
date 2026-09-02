@@ -33,6 +33,14 @@
     return number == null || number === '' ? 0 : number;
   }
 
+  function safeErrorMessage(message, fallback = 'Не удалось выполнить запрос.') {
+    const text = String(message || '').trim();
+    if (!text || /supabase|postgres(?:ql)?|postgrest|stack\.ts|edge function|function failed/i.test(text)) {
+      return fallback;
+    }
+    return text;
+  }
+
   function parseDataImage(value) {
     const match = String(value || '').match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
     if (!match) throw new FashionStoreApiError('Поддерживаются JPG, PNG и WebP.');
@@ -189,13 +197,13 @@
       const message = typeof error === 'string' ? error : error?.message;
       const code = error?.code || '';
       const safeMessage = code === 'INTERNAL_ERROR'
-        ? 'Сервер временно недоступен.'
-        : message;
-      throw new FashionStoreApiError(safeMessage || 'Сервер временно недоступен.', response.status, code);
+        ? 'Не удалось выполнить запрос.'
+        : safeErrorMessage(message);
+      throw new FashionStoreApiError(safeMessage, response.status, code);
     }
     if (body.ok === false) {
       const error = body.error || {};
-      throw new FashionStoreApiError(error.message || 'Сервер не смог выполнить запрос.', response.status, error.code || '');
+      throw new FashionStoreApiError(safeErrorMessage(error.message), response.status, error.code || '');
     }
     return body.data ?? body;
   }

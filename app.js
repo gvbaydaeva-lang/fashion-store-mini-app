@@ -621,7 +621,7 @@
         ${selectedVariant?.stock === 1 ? '<p class="low-stock-text">Осталась 1 шт.</p>' : ''}
       </section>
       <section class="details-list card">
-        <details><summary>Доставка, обмен и возврат</summary><p>Условия в прототипе демонстрационные. Финальные правила подтверждаются магазином до запуска.</p></details>
+        <details><summary>Доставка, обмен и возврат</summary><p>Условия в прототипе предварительные. Финальные правила подтверждаются магазином до запуска.</p></details>
       </section>
       <div class="product-actions">
         <button class="secondary-button" type="button" data-action="add-to-cart">В корзину</button>
@@ -654,7 +654,7 @@
     return `
       ${pageHeader('Корзина', `${summary.itemCount} ${summary.itemCount === 1 ? 'товар' : 'товара'}`)}
       <div class="cart-list">${items}</div>
-      <section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>Товары закрепятся за вами только после демонстрационной оплаты. Корзина не является резервом.</p></section>
+      <section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>Товары закрепятся за вами только после подтверждения заказа. Корзина не является резервом.</p></section>
       <section class="summary-card card">
         <div><span>Товары</span><b>${money(summary.subtotal)}</b></div><div class="summary-total"><span>Итого</span><b>${money(summary.total)}</b></div>
         <button class="primary-button" type="button" data-action="checkout-start">Оформить заказ</button>
@@ -663,8 +663,11 @@
   }
 
   function orderStatus(order) {
+    if (order.orderType === 'server' && order.status === 'demo') {
+      return { title: 'Тестовый заказ создан', text: 'Деньги не списываются', className: 'demo' };
+    }
     if (order.orderType !== 'server' || order.status === 'draft') {
-      return { title: 'Черновик', text: 'Заказ ещё не отправлен на сервер', className: 'draft' };
+      return { title: 'Черновик', text: 'Заказ ещё не создан', className: 'draft' };
     }
     if (order.status === 'pending_payment') {
       return { title: 'Ожидает оплаты', text: 'Оплата подключается отдельной задачей', className: 'paid' };
@@ -678,7 +681,7 @@
     if (!state.order) {
       return `
         ${pageHeader('Заказы')}
-        <section class="empty-state card"><span aria-hidden="true">${icon('receipt')}</span><h2>Заказов пока нет</h2><p>После демонстрационной оплаты здесь появится текущий заказ.</p><button class="primary-button" type="button" data-action="navigate" data-screen="catalog">Перейти в каталог</button></section>`;
+        <section class="empty-state card"><span aria-hidden="true">${icon('receipt')}</span><h2>Заказов пока нет</h2><p>После подтверждения заказа здесь появится текущий заказ.</p><button class="primary-button" type="button" data-action="navigate" data-screen="catalog">Перейти в каталог</button></section>`;
     }
     const status = orderStatus(state.order);
     return `
@@ -694,8 +697,7 @@
     return `
       ${pageHeader('Магазин')}
       <section class="store-visual card">
-        <img src="assets/storefront.jpg" alt="Демонстрационный фасад магазина Фэшн стор">
-        <span class="demo-label">Демо</span>
+        <img src="assets/storefront.jpg" alt="Фасад магазина Фэшн стор">
       </section>
       <section class="store-card card"><p class="eyebrow">Фэшн стор</p><h2>${escapeHtml(Data.STORE.tagline)}</h2><p>${escapeHtml(Data.STORE.description)}</p></section>
       <section class="info-list card">
@@ -703,9 +705,9 @@
         <div><span aria-hidden="true">${icon('clock')}</span><p><strong>Часы работы</strong><small>${escapeHtml(Data.STORE.hours)}</small></p></div>
         <div><span aria-hidden="true">${icon('at-sign')}</span><p><strong>Поддержка</strong><small>${escapeHtml(Data.STORE.support)}</small></p></div>
       </section>
-      <section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>Адрес, контакты, доставка и правила в этом прототипе демонстрационные.</p></section>
+      <section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>Адрес, контакты, доставка и правила будут подтверждены магазином до запуска.</p></section>
       <div class="store-actions"><button class="secondary-button" type="button" data-action="demo-contact">Связаться</button><button class="secondary-button" type="button" data-action="store-rules">Оплата и возврат</button></div>
-      <button class="seller-entry" type="button" data-action="enter-seller">Режим продавца <span>Демо ${icon('chevron-right')}</span></button>`;
+      <button class="seller-entry" type="button" data-action="enter-seller">Режим продавца <span>${icon('chevron-right')}</span></button>`;
   }
 
   function renderNotFound() {
@@ -725,7 +727,7 @@
       <form id="contact-form" class="form-card card" novalidate>
         <label><span>Имя</span><input name="name" type="text" autocomplete="name" maxlength="60" value="${escapeHtml(state.customer.name)}" placeholder="Как к вам обращаться" required></label>
         <label><span>Телефон</span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" value="${escapeHtml(state.customer.phone)}" placeholder="+7 999 000-00-00" required aria-describedby="phone-help phone-error"></label>
-        <small id="phone-help">Телефон нужен только для демонстрации выдачи или доставки.</small>
+        <small id="phone-help">Телефон нужен для выдачи или доставки.</small>
         <p id="phone-error" class="field-error" role="alert" hidden>Введите телефон: от 10 до 20 цифр и разрешённых символов.</p>
         <button class="primary-button" type="submit">Продолжить</button>
       </form>`;
@@ -736,7 +738,7 @@
       <button class="delivery-card card ${state.delivery?.id === method.id ? 'is-active' : ''}" type="button" data-action="choose-delivery" data-delivery-id="${method.id}" aria-pressed="${state.delivery?.id === method.id}">
         <span class="delivery-card__icon" aria-hidden="true">${icon(method.id === 'pickup' ? 'map-pin' : 'truck')}</span>
         <span><strong>${escapeHtml(method.title)}</strong><small>${escapeHtml(method.description)}</small></span>
-        <span class="delivery-card__price">${method.price ? money(method.price) : 'Бесплатно'}<em>Демо</em></span>
+        <span class="delivery-card__price">${method.price ? money(method.price) : 'Бесплатно'}</span>
       </button>`).join('');
     const subtotal = Core.getCartSummary(state.cart, 0).subtotal;
     const deliveryPrice = state.delivery?.price || 0;
@@ -744,7 +746,7 @@
       ${pageHeader('Получение', 'Шаг 2 из 3')}
       ${checkoutProgress(2)}
       <div class="delivery-list">${methods}</div>
-      <section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>Адрес, стоимость и сроки указаны только для демонстрации интерфейса.</p></section>
+      <section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>Адрес, стоимость и сроки указаны предварительно.</p></section>
       <section class="sticky-checkout">
         <div><span>Итого</span><b>${money(subtotal + deliveryPrice)}</b></div>
         <button class="primary-button" type="button" data-action="delivery-continue" ${state.delivery ? '' : 'disabled'}>Продолжить</button>
@@ -766,8 +768,8 @@
         <div><span>Товары</span><b>${money(summary.subtotal)}</b></div>
         <div><span>Получение</span><b>${summary.deliveryPrice ? money(summary.deliveryPrice) : 'Бесплатно'}</b></div>
         <div class="summary-total"><span>Итого</span><b>${money(summary.total)}</b></div>
-        <button class="primary-button" type="button" data-action="request-payment">Демо-оплата ${money(summary.total)}</button>
-        <p class="demo-caption">Деньги не списываются. Настоящий платёжный провайдер не подключён.</p>
+        <button class="primary-button" type="button" data-action="request-payment">Подтвердить тестовый заказ ${money(summary.total)}</button>
+        <p class="demo-caption">Деньги не списываются</p>
       </section>`;
   }
 
@@ -776,10 +778,11 @@
     return `
       <section class="success-screen">
         <div class="success-mark" aria-hidden="true">${icon('check')}</div>
-        <p class="eyebrow">Демонстрационный заказ</p>
+        <p class="eyebrow">Тестовый заказ</p>
         <h1>Заказ создан</h1>
-        <p>Платёжный провайдер не подключён. Сервер сохранил заказ со статусом «Ожидает оплаты».</p>
-        <section class="success-card card"><span>Заказ</span><strong>${escapeHtml(state.order.id)}</strong><span>Статус</span><strong>Ожидает оплаты</strong><span>Итого</span><strong>${money(state.order.total)}</strong></section>
+        <p>Деньги не списываются</p>
+        <section class="success-card card"><span>Заказ</span><strong>${escapeHtml(state.order.id)}</strong><span>Статус</span><strong>${escapeHtml(orderStatus(state.order).title)}</strong><span>Итого</span><strong>${money(state.order.total)}</strong></section>
+        <section class="review-section card"><h2>Состав заказа</h2><ul class="review-items">${orderItems(state.order)}</ul></section>
         <button class="primary-button" type="button" data-action="open-order">Открыть заказ</button>
         <button class="text-button text-button--center" type="button" data-action="navigate" data-screen="catalog">Вернуться в каталог</button>
       </section>`;
@@ -806,11 +809,11 @@
     const status = orderStatus(state.order);
     return `
       ${pageHeader(`Заказ ${state.order.id}`)}
-      <section class="order-status-card order-status-card--${status.className} card"><span class="status-pill status-pill--${status.className}">${status.title}</span><h2>${escapeHtml(status.text)}</h2><p>${state.order.orderType === 'server' ? 'Цена и остаток подтверждены сервером.' : 'Серверный заказ не создан. Это только локальный черновик.'}</p></section>
+      <section class="order-status-card order-status-card--${status.className} card"><span class="status-pill status-pill--${status.className}">${status.title}</span><h2>${escapeHtml(status.text)}</h2><p>${state.order.orderType === 'server' ? 'Состав и итог подтверждены при создании заказа.' : 'Заказ ещё не создан.'}</p></section>
       <section class="review-section card"><h2>Состав</h2><ul class="review-items">${orderItems(state.order)}</ul></section>
       <section class="info-list card">
         <div><span aria-hidden="true">${icon('map-pin')}</span><p><strong>${escapeHtml(state.order.delivery.title)}</strong><small>${escapeHtml(state.order.delivery.description)}</small></p></div>
-        <div><span aria-hidden="true">₽</span><p><strong>${money(state.order.total)}</strong><small>${state.order.orderType === 'server' ? 'Итог с сервера' : 'Черновой итог'}</small></p></div>
+        <div><span aria-hidden="true">₽</span><p><strong>${money(state.order.total)}</strong><small>Итог заказа</small></p></div>
       </section>
       <button class="secondary-button full-width" type="button" data-action="demo-contact">Связаться с магазином</button>`;
   }
@@ -840,7 +843,7 @@
         <p class="eyebrow">Закрытая зона</p>
         <h1>Управление магазином</h1>
         <p>Панель доступна только авторизованному продавцу в Telegram.</p>
-        <section class="notice-card"><span aria-hidden="true">${icon('lock')}</span><p><strong>Закрытая зона.</strong> Доступ проверяется сервером по Telegram-сеансу.</p></section>
+        <section class="notice-card"><span aria-hidden="true">${icon('lock')}</span><p><strong>Закрытая зона.</strong> Доступ проверяется по Telegram-сеансу.</p></section>
         <button class="primary-button full-width" type="button" data-action="enter-seller">Войти через Telegram</button>
         <button class="text-button text-button--center" type="button" data-action="exit-seller">Вернуться в магазин</button>
       </section>`;
@@ -901,7 +904,7 @@
       .filter(Boolean))].sort((left, right) => left.localeCompare(right, 'ru-RU'));
     const content = `
       <section class="admin-section-heading">
-        <div><p class="eyebrow">Ассортимент</p><h2>Товары</h2><p>${state.adminProducts.length} позиций в демо-каталоге</p></div>
+        <div><p class="eyebrow">Ассортимент</p><h2>Товары</h2><p>${state.adminProducts.length} позиций в каталоге</p></div>
         <button class="primary-button admin-add-button" type="button" data-action="add-admin-product">${icon('plus')}<span>Добавить товар</span></button>
       </section>
       <label class="admin-search">
@@ -921,7 +924,7 @@
       ${products.length
         ? `<div class="admin-product-list">${products.map(renderAdminProductRow).join('')}</div>`
         : `<section class="empty-state card"><span aria-hidden="true">${icon('package')}</span><h2>${state.adminProducts.length ? 'Ничего не найдено' : 'Товаров пока нет'}</h2><p>${state.adminProducts.length ? 'Измени запрос или выбери другой статус.' : 'Добавь первый товар — он сохранится как черновик.'}</p><button class="primary-button" type="button" data-action="add-admin-product">Добавить товар</button></section>`}
-      <section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>Товары и остатки загружаются с сервера. После обновления они доступны на другом устройстве.</p></section>`;
+      <section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>Товары и остатки сохраняются и доступны после обновления на другом устройстве.</p></section>`;
     return sellerShell('products', content);
   }
 
@@ -1172,12 +1175,12 @@
         ? `<section class="empty-state card"><h2>Не удалось загрузить заказы</h2><p>${escapeHtml(state.sellerOrdersError)}</p><button class="primary-button" type="button" data-action="reload-seller-orders">Повторить</button></section>`
         : orders.length
           ? orders.map((order) => `<button class="seller-order-card card" type="button" data-action="seller-open-order" data-order-id="${escapeHtml(order.id)}"><span class="status-pill status-pill--${order.status === 'ready' ? 'ready' : 'paid'}">${order.status === 'ready' ? 'Заказ собран' : 'Оплачен, собираем'}</span><img class="order-item-image" src="${escapeHtml(getOrderItemImage(order.items[0]))}" alt="${escapeHtml(order.items[0]?.name || 'Товар заказа')}" data-order-item-image><span><strong>${escapeHtml(order.id)}</strong><small>${formatOrderTime(order.createdAt)} · ${escapeHtml(order.customer.name || 'Покупатель')} · ${order.items.length} позиций</small><small>${escapeHtml(order.delivery.title)}</small></span><b>${money(order.total)}</b></button>`).join('')
-          : `<section class="empty-state card"><span aria-hidden="true">${icon('package')}</span><h2>${state.sellerTab === 'ready' ? 'Готовых заказов пока нет' : 'Нет заказов на сборку'}</h2><p>Серверная очередь пуста.</p></section>`;
+          : `<section class="empty-state card"><span aria-hidden="true">${icon('package')}</span><h2>${state.sellerTab === 'ready' ? 'Готовых заказов пока нет' : 'Нет заказов на сборку'}</h2><p>Очередь пуста.</p></section>`;
     return sellerShell('orders', `
-      <section class="admin-section-heading"><div><p class="eyebrow">Рабочая очередь</p><h2>Заказы</h2><p>Данные загружены с сервера</p></div></section>
+      <section class="admin-section-heading"><div><p class="eyebrow">Рабочая очередь</p><h2>Заказы</h2><p>Актуальные заказы магазина</p></div></section>
       <div class="seller-tabs"><button class="${state.sellerTab === 'collect' ? 'is-active' : ''}" type="button" data-action="set-seller-tab" data-tab="collect">Собрать <span>${collectCount}</span></button><button class="${state.sellerTab === 'ready' ? 'is-active' : ''}" type="button" data-action="set-seller-tab" data-tab="ready">Готовы <span>${readyCount}</span></button></div>
       ${content}
-      <section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>Доступ и изменение статусов проверяются сервером.</p></section>`);
+      <section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>Доступ и изменение статусов защищены.</p></section>`);
   }
 
   function renderSellerOrder() {
@@ -1359,7 +1362,7 @@
       <p>В прототипе нет настоящей оплаты, доставки и возврата денег.</p>
       <p>Перед запуском магазин должен подтвердить платёжного провайдера, онлайн-кассу, сроки получения и правила обмена.</p>
       <button class="primary-button" type="button" data-action="close-sheet">Понятно</button>
-    `, { title: 'Демонстрационные условия' });
+    `, { title: 'Условия магазина' });
   }
 
   function startCheckout() {
@@ -1378,10 +1381,10 @@
   function requestDemoPayment() {
     const summary = Core.getCartSummary(state.cart, state.delivery?.price || 0);
     openSheet(`
-      <div class="sheet__header"><p class="eyebrow">Без списания денег</p><h2>Подтвердить демо-оплату?</h2></div>
-      <p>Будет создан серверный заказ со статусом «Ожидает оплаты». Деньги не списываются.</p>
+      <div class="sheet__header"><p class="eyebrow">Без списания денег</p><h2>Подтвердить тестовый заказ?</h2></div>
+      <p>Деньги не списываются</p>
       <div class="sheet__actions"><button class="secondary-button" type="button" data-action="close-sheet">Отмена</button><button class="primary-button" type="button" data-action="confirm-demo-payment">Подтвердить</button></div>
-    `, { title: 'Подтверждение демонстрационной оплаты' });
+    `, { title: 'Подтверждение тестового заказа' });
   }
 
   async function submitDemoPayment() {
@@ -1407,14 +1410,10 @@
       saveState();
       closeSheet();
       navigate('payment-success');
-    } catch (error) {
-      state.order = Core.createDemoOrder(state.cart, state.customer, state.delivery, null, `DRAFT-${String(Date.now()).slice(-6)}`, new Date().toISOString());
-      state.order.orderType = 'draft';
-      state.order.status = 'draft';
-      saveState();
+    } catch (_error) {
       closeSheet();
-      showToast(error?.status === 409 ? 'Товар закончился. Обновите корзину.' : 'Сервер недоступен: сохранён только черновик.');
-      navigate('order-detail');
+      showToast('Не удалось создать заказ. Проверь интернет и попробуй ещё раз');
+      render();
     } finally {
       state.isSubmitting = false;
     }
@@ -1788,7 +1787,7 @@
     try {
       const result = await apiClient.deleteAdminProduct(productId);
       if (Number(result?.deletedProductId) !== Number(productId)) {
-        throw new Error('Сервер не подтвердил удаление варианта.');
+        throw new Error('Не удалось подтвердить удаление варианта.');
       }
       state.adminProducts = state.adminProducts.filter((product) => product.id !== String(productId));
       state.adminDraft = null;
@@ -1914,7 +1913,7 @@
         ? 'У тебя нет доступа к заказам.'
         : error?.status === 401
           ? 'Не удалось подтвердить Telegram-сеанс. Открой Mini App заново.'
-          : error?.message || 'Сервер временно недоступен.';
+          : error?.message || 'Не удалось загрузить заказы.';
       render();
       return false;
     }
@@ -1958,7 +1957,7 @@
         ? 'У тебя нет доступа к панели продавца.'
         : error?.status === 401
           ? 'Не удалось подтвердить Telegram-сеанс. Открой Mini App заново.'
-          : error?.message || 'Сервер временно недоступен.';
+          : error?.message || 'Не удалось загрузить товары.';
       state.adminProducts = [];
       render();
       return false;
@@ -2047,7 +2046,7 @@
       showToast(status === 'published' ? 'Товар опубликован' : 'Черновик сохранён');
     } catch (error) {
       state.isSubmitting = false;
-      state.adminSaveError = error?.message || 'Не удалось сохранить товар на сервере.';
+      state.adminSaveError = error?.message || 'Не удалось сохранить товар.';
       persistAdminDraft();
       render();
       showToast(error?.status === 409 ? 'Товар изменён на другом устройстве. Обнови список.' : 'Данные сохранены в черновик. Исправь ошибку и повтори.');
@@ -2122,7 +2121,7 @@
     'request-payment': requestDemoPayment,
     'confirm-demo-payment': submitDemoPayment,
     'open-order': () => void openBuyerOrder(),
-    'demo-contact': () => showToast('Демонстрационный контакт: ' + Data.STORE.support),
+    'demo-contact': () => showToast('Контакт магазина: ' + Data.STORE.support),
     'store-rules': openRules,
     'enter-seller': enterSellerMode,
     'open-seller-demo': openSellerDemo,
