@@ -111,6 +111,7 @@ test('Mini App запрещает автоматическое увеличен�
 });
 
 test('страница запрашивает новую версию стилей и редактора после мобильной правки', () => {
+  assert.match(indexSource, /data\.js\?v=20260902-fashion-style-1/);
   assert.match(indexSource, /styles\.css\?v=20260902-admin-stability-4/);
   assert.match(indexSource, /app\.js\?v=20260902-admin-stability-4/);
 });
