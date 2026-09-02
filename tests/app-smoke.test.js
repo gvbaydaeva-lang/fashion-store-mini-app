@@ -155,6 +155,13 @@ test('список заказов показывает превью первог
   assert.match(appSource, /seller-order-card[\s\S]*order-item-image/);
 });
 
+test('локальный fallback помечается черновиком, а серверный заказ имеет отдельный тип', () => {
+  assert.match(appSource, /orderType: 'draft'/);
+  assert.match(appSource, /serverOrder/);
+  assert.match(appSource, /Серверный заказ не создан/);
+  assert.match(appSource, /status === 'pending_payment'/);
+});
+
 test('новая версия один раз очищает только утверждённые локальные демо-ключи', () => {
   const { storage } = loadApp({
     'fashion-store-cart-v1': '[{"key":"demo"}]',
@@ -213,6 +220,38 @@ test('приложение загружает покупательский ка�
   app.navigate('catalog');
 
   assert.match(screen.innerHTML, /Удалённое платье/);
+});
+
+test('покупатель видит полностью распроданный опубликованный товар явно недоступным', async () => {
+  const remoteProduct = {
+    id: 'sold-out-dress',
+    name: 'Распроданное платье',
+    price: 4990,
+    category: 'all',
+    sellerSku: 'SECRET-SKU',
+    wholesalePrice: 1200,
+    supplier: 'Закрытый поставщик',
+    images: ['https://cdn.example/sold-out.webp'],
+    colors: [{ id: 'black', name: 'Чёрный', hex: '#242424' }],
+    sizes: ['S'],
+    variants: [{ colorId: 'black', size: 'S', stock: 0, enabled: true }],
+    adminStatus: 'published',
+  };
+  const { app, screen } = loadApp({}, {
+    createApiClient() {
+      return { getCatalog: async () => [remoteProduct] };
+    },
+  });
+
+  await app.loadRemoteCatalog();
+  app.navigate('catalog');
+  assert.match(screen.innerHTML, /Распроданное платье/);
+  assert.match(screen.innerHTML, /Нет в наличии/);
+  assert.doesNotMatch(screen.innerHTML, /SECRET-SKU|Закрытый поставщик|1200/);
+
+  app.navigate('product', { productId: 'sold-out-dress' });
+  assert.doesNotMatch(screen.innerHTML, /SECRET-SKU|Закрытый поставщик|1200/);
+  assert.match(screen.innerHTML, /preorder-hero-bags\.png|sold-out\.webp/);
 });
 
 test('административные экраны рендерятся из реального app.js без runtime-ошибки', () => {
@@ -382,4 +421,21 @@ test('редактор показывает удаление только сох
   assert.match(appSource, /data-action="confirm-delete-admin-product"/);
   assert.match(appSource, /apiClient\.deleteAdminProduct/);
   assert.match(appSource, /deletedProductId/);
+});
+
+test('seller-очередь не читает локальный order и меняет ready только ответом API', () => {
+  assert.match(appSource, /sellerOrders: \[\],/);
+  assert.match(appSource, /apiClient\.listSellerOrders/);
+  assert.match(appSource, /apiClient\.getSellerOrder/);
+  assert.match(appSource, /apiClient\.markOrderReady/);
+  assert.match(appSource, /state\.sellerOrder\.id/);
+  assert.doesNotMatch(appSource, /function confirmOrderReady\(\)[\s\S]*Core\.markOrderReady/);
+  assert.match(appSource, /state\.order = updatedOrder/);
+});
+
+test('buyer обновляет серверный статус заказа при открытии и сохраняет старый при ошибке', () => {
+  assert.match(appSource, /async function openBuyerOrder\(\)/);
+  assert.match(appSource, /apiClient\.getBuyerOrder/);
+  assert.match(appSource, /Последний корректный серверный заказ остаётся/);
+  assert.match(appSource, /'open-order': \(\) => void openBuyerOrder\(\)/);
 });

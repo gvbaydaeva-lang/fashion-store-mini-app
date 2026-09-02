@@ -110,6 +110,37 @@
     };
   }
 
+  function normalizeOrder(order) {
+    const items = Array.isArray(order?.order_items)
+      ? order.order_items.map((item) => ({
+        productId: String(item.product_id),
+        variantId: item.variant_id,
+        name: item.product_name,
+        colorName: item.color_name,
+        size: item.size,
+        quantity: Number(item.quantity) || 0,
+        price: Number(item.unit_price) || 0,
+        image: item.image_path || '',
+      }))
+      : Array.isArray(order?.items) ? order.items : [];
+    return {
+      ...order,
+      id: String(order.id),
+      orderType: 'server',
+      status: order.status || 'pending_payment',
+      total: Number(order.total) || 0,
+      delivery: {
+        id: order.delivery_id,
+        title: order.delivery_id === 'pickup' ? 'Самовывоз в Элисте' : 'Получение',
+        description: order.delivery_id === 'pickup' ? 'Адрес магазина сообщим отдельно' : '',
+        price: Number(order.delivery_price) || 0,
+      },
+      customer: order.customer || {},
+      createdAt: order.created_at || order.createdAt,
+      items,
+    };
+  }
+
   function serializeProduct(product) {
     const category = String(product?.category ?? '').trim();
     const name = String(product?.name ?? '').trim();
@@ -229,6 +260,15 @@
       return readResponse(response);
     }
 
+    async function orderRequest(action, payload = {}) {
+      const response = await requestWithTimeout(`${baseUrl}/order-api`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, initData: options.initData ?? getInitData(), ...payload }),
+      });
+      return readResponse(response);
+    }
+
     async function uploadAdminImage(productId, image) {
       const { mimeType, extension } = parseDataImage(image);
       const data = await adminRequest('upload-url', { productId, fileExtension: extension });
@@ -246,6 +286,36 @@
 
     return {
       getCatalog,
+      async createOrder(order) {
+        const data = await orderRequest('create', {
+          idempotencyKey: order.idempotencyKey,
+          customer: order.customer,
+          deliveryId: order.deliveryId,
+          items: (order.items || []).map((item) => ({
+            productId: item.productId,
+            variantId: item.variantId,
+            quantity: item.quantity,
+            imagePath: item.imagePath,
+          })),
+        });
+        return normalizeOrder(data.order);
+      },
+      async getBuyerOrder(orderId) {
+        const data = await orderRequest('get-order', { orderId });
+        return normalizeOrder(data.order);
+      },
+      async listSellerOrders() {
+        const data = await orderRequest('list-orders');
+        return (Array.isArray(data.orders) ? data.orders : []).map(normalizeOrder);
+      },
+      async getSellerOrder(orderId) {
+        const data = await orderRequest('get-seller-order', { orderId });
+        return normalizeOrder(data.order);
+      },
+      async markOrderReady(orderId) {
+        const data = await orderRequest('mark-ready', { orderId });
+        return normalizeOrder(data.order);
+      },
       async getAdminProducts(filters) {
         const data = await adminRequest('list', { filters });
         return (Array.isArray(data.products) ? data.products : []).map(normalizeProduct);
@@ -284,7 +354,7 @@
     };
   }
 
-  const API = { FashionStoreApiError, createApiClient, normalizeProduct };
+  const API = { FashionStoreApiError, createApiClient, normalizeProduct, normalizeOrder };
   window.FashionStoreApi = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
 }(typeof window !== 'undefined' ? window : globalThis));

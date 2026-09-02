@@ -15,6 +15,7 @@
   const modalRoot = document.querySelector('#modal-root');
   const CART_KEY = 'fashion-store-cart-v1';
   const ORDER_KEY = 'fashion-store-order-v1';
+  const ORDER_IDEMPOTENCY_KEY = 'fashion-store-order-idempotency-v1';
   const OFFER_KEY = 'fashion-store-offer-seen-v1';
   const ADMIN_PRODUCTS_KEY = 'fashion-store-admin-products-v1';
   const ADMIN_DRAFT_KEY = 'fashion-store-admin-draft-v1';
@@ -56,11 +57,16 @@
     selectedSize: null,
     cart: [],
     order: null,
+    checkoutIdempotencyKey: null,
     customer: { name: '', phone: '' },
     delivery: null,
     sellerMode: false,
     sellerSection: 'products',
     sellerTab: 'collect',
+    sellerOrders: [],
+    sellerOrder: null,
+    sellerOrdersStatus: 'idle',
+    sellerOrdersError: '',
     catalogProducts: [],
     adminProducts: [],
     adminCategories: [],
@@ -152,8 +158,9 @@
       ? cart.filter((item) => item && typeof item.key === 'string' && item.quantity > 0)
       : [];
     state.order = order && typeof order === 'object' && typeof order.id === 'string'
-      ? order
+      ? (order.orderType === 'server' ? order : { ...order, orderType: 'draft', status: 'draft' })
       : null;
+    state.checkoutIdempotencyKey = readStored(ORDER_IDEMPOTENCY_KEY, null);
     state.adminProducts = [];
     state.adminCategories = [];
     state.adminProducts.forEach((product) => {
@@ -175,6 +182,8 @@
     window.localStorage.setItem(CART_KEY, JSON.stringify(state.cart));
     if (state.order) window.localStorage.setItem(ORDER_KEY, JSON.stringify(state.order));
     else window.localStorage.removeItem(ORDER_KEY);
+    if (state.checkoutIdempotencyKey) window.localStorage.setItem(ORDER_IDEMPOTENCY_KEY, state.checkoutIdempotencyKey);
+    else window.localStorage.removeItem(ORDER_IDEMPOTENCY_KEY);
   }
 
   function persistAdminDraft() {
@@ -234,7 +243,8 @@
 
   function getProductGroup(product) {
     if (!product) return [];
-    return getCatalogProducts().filter((item) => item.groupId === product.groupId);
+    return getCatalogProducts().filter((item) => item.groupId === product.groupId
+      && item.variants.some((variant) => variant.enabled !== false && Number(variant.stock) > 0));
   }
 
   function getAdminProduct(productId) {
@@ -462,12 +472,15 @@
   }
 
   function productCard(product) {
-    const sizes = [...new Set(product.variants.filter(({ stock }) => stock > 0).map(({ size }) => size))];
+    const sizes = [...new Set(product.variants
+      .filter((variant) => variant.enabled !== false && Number(variant.stock) > 0)
+      .map(({ size }) => size))];
+    const image = product.images?.[0] || 'assets/preorder-hero-bags.png';
     return `
       <article class="product-card card">
         <button class="product-card__open" type="button" data-action="open-product" data-product-id="${product.id}" aria-label="Открыть ${escapeHtml(product.name)}">
           <span class="product-card__media">
-            <img src="${product.images[0]}" alt="${escapeHtml(product.name)}" loading="lazy">
+            <img src="${escapeHtml(image)}" alt="${escapeHtml(product.name)}" loading="lazy">
             ${product.badge ? `<span class="badge">${escapeHtml(product.badge)}</span>` : ''}
           </span>
           <span class="product-card__body">
@@ -564,15 +577,18 @@
         <span style="--swatch:${color.hex || '#8e8e93'}" aria-hidden="true"></span>${escapeHtml(color.name)}
       </button>`;
     }).join('');
-    const sizes = product.sizes?.length
-      ? product.sizes
-      : [...new Set(product.variants.map(({ size }) => size))];
+    const availableVariants = product.variants.filter((variant) => (
+      variant.enabled !== false && Number(variant.stock) > 0
+    ));
+    const sizes = [...new Set((state.selectedColorId
+      ? availableVariants.filter(({ colorId }) => colorId === state.selectedColorId)
+      : availableVariants).map(({ size }) => size))];
     const sizeButtons = sizes.map((size) => {
       const variant = state.selectedColorId ? getVariant(product, state.selectedColorId, size) : null;
-      const unavailable = !variant || variant.stock === 0;
+      const unavailable = !variant || variant.enabled === false || Number(variant.stock) <= 0;
       const status = !state.selectedColorId
         ? 'Выберите цвет'
-        : variant?.stock === 0 ? 'Нет' : variant?.stock === 1 ? 'Последний' : 'В наличии';
+        : !variant || variant.enabled === false || Number(variant.stock) <= 0 ? 'Нет' : variant.stock === 1 ? 'Последний' : 'В наличии';
       return `
       <button class="size-button ${state.selectedSize === size ? 'is-active' : ''}" type="button" data-action="select-size" data-size="${size}" ${unavailable ? 'disabled' : ''} aria-pressed="${state.selectedSize === size}">
         <strong>${size}</strong><small>${status}</small>
@@ -647,6 +663,12 @@
   }
 
   function orderStatus(order) {
+    if (order.orderType !== 'server' || order.status === 'draft') {
+      return { title: 'Черновик', text: 'Заказ ещё не отправлен на сервер', className: 'draft' };
+    }
+    if (order.status === 'pending_payment') {
+      return { title: 'Ожидает оплаты', text: 'Оплата подключается отдельной задачей', className: 'paid' };
+    }
     return order.status === 'ready'
       ? { title: 'Заказ собран', text: order.delivery.id === 'pickup' ? 'Ждёт вас в магазине' : 'Готов к передаче в доставку', className: 'ready' }
       : { title: 'Оплачен, собираем', text: 'Сообщим, когда всё будет готово', className: 'paid' };
@@ -755,9 +777,9 @@
       <section class="success-screen">
         <div class="success-mark" aria-hidden="true">${icon('check')}</div>
         <p class="eyebrow">Демонстрационный заказ</p>
-        <h1>Оплата прошла</h1>
-        <p>В прототипе платёж не выполнялся. Мы создали локальный заказ для проверки сценария.</p>
-        <section class="success-card card"><span>Заказ</span><strong>${escapeHtml(state.order.id)}</strong><span>Статус</span><strong>Оплачен, собираем</strong><span>Итого</span><strong>${money(state.order.total)}</strong></section>
+        <h1>Заказ создан</h1>
+        <p>Платёжный провайдер не подключён. Сервер сохранил заказ со статусом «Ожидает оплаты».</p>
+        <section class="success-card card"><span>Заказ</span><strong>${escapeHtml(state.order.id)}</strong><span>Статус</span><strong>Ожидает оплаты</strong><span>Итого</span><strong>${money(state.order.total)}</strong></section>
         <button class="primary-button" type="button" data-action="open-order">Открыть заказ</button>
         <button class="text-button text-button--center" type="button" data-action="navigate" data-screen="catalog">Вернуться в каталог</button>
       </section>`;
@@ -784,11 +806,11 @@
     const status = orderStatus(state.order);
     return `
       ${pageHeader(`Заказ ${state.order.id}`)}
-      <section class="order-status-card order-status-card--${status.className} card"><span class="status-pill status-pill--${status.className}">${status.title}</span><h2>${escapeHtml(status.text)}</h2><p>${state.order.status === 'ready' ? 'Статус изменён в демонстрационном режиме продавца.' : 'Продавец увидит заказ в своей очереди.'}</p></section>
+      <section class="order-status-card order-status-card--${status.className} card"><span class="status-pill status-pill--${status.className}">${status.title}</span><h2>${escapeHtml(status.text)}</h2><p>${state.order.orderType === 'server' ? 'Цена и остаток подтверждены сервером.' : 'Серверный заказ не создан. Это только локальный черновик.'}</p></section>
       <section class="review-section card"><h2>Состав</h2><ul class="review-items">${orderItems(state.order)}</ul></section>
       <section class="info-list card">
         <div><span aria-hidden="true">${icon('map-pin')}</span><p><strong>${escapeHtml(state.order.delivery.title)}</strong><small>${escapeHtml(state.order.delivery.description)}</small></p></div>
-        <div><span aria-hidden="true">₽</span><p><strong>${money(state.order.total)}</strong><small>Демонстрационный итог</small></p></div>
+        <div><span aria-hidden="true">₽</span><p><strong>${money(state.order.total)}</strong><small>${state.order.orderType === 'server' ? 'Итог с сервера' : 'Черновой итог'}</small></p></div>
       </section>
       <button class="secondary-button full-width" type="button" data-action="demo-contact">Связаться с магазином</button>`;
   }
@@ -1141,30 +1163,32 @@
   }
 
   function renderSellerOrders() {
-    const orderMatchesTab = state.order && (
-      state.sellerTab === 'ready' ? state.order.status === 'ready' : state.order.status === 'paid'
-    );
-    const collectCount = state.order?.status === 'paid' ? 1 : 0;
-    const readyCount = state.order?.status === 'ready' ? 1 : 0;
-    const content = orderMatchesTab
-      ? `<button class="seller-order-card card" type="button" data-action="seller-open-order"><span class="status-pill status-pill--${state.order.status === 'ready' ? 'ready' : 'paid'}">${state.order.status === 'ready' ? 'Заказ собран' : 'Оплачен, собираем'}</span><img class="order-item-image" src="${escapeHtml(getOrderItemImage(state.order.items[0]))}" alt="${escapeHtml(state.order.items[0]?.name || 'Товар заказа')}" data-order-item-image><span><strong>${escapeHtml(state.order.id)}</strong><small>${formatOrderTime(state.order.createdAt)} · ${escapeHtml(state.order.customer.name)} · ${state.order.items.length} позиций</small><small>${escapeHtml(state.order.delivery.title)}</small></span><b>${money(state.order.total)}</b></button>`
-      : `<section class="empty-state card"><span aria-hidden="true">${icon('package')}</span><h2>${state.sellerTab === 'ready' ? 'Готовых заказов пока нет' : 'Нет заказов на сборку'}</h2><p>Оплаченный демо-заказ появится в нужной вкладке.</p></section>`;
+    const orders = state.sellerOrders.filter((order) => state.sellerTab === 'ready' ? order.status === 'ready' : order.status === 'paid');
+    const collectCount = state.sellerOrders.filter((order) => order.status === 'paid').length;
+    const readyCount = state.sellerOrders.filter((order) => order.status === 'ready').length;
+    const content = state.sellerOrdersStatus === 'loading'
+      ? '<section class="empty-state card"><h2>Загружаем заказы…</h2></section>'
+      : state.sellerOrdersStatus === 'error'
+        ? `<section class="empty-state card"><h2>Не удалось загрузить заказы</h2><p>${escapeHtml(state.sellerOrdersError)}</p><button class="primary-button" type="button" data-action="reload-seller-orders">Повторить</button></section>`
+        : orders.length
+          ? orders.map((order) => `<button class="seller-order-card card" type="button" data-action="seller-open-order" data-order-id="${escapeHtml(order.id)}"><span class="status-pill status-pill--${order.status === 'ready' ? 'ready' : 'paid'}">${order.status === 'ready' ? 'Заказ собран' : 'Оплачен, собираем'}</span><img class="order-item-image" src="${escapeHtml(getOrderItemImage(order.items[0]))}" alt="${escapeHtml(order.items[0]?.name || 'Товар заказа')}" data-order-item-image><span><strong>${escapeHtml(order.id)}</strong><small>${formatOrderTime(order.createdAt)} · ${escapeHtml(order.customer.name || 'Покупатель')} · ${order.items.length} позиций</small><small>${escapeHtml(order.delivery.title)}</small></span><b>${money(order.total)}</b></button>`).join('')
+          : `<section class="empty-state card"><span aria-hidden="true">${icon('package')}</span><h2>${state.sellerTab === 'ready' ? 'Готовых заказов пока нет' : 'Нет заказов на сборку'}</h2><p>Серверная очередь пуста.</p></section>`;
     return sellerShell('orders', `
-      <section class="admin-section-heading"><div><p class="eyebrow">Рабочая очередь</p><h2>Заказы</h2><p>Только один локальный демо-заказ</p></div></section>
+      <section class="admin-section-heading"><div><p class="eyebrow">Рабочая очередь</p><h2>Заказы</h2><p>Данные загружены с сервера</p></div></section>
       <div class="seller-tabs"><button class="${state.sellerTab === 'collect' ? 'is-active' : ''}" type="button" data-action="set-seller-tab" data-tab="collect">Собрать <span>${collectCount}</span></button><button class="${state.sellerTab === 'ready' ? 'is-active' : ''}" type="button" data-action="set-seller-tab" data-tab="ready">Готовы <span>${readyCount}</span></button></div>
       ${content}
-      <section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>В рабочей версии доступ и изменение статусов проверяются сервером. Сейчас данные сохраняются только на этом устройстве.</p></section>`);
+      <section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>Доступ и изменение статусов проверяются сервером.</p></section>`);
   }
 
   function renderSellerOrder() {
-    if (!state.order) return renderSellerOrders();
-    const status = orderStatus(state.order);
+    if (!state.sellerOrder) return renderSellerOrders();
+    const status = orderStatus(state.sellerOrder);
     const content = `
-      <header class="admin-editor-header"><button class="icon-button" type="button" data-action="go-back" aria-label="Назад">${icon('chevron-left')}</button><div><p class="eyebrow">${escapeHtml(state.order.id)}</p><h1>Карточка заказа</h1></div></header>
-      <section class="order-status-card card"><span class="status-pill status-pill--${status.className}">${status.title}</span><h2>${escapeHtml(status.text)}</h2><p>${formatOrderTime(state.order.createdAt)} · ${money(state.order.total)}</p></section>
-      <section class="review-section card"><h2>Состав заказа</h2><ul class="review-items">${orderItems(state.order)}</ul></section>
-      <section class="info-list card"><div><span aria-hidden="true">${icon('at-sign')}</span><p><strong>${escapeHtml(state.order.customer.name)}</strong><small>${escapeHtml(state.order.customer.phone)}</small></p></div><div><span aria-hidden="true">${icon('map-pin')}</span><p><strong>${escapeHtml(state.order.delivery.title)}</strong><small>${escapeHtml(state.order.delivery.description)}</small></p></div></section>
-      ${state.order.status === 'paid' ? '<button class="primary-button full-width seller-ready-button" type="button" data-action="request-ready">Заказ собран</button>' : `<section class="notice-card notice-card--success"><span aria-hidden="true">${icon('check')}</span><p>${state.order.delivery.id === 'pickup' ? 'Ждёт покупателя в магазине.' : 'Готов к передаче в доставку.'}</p></section>`}`;
+      <header class="admin-editor-header"><button class="icon-button" type="button" data-action="go-back" aria-label="Назад">${icon('chevron-left')}</button><div><p class="eyebrow">${escapeHtml(state.sellerOrder.id)}</p><h1>Карточка заказа</h1></div></header>
+      <section class="order-status-card card"><span class="status-pill status-pill--${status.className}">${status.title}</span><h2>${escapeHtml(status.text)}</h2><p>${formatOrderTime(state.sellerOrder.createdAt)} · ${money(state.sellerOrder.total)}</p></section>
+      <section class="review-section card"><h2>Состав заказа</h2><ul class="review-items">${orderItems(state.sellerOrder)}</ul></section>
+      <section class="info-list card"><div><span aria-hidden="true">${icon('at-sign')}</span><p><strong>${escapeHtml(state.sellerOrder.customer.name || 'Покупатель')}</strong><small>${escapeHtml(state.sellerOrder.customer.phone || '')}</small></p></div><div><span aria-hidden="true">${icon('map-pin')}</span><p><strong>${escapeHtml(state.sellerOrder.delivery.title)}</strong><small>${escapeHtml(state.sellerOrder.delivery.description)}</small></p></div></section>
+      ${state.sellerOrder.status === 'paid' ? '<button class="primary-button full-width seller-ready-button" type="button" data-action="request-ready">Заказ собран</button>' : `<section class="notice-card notice-card--success"><span aria-hidden="true">${icon('check')}</span><p>${state.sellerOrder.delivery.id === 'pickup' ? 'Ждёт покупателя в магазине.' : 'Готов к передаче в доставку.'}</p></section>`}`;
     return sellerShell('orders', content);
   }
 
@@ -1240,7 +1264,7 @@
     }
     const color = getColor(product, state.selectedColorId);
     const variant = getVariant(product, state.selectedColorId, state.selectedSize);
-    if (!variant || variant.stock <= 0) {
+    if (!variant || variant.enabled === false || variant.stock <= 0) {
       showToast('Этот вариант закончился');
       return;
     }
@@ -1255,7 +1279,7 @@
       price: product.price,
       quantity: 1,
     };
-    state.cart = Core.addCartItem(state.cart, item, variant.stock);
+    state.cart = Core.addCartItem(state.cart, item, variant.stock, variant.enabled);
     saveState();
     showToast('Добавлено в корзину');
     if (goToCheckout) navigate('checkout-contact');
@@ -1284,7 +1308,10 @@
     const catalogProducts = getCatalogProducts();
     const sizes = ['XS', 'S', 'M', 'L', 'XL'];
     const uniqueColors = [...new Map(
-      catalogProducts.flatMap(({ colors }) => colors).map((color) => [color.id, color]),
+      catalogProducts.flatMap((product) => product.variants
+        .filter((variant) => variant.enabled !== false && Number(variant.stock) > 0)
+        .map((variant) => product.colors.find((color) => color.id === variant.colorId))
+        .filter(Boolean)).map((color) => [color.id, color]),
     ).values()];
     const results = Core.filterProducts(catalogProducts, state.draftFilters).length;
     openSheet(`
@@ -1352,12 +1379,12 @@
     const summary = Core.getCartSummary(state.cart, state.delivery?.price || 0);
     openSheet(`
       <div class="sheet__header"><p class="eyebrow">Без списания денег</p><h2>Подтвердить демо-оплату?</h2></div>
-      <p>Будет создан только локальный заказ на сумму <strong>${money(summary.total)}</strong>.</p>
+      <p>Будет создан серверный заказ со статусом «Ожидает оплаты». Деньги не списываются.</p>
       <div class="sheet__actions"><button class="secondary-button" type="button" data-action="close-sheet">Отмена</button><button class="primary-button" type="button" data-action="confirm-demo-payment">Подтвердить</button></div>
     `, { title: 'Подтверждение демонстрационной оплаты' });
   }
 
-  function submitDemoPayment() {
+  async function submitDemoPayment() {
     if (state.isSubmitting || !state.cart.length || !state.delivery) return;
     if (state.order) {
       closeSheet();
@@ -1365,20 +1392,32 @@
       return;
     }
     state.isSubmitting = true;
-    const orderId = `FS-${String(Date.now()).slice(-6)}`;
-    state.order = Core.createDemoOrder(
-      state.cart,
-      state.customer,
-      state.delivery,
-      null,
-      orderId,
-      new Date().toISOString(),
-    );
-    state.cart = [];
-    saveState();
-    state.isSubmitting = false;
-    closeSheet();
-    navigate('payment-success');
+    state.checkoutIdempotencyKey ||= (globalThis.crypto?.randomUUID?.() || `checkout-${Date.now()}`);
+    try {
+      if (!apiClient?.createOrder) throw new Error('server-unavailable');
+      const serverOrder = await apiClient.createOrder({
+        idempotencyKey: state.checkoutIdempotencyKey,
+        customer: state.customer,
+        deliveryId: state.delivery.id,
+        items: state.cart,
+      });
+      state.order = serverOrder;
+      state.cart = [];
+      state.checkoutIdempotencyKey = null;
+      saveState();
+      closeSheet();
+      navigate('payment-success');
+    } catch (error) {
+      state.order = Core.createDemoOrder(state.cart, state.customer, state.delivery, null, `DRAFT-${String(Date.now()).slice(-6)}`, new Date().toISOString());
+      state.order.orderType = 'draft';
+      state.order.status = 'draft';
+      saveState();
+      closeSheet();
+      showToast(error?.status === 409 ? 'Товар закончился. Обновите корзину.' : 'Сервер недоступен: сохранён только черновик.');
+      navigate('order-detail');
+    } finally {
+      state.isSubmitting = false;
+    }
   }
 
   function enterSellerMode() {
@@ -1387,6 +1426,7 @@
     state.sellerTab = state.order?.status === 'ready' ? 'ready' : 'collect';
     state.sellerAuthStatus = 'loading';
     state.sellerAuthError = '';
+    state.sellerOrder = null;
     navigate('seller-access');
     void loadRemoteAdminProducts();
   }
@@ -1406,6 +1446,7 @@
   function setSellerSection(section) {
     if (section === 'orders') {
       navigate('seller-orders', {}, { root: true });
+      void loadRemoteSellerOrders();
       return;
     }
     navigate('seller-products', {}, { root: true });
@@ -1811,25 +1852,88 @@
   }
 
   function requestOrderReady() {
-    if (!state.order || state.order.status !== 'paid') return;
-    const message = state.order.delivery.id === 'pickup'
+    if (!state.sellerOrder || state.sellerOrder.status !== 'paid') return;
+    const message = state.sellerOrder.delivery.id === 'pickup'
       ? 'Покупатель увидит: «Ждёт вас в магазине».'
       : 'Покупатель увидит: «Готов к передаче в доставку».';
     openSheet(`
-      <div class="sheet__header"><p class="eyebrow">${escapeHtml(state.order.id)}</p><h2>Заказ действительно собран?</h2></div>
+      <div class="sheet__header"><p class="eyebrow">${escapeHtml(state.sellerOrder.id)}</p><h2>Заказ действительно собран?</h2></div>
       <p>${message}</p>
       <div class="sheet__actions"><button class="secondary-button" type="button" data-action="close-sheet">Отмена</button><button class="primary-button" type="button" data-action="confirm-ready">Да, заказ собран</button></div>
     `, { title: 'Подтверждение сборки заказа' });
   }
 
-  function confirmOrderReady() {
-    if (!state.order || state.order.status !== 'paid') return;
-    state.order = Core.markOrderReady(state.order);
-    state.sellerTab = 'ready';
-    saveState();
-    closeSheet();
-    showToast('Статус обновлён: заказ собран');
+  async function confirmOrderReady() {
+    if (!state.sellerOrder || state.sellerOrder.status !== 'paid' || state.isSubmitting || !apiClient?.markOrderReady) return;
+    state.isSubmitting = true;
+    try {
+      const updatedOrder = await apiClient.markOrderReady(state.sellerOrder.id);
+      state.sellerOrder = updatedOrder;
+      state.sellerOrders = state.sellerOrders.map((order) => order.id === updatedOrder.id ? updatedOrder : order);
+      if (state.order?.id === updatedOrder.id) state.order = updatedOrder;
+      state.sellerTab = 'ready';
+      saveState();
+      closeSheet();
+      showToast('Статус обновлён: заказ собран');
+      render();
+    } catch (error) {
+      closeSheet();
+      showToast(error?.status === 409 ? 'Заказ уже изменён или его нельзя собрать.' : error?.message || 'Не удалось обновить заказ.');
+    } finally {
+      state.isSubmitting = false;
+    }
+  }
+
+  async function openBuyerOrder() {
+    if (!state.order) return;
+    navigate('order-detail');
+    if (state.order.orderType !== 'server' || !apiClient?.getBuyerOrder) return;
+    try {
+      const latestOrder = await apiClient.getBuyerOrder(state.order.id);
+      state.order = latestOrder;
+      saveState();
+      render();
+    } catch (_error) {
+      // Последний корректный серверный заказ остаётся на экране при временной ошибке.
+    }
+  }
+
+  async function loadRemoteSellerOrders() {
+    if (!apiClient?.listSellerOrders) return false;
+    state.sellerOrdersStatus = 'loading';
+    state.sellerOrdersError = '';
     render();
+    try {
+      state.sellerOrders = await apiClient.listSellerOrders();
+      state.sellerOrdersStatus = 'ready';
+      render();
+      return true;
+    } catch (error) {
+      state.sellerOrdersStatus = 'error';
+      state.sellerOrdersError = error?.status === 403
+        ? 'У тебя нет доступа к заказам.'
+        : error?.status === 401
+          ? 'Не удалось подтвердить Telegram-сеанс. Открой Mini App заново.'
+          : error?.message || 'Сервер временно недоступен.';
+      render();
+      return false;
+    }
+  }
+
+  async function openSellerOrder(control) {
+    const orderId = control?.dataset?.orderId;
+    if (!orderId || !apiClient?.getSellerOrder) return;
+    const cachedOrder = state.sellerOrders.find((order) => order.id === orderId);
+    state.sellerOrder = cachedOrder || null;
+    navigate('seller-order', { orderId });
+    try {
+      state.sellerOrder = await apiClient.getSellerOrder(orderId);
+      state.sellerOrders = state.sellerOrders.map((order) => order.id === state.sellerOrder.id ? state.sellerOrder : order);
+      render();
+    } catch (error) {
+      showToast(error?.message || 'Не удалось загрузить заказ.');
+      navigate('seller-orders', {}, { root: true });
+    }
   }
 
   async function loadRemoteAdminProducts() {
@@ -2017,7 +2121,7 @@
     'edit-delivery': () => navigate('checkout-delivery'),
     'request-payment': requestDemoPayment,
     'confirm-demo-payment': submitDemoPayment,
-    'open-order': () => navigate('order-detail'),
+    'open-order': () => void openBuyerOrder(),
     'demo-contact': () => showToast('Демонстрационный контакт: ' + Data.STORE.support),
     'store-rules': openRules,
     'enter-seller': enterSellerMode,
@@ -2076,13 +2180,14 @@
     'admin-photo-main': (control) => makeAdminPhotoMain(Number(control.dataset.index)),
     'admin-photo-remove': (control) => removeAdminPhoto(Number(control.dataset.index)),
     'admin-fix-errors': jumpToFirstAdminError,
-    'seller-open-order': () => navigate('seller-order'),
+    'seller-open-order': openSellerOrder,
     'set-seller-tab': (control) => {
       state.sellerTab = control.dataset.tab === 'ready' ? 'ready' : 'collect';
       render();
     },
     'request-ready': requestOrderReady,
     'confirm-ready': confirmOrderReady,
+    'reload-seller-orders': () => void loadRemoteSellerOrders(),
     'open-offer-bot': openOfferBot,
     'share-bot': shareBot,
     'close-sheet': closeSheet,

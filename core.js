@@ -6,7 +6,9 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function createCore() {
   function filterProducts(products, filters) {
     return products.filter((product) => {
-      const availableVariants = product.variants.filter(({ stock }) => stock > 0);
+      const availableVariants = (product.variants || []).filter((variant) => (
+        variant.enabled !== false && Number(variant.stock) > 0
+      ));
       const matchesCategory = filters.category === 'all' || product.category === filters.category;
       const matchesSize = !filters.sizes.length || filters.sizes.some((size) => (
         availableVariants.some((variant) => variant.size === size)
@@ -29,7 +31,9 @@
   }
 
   function getAvailableOptions(product, colorId) {
-    return product.variants.filter((variant) => variant.colorId === colorId);
+    return (product?.variants || []).filter((variant) => (
+      variant.colorId === colorId && variant.enabled !== false && Number(variant.stock) > 0
+    ));
   }
 
   function flattenCatalogProductGroups(groups) {
@@ -51,8 +55,8 @@
     return options.find((option) => String(option.id) === String(optionId)) || options[0] || null;
   }
 
-  function addCartItem(cart, item, stock) {
-    if (stock <= 0) return [...cart];
+  function addCartItem(cart, item, stock, enabled = true) {
+    if (enabled === false || stock <= 0) return [...cart];
     const current = cart.find((entry) => entry.key === item.key);
     if (!current) {
       return [...cart, { ...item, quantity: Math.min(item.quantity || 1, stock) }];
@@ -65,7 +69,7 @@
   }
 
   function setCartItemQuantity(cart, key, quantity, stock) {
-    if (quantity <= 0) return cart.filter((item) => item.key !== key);
+    if (quantity <= 0 || stock <= 0) return cart.filter((item) => item.key !== key);
     return cart.map((item) => (
       item.key === key ? { ...item, quantity: Math.min(quantity, stock) } : item
     ));

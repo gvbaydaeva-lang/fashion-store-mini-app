@@ -149,6 +149,51 @@ test('вариант с нулевым остатком не попадает в
   assert.deepEqual(addCartItem([], item, 0), []);
 });
 
+test('buyer-фильтры учитывают только включённые варианты с положительным остатком', () => {
+  const products = [{
+    id: 'mixed', category: 'dresses',
+    colors: [{ id: 'black', name: 'Чёрный' }, { id: 'blue', name: 'Голубой' }],
+    variants: [
+      { colorId: 'black', size: 'S', stock: 4, enabled: false },
+      { colorId: 'blue', size: 'M', stock: 0, enabled: true },
+      { colorId: 'blue', size: 'L', stock: 2, enabled: true },
+    ],
+  }];
+
+  assert.deepEqual(filterProducts(products, {
+    category: 'all', sizes: ['S'], colors: [], maxPrice: null, onlyNew: false,
+  }), []);
+  assert.deepEqual(filterProducts(products, {
+    category: 'all', sizes: [], colors: ['black'], maxPrice: null, onlyNew: false,
+  }), []);
+  assert.deepEqual(filterProducts(products, {
+    category: 'all', sizes: ['L'], colors: ['blue'], maxPrice: null, onlyNew: false,
+  }).map(({ id }) => id), ['mixed']);
+});
+
+test('buyer-выбор цвета и размера исключает disabled и нулевые варианты', () => {
+  const product = {
+    variants: [
+      { colorId: 'black', size: 'S', stock: 3, enabled: false },
+      { colorId: 'black', size: 'M', stock: 0, enabled: true },
+      { colorId: 'blue', size: 'L', stock: 2, enabled: true },
+    ],
+  };
+
+  assert.deepEqual(getAvailableOptions(product, 'black'), []);
+  assert.deepEqual(getAvailableOptions(product, 'blue'), [product.variants[2]]);
+});
+
+test('disabled-вариант не добавляется в корзину даже при ненулевом остатке', () => {
+  const item = { key: 'dress-air:black:S', productId: 'dress-air', quantity: 1 };
+  assert.deepEqual(addCartItem([], item, 3, false), []);
+});
+
+test('позиция удаляется из корзины, если её актуальный остаток стал нулевым', () => {
+  const cart = [{ key: 'dress-air:blue:M', quantity: 1 }];
+  assert.deepEqual(setCartItemQuantity(cart, cart[0].key, 1, 0), []);
+});
+
 test('изменение количества ограничивается остатком, а ноль удаляет позицию', () => {
   const cart = [{ key: 'dress-air:blue:M', price: 5990, quantity: 1 }];
   const increased = setCartItemQuantity(cart, cart[0].key, 5, 2);

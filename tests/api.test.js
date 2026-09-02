@@ -319,3 +319,61 @@ test('админский запрос завершается понятной о
   );
   assert.equal(aborted, true);
 });
+
+test('создание заказа отправляет позиции и idempotency key, но не клиентские total/status', async () => {
+  let body;
+  const client = API.createApiClient({
+    initData: 'raw-telegram-init-data',
+    fetch: async (_url, options) => {
+      body = JSON.parse(options.body);
+      return { ok: true, async json() { return { ok: true, data: { order: { id: 'order-1', status: 'pending_payment', total: 4990 } } }; } };
+    },
+  });
+
+  const order = await client.createOrder({
+    idempotencyKey: 'checkout-key-1',
+    customer: { name: 'Анна', phone: '+79990000000' },
+    deliveryId: 'pickup',
+    items: [{ productId: 7, variantId: 9, quantity: 1, price: 1 }],
+    total: 1,
+    status: 'paid',
+  });
+
+  assert.equal(order.id, 'order-1');
+  assert.equal(body.action, 'create');
+  assert.equal(body.initData, 'raw-telegram-init-data');
+  assert.equal(body.idempotencyKey, 'checkout-key-1');
+  assert.deepEqual(body.items, [{ productId: 7, variantId: 9, quantity: 1 }]);
+  assert.equal(body.total, undefined);
+  assert.equal(body.status, undefined);
+});
+
+test('seller order API передаёт raw initData и разделяет list/get/mark-ready', async () => {
+  const calls = [];
+  const responses = [
+    { orders: [{ id: 'order-1', status: 'paid', total: 100 }] },
+    { order: { id: 'order-1', status: 'paid', total: 100 } },
+    { order: { id: 'order-1', status: 'ready', total: 100 } },
+  ];
+  const client = API.createApiClient({
+    baseUrl: 'https://example.supabase.co/functions/v1',
+    initData: 'signed-owner-init-data',
+    fetch: async (url, options) => {
+      calls.push({ url, body: JSON.parse(options.body) });
+      return { ok: true, async json() { return { ok: true, data: responses.shift() }; } };
+    },
+  });
+
+  const orders = await client.listSellerOrders();
+  const order = await client.getSellerOrder('order-1');
+  const ready = await client.markOrderReady('order-1');
+
+  assert.equal(orders[0].status, 'paid');
+  assert.equal(order.id, 'order-1');
+  assert.equal(ready.status, 'ready');
+  assert.deepEqual(calls.map(({ body }) => body), [
+    { action: 'list-orders', initData: 'signed-owner-init-data' },
+    { action: 'get-seller-order', initData: 'signed-owner-init-data', orderId: 'order-1' },
+    { action: 'mark-ready', initData: 'signed-owner-init-data', orderId: 'order-1' },
+  ]);
+});
