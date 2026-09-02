@@ -26,6 +26,7 @@ const {
   createAdminCategory,
   validateAdminProduct,
   duplicateAdminProduct,
+  createAdminProductVariant,
   getAdminProductStatus,
   popScreenHistory,
   serializeAdminDraft,
@@ -450,6 +451,28 @@ test('похожий товар становится независимым че
   assert.equal(copy.variants[0].stock, 0);
   assert.equal(source.colors[0].name, 'Чёрный');
   assert.equal(source.variants[0].stock, 4);
+});
+
+test('новый вариант копирует текст карточки, но начинает без фото, цвета, размеров и остатков', () => {
+  const source = {
+    id: '31', groupId: 'dress-group', name: 'Платье', category: 'dresses', sellerSku: 'DR-31',
+    price: 5990, oldPrice: 6990, wholesalePrice: 2800, supplier: 'Milan Fashion',
+    description: 'Платье миди', images: ['dress.jpg'], imagePaths: ['products/31/dress.jpg'],
+    colors: [{ id: 'black', name: 'Чёрный' }], sizes: ['42'],
+    variants: [{ colorId: 'black', size: '42', stock: 3, enabled: true }],
+  };
+
+  const variant = createAdminProductVariant(source, 'admin-new');
+
+  assert.equal(variant.id, 'admin-new');
+  assert.equal(variant.groupId, 'dress-group');
+  assert.equal(variant.name, 'Платье');
+  assert.equal(variant.description, 'Платье миди');
+  assert.deepEqual(variant.images, []);
+  assert.deepEqual(variant.imagePaths, []);
+  assert.deepEqual(variant.colors, []);
+  assert.deepEqual(variant.sizes, []);
+  assert.deepEqual(variant.variants, []);
 });
 
 test('статус товара различает черновик, публикацию и отсутствие остатка', () => {

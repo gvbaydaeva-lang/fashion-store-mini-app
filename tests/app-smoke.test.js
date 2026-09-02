@@ -186,6 +186,7 @@ test('административные экраны рендерятся из р
   assert.match(screen.innerHTML, /Основная информация/);
   assert.match(screen.innerHTML, /Описание товара/);
   assert.match(screen.innerHTML, /Цвет и размеры/);
+  assert.ok(screen.innerHTML.indexOf('Цвет и размеры') < screen.innerHTML.indexOf('Описание товара'));
   assert.match(screen.innerHTML, /name="description"/);
   assert.match(screen.innerHTML, /data-admin-color-index="0"/);
   assert.match(screen.innerHTML, /<span>Цвет<\/span>/);
@@ -195,11 +196,12 @@ test('административные экраны рендерятся из р
   assert.doesNotMatch(screen.innerHTML, /Разделяй размеры запятыми/);
   assert.match(screen.innerHTML, /data-admin-size-name/);
   assert.match(screen.innerHTML, /data-action="add-admin-size"/);
+  assert.match(screen.innerHTML, /data-action="remove-admin-size"/);
   assert.match(screen.innerHTML, /Добавить размер/);
   assert.doesNotMatch(screen.innerHTML, /name="adminColors"/);
   assert.doesNotMatch(screen.innerHTML, /name="adminSizes"/);
   assert.match(screen.innerHTML, /data-action="add-admin-product-option"/);
-  assert.match(screen.innerHTML, /Добавить цвет/);
+  assert.match(screen.innerHTML, /Добавить новый вариант/);
   assert.match(screen.innerHTML, /name="categoryNew"/);
   assert.match(screen.innerHTML, /name="supplier"/);
   assert.doesNotMatch(screen.innerHTML, /Применить цвета и размеры/);

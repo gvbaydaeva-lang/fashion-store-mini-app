@@ -306,6 +306,22 @@
     };
   }
 
+  function createAdminProductVariant(product, id) {
+    const copy = cloneAdminProduct(product);
+    return {
+      ...copy,
+      id,
+      groupId: product.groupId || product.id,
+      images: [],
+      imagePaths: [],
+      colors: [],
+      sizes: [],
+      measurements: {},
+      variants: [],
+      adminStatus: 'draft',
+    };
+  }
+
   function popScreenHistory(history, fallbackScreen = 'home') {
     const nextHistory = [...history];
     const previous = nextHistory.pop();
@@ -354,6 +370,7 @@
     createAdminCategory,
     validateAdminProduct,
     duplicateAdminProduct,
+    createAdminProductVariant,
     getAdminProductStatus,
     popScreenHistory,
     serializeAdminDraft,

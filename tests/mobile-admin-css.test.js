@@ -17,7 +17,11 @@ test('админ-панель на мобильной ширине защище�
 
 test('редактор товара на iPhone не увеличивается при вводе цвета и размера', () => {
   assert.match(styles, /@media \(max-width: 430px\)[\s\S]*?\.admin-editor-form \{[^}]*overflow-x:\s*hidden/);
-  assert.match(styles, /@media \(max-width: 430px\)[\s\S]*?\.admin-editor-form \.admin-color-block \{[^}]*min-width:\s*0/);
-  assert.match(styles, /@media \(max-width: 430px\)[\s\S]*?\.admin-editor-form \.admin-color-block input \{[^}]*font-size:\s*16px/);
-  assert.match(styles, /@media \(max-width: 430px\)[\s\S]*?\.admin-size-row \{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/);
+  assert.match(styles, /@media \(max-width: 430px\)[\s\S]*?\.admin-editor-form \.admin-variant-fields \{[^}]*min-width:\s*0/);
+  assert.match(styles, /@media \(max-width: 430px\)[\s\S]*?\.admin-editor-form \.admin-variant-fields input \{[^}]*font-size:\s*16px/);
+  assert.match(styles, /@media \(max-width: 430px\)[\s\S]*?\.admin-size-row \{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 0\.72fr\) 44px/);
+});
+
+test('нижние действия не перекрывают поле варианта при открытой клавиатуре', () => {
+  assert.match(styles, /\.admin-editor-form:focus-within \.admin-editor-actions[\s\S]*?visibility:\s*hidden/);
 });

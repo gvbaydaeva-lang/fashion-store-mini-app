@@ -1097,6 +1097,13 @@ img { display: block; max-width: 100%; }
 .admin-form-section label small { color: var(--muted); font-size: 11px; font-weight: 500; }
 .admin-add-variant-button { width: 100%; margin-top: 12px; }
 .admin-variant-hint { display: block; margin-top: 7px; color: var(--muted); }
+.admin-form-heading--variants { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--border); }
+.admin-variant-fields { display: grid; min-width: 0; gap: 10px; }
+.admin-variant-fields > label { margin-top: 0 !important; }
+.admin-size-list { display: grid; min-width: 0; gap: 8px; }
+.admin-size-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.72fr) 44px; min-width: 0; align-items: end; gap: 8px; }
+.admin-size-row label { min-width: 0; margin-top: 0 !important; }
+.admin-size-row .icon-button { width: 44px; height: 44px; min-height: 44px; }
 .admin-color-block { display: grid; gap: 12px; width: 100%; margin-inline: 0; padding: 16px; box-sizing: border-box; transform: none; box-shadow: none; }
 .admin-color-block h3 { margin: 0; font-size: 18px; }
 .admin-color-block .text-button { min-height: 44px; padding: 8px; color: var(--danger); }
@@ -1120,6 +1127,7 @@ img { display: block; max-width: 100%; }
 .admin-photo-actions .ui-icon { width: 18px; height: 18px; }
 
 .admin-editor-actions { position: fixed; z-index: 24; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); width: 100%; max-width: var(--app-width); margin: 0 auto; padding: 10px 16px calc(10px + var(--safe-bottom)); align-items: center; gap: 9px; border-top: 1px solid var(--border); background: color-mix(in srgb, var(--surface) 96%, transparent); backdrop-filter: blur(18px); }
+.admin-editor-form:focus-within .admin-editor-actions { visibility: hidden; pointer-events: none; }
 .admin-editor-actions .text-button { padding-right: 8px; padding-left: 8px; }
 .admin-editor-actions--final .secondary-button { min-width: 0; padding-right: 8px; padding-left: 8px; }
 .admin-editor-actions button:disabled { opacity: 0.42; cursor: not-allowed; }
@@ -1424,9 +1432,9 @@ img { display: block; max-width: 100%; }
   .admin-variant-row > span,
   .admin-variant-row input { font-size: 16px; }
   .admin-editor-form { min-width: 0; max-width: 100%; overflow-x: hidden; }
-  .admin-editor-form .admin-color-block { min-width: 0; max-width: 100%; }
-  .admin-editor-form .admin-color-block input { font-size: 16px; }
-  .admin-size-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0; }
+  .admin-editor-form .admin-variant-fields { min-width: 0; max-width: 100%; }
+  .admin-editor-form .admin-variant-fields input { font-size: 16px; }
+  .admin-size-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.72fr) 44px; gap: 8px; min-width: 0; }
   .admin-size-row label { min-width: 0; }
   .admin-preview-switch { font-size: 14px; }
   .admin-preview-switch span,
