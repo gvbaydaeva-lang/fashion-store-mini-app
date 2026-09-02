@@ -19,6 +19,7 @@ const {
   getPublishedProducts,
   filterAdminProducts,
   buildProductVariants,
+  buildColorVariants,
   normalizeAdminOptionList,
   createAdminCategory,
   validateAdminProduct,
@@ -292,6 +293,22 @@ test('матрица вариантов не мутирует старые зн�
   assert.equal(previous[0].stock, 3);
 });
 
+test('размеры одного цвета не создают варианты другого цвета', () => {
+  const result = buildColorVariants(
+    { id: 'brown', name: 'Коричневый, шоколадный' },
+    ['42', '44'],
+    [
+      { colorId: 'black', size: 'S', stock: 8 },
+      { colorId: 'brown', size: '42', stock: 3 },
+    ],
+  );
+
+  assert.deepEqual(result, [
+    { colorId: 'brown', size: '42', stock: 3, enabled: true },
+    { colorId: 'brown', size: '44', stock: 0, enabled: true },
+  ]);
+});
+
 test('ручные цвета и размеры принимают запятые и переносы строк, убирают дубли', () => {
   assert.deepEqual(normalizeAdminOptionList('Чёрный, молочный\nЧёрный'), ['Чёрный', 'молочный']);
   assert.deepEqual(normalizeAdminOptionList('42, 44\nXL'), ['42', '44', 'XL']);
@@ -326,6 +343,40 @@ test('публикация требует фото, название, цену, 
       sizes: 'Укажи хотя бы один размер',
     },
   );
+});
+
+test('черновик сохраняется без обязательных полей, а публикация требует описание и оптовую цену', () => {
+  const product = {
+    images: [],
+    name: '',
+    price: '',
+    description: '',
+    wholesalePrice: null,
+    colors: [],
+    variants: [],
+  };
+
+  assert.deepEqual(validateAdminProduct(product, 'draft'), {});
+  const errors = validateAdminProduct(product, 'publish');
+  assert.equal(errors.description, 'Добавь описание товара');
+  assert.equal(errors.wholesalePrice, 'Добавь оптовую цену');
+});
+
+test('публикация требует размер у каждого введённого цвета', () => {
+  const errors = validateAdminProduct({
+    images: ['assets/dress.jpg'],
+    name: 'Платье',
+    price: 5000,
+    description: 'Платье по фигуре',
+    wholesalePrice: 2500,
+    colors: [
+      { id: 'black', name: 'Чёрный' },
+      { id: 'brown', name: 'Коричневый, шоколадный' },
+    ],
+    variants: [{ colorId: 'black', size: 'S', stock: 1, enabled: true }],
+  }, 'publish');
+
+  assert.equal(errors.sizes, 'Укажи размер для каждого цвета');
 });
 
 test('валидация отклоняет старую цену ниже текущей и некорректный остаток', () => {

@@ -1097,6 +1097,10 @@ img { display: block; max-width: 100%; }
 .admin-form-section label small { color: var(--muted); font-size: 11px; font-weight: 500; }
 .admin-add-variant-button { width: 100%; margin-top: 12px; }
 .admin-variant-hint { display: block; margin-top: 7px; color: var(--muted); }
+.admin-color-block { display: grid; gap: 12px; padding: 16px; box-shadow: none; }
+.admin-color-block h3 { margin: 0; font-size: 18px; }
+.admin-color-block .text-button { min-height: 44px; padding: 8px; color: var(--danger); }
+.admin-color-block__stock { overflow: hidden; border: 1px solid var(--border); border-radius: 10px; }
 .admin-price-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .admin-editor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .admin-editor-grid label { margin-top: 14px !important; }

@@ -182,8 +182,11 @@ test('административные экраны рендерятся из р
   assert.match(screen.innerHTML, /Описание товара/);
   assert.match(screen.innerHTML, /Остатки по вариантам/);
   assert.match(screen.innerHTML, /name="description"/);
-  assert.match(screen.innerHTML, /name="adminColors"/);
-  assert.match(screen.innerHTML, /name="adminSizes"/);
+  assert.match(screen.innerHTML, /data-admin-color-index="0"/);
+  assert.match(screen.innerHTML, /Цвет \/ синонимы/);
+  assert.match(screen.innerHTML, /Размеры этого цвета/);
+  assert.doesNotMatch(screen.innerHTML, /name="adminColors"/);
+  assert.doesNotMatch(screen.innerHTML, /name="adminSizes"/);
   assert.match(screen.innerHTML, /data-action="add-admin-variant"/);
   assert.match(screen.innerHTML, /name="categoryNew"/);
   assert.match(screen.innerHTML, /name="supplier"/);

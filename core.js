@@ -183,6 +183,22 @@
     }));
   }
 
+  function buildColorVariants(color, sizes, previousVariants = []) {
+    if (!color?.id) return [];
+    const previousBySize = new Map(previousVariants
+      .filter((variant) => variant.colorId === color.id)
+      .map((variant) => [variant.size, variant]));
+    return normalizeAdminOptionList(sizes).map((size) => {
+      const previous = previousBySize.get(size);
+      return {
+        colorId: color.id,
+        size,
+        stock: Number.isInteger(previous?.stock) && previous.stock >= 0 ? previous.stock : 0,
+        enabled: previous?.enabled !== false,
+      };
+    });
+  }
+
   function normalizeAdminOptionList(value) {
     const source = Array.isArray(value) ? value : String(value || '').split(/[\n,]+/);
     const seen = new Set();
@@ -204,6 +220,8 @@
 
   function validateAdminProduct(product, step = 4) {
     const errors = {};
+    if (step === 'draft') return errors;
+    const isPublish = step === 'publish';
     const shouldValidate = (targetStep) => step === 4 || step === targetStep;
 
     if (shouldValidate(1)) {
@@ -224,20 +242,33 @@
       }
     }
 
-    if (shouldValidate(3)) {
+    if (shouldValidate(3) || isPublish) {
       if (!Array.isArray(product.colors) || !product.colors.length) {
         errors.colors = 'Укажи хотя бы один цвет';
-      }
-      if (!Array.isArray(product.sizes) || !product.sizes.length) {
-        errors.sizes = 'Укажи хотя бы один размер';
       }
       const enabledVariants = Array.isArray(product.variants)
         ? product.variants.filter(({ enabled }) => enabled !== false)
         : [];
-      if (product.colors?.length && product.sizes?.length && !enabledVariants.length) {
+      const colorsWithoutSizes = Array.isArray(product.colors)
+        && product.colors.some((color) => !product.variants?.some((variant) => (
+          variant.colorId === color.id && String(variant.size || '').trim()
+        )));
+      if (!product.colors?.length && !isPublish) {
+        errors.sizes = 'Укажи хотя бы один размер';
+      } else if (colorsWithoutSizes) {
+        errors.sizes = 'Укажи размер для каждого цвета';
+      } else if (product.colors?.length && !enabledVariants.length) {
         errors.variants = 'Оставь хотя бы один вариант';
       } else if (enabledVariants.some(({ stock }) => !Number.isInteger(stock) || stock < 0)) {
         errors.variants = 'Остаток должен быть целым числом от нуля';
+      }
+    }
+
+    if (isPublish) {
+      if (!String(product.description || '').trim()) errors.description = 'Добавь описание товара';
+      const wholesalePrice = Number(product.wholesalePrice);
+      if (!Number.isInteger(wholesalePrice) || wholesalePrice <= 0) {
+        errors.wholesalePrice = 'Добавь оптовую цену';
       }
     }
 
@@ -297,6 +328,7 @@
     getPublishedProducts,
     filterAdminProducts,
     buildProductVariants,
+    buildColorVariants,
     normalizeAdminOptionList,
     createAdminCategory,
     validateAdminProduct,

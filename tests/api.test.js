@@ -135,12 +135,13 @@ test('сохранение товара переводит поля и вари�
   await client.createAdminProduct({
     name: 'Платье', price: 5000, oldPrice: 6000, sellerSku: 'DR-1',
     adminStatus: 'draft', images: ['data:image/png;base64,local'],
+    colors: [{ id: 'black', name: 'Чёрный, графитовый' }],
     variants: [{ colorId: 'black', size: 'S', stock: 2, enabled: true }],
   });
 
   assert.equal(body.product.old_price, 6000);
   assert.equal(body.product.seller_sku, 'DR-1');
-  assert.deepEqual(body.product.variants, [{ color_id: 'black', color_name: 'black', color_hex: null, size: 'S', stock: 2, is_enabled: true }]);
+  assert.deepEqual(body.product.variants, [{ color_id: 'black', color_name: 'Чёрный, графитовый', color_hex: null, size: 'S', stock: 2, is_enabled: true }]);
   assert.deepEqual(body.product.images, []);
 });
 

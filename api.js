@@ -112,6 +112,7 @@
   function serializeProduct(product) {
     const category = String(product?.category ?? '').trim();
     const name = String(product?.name ?? '').trim();
+    const colorNames = new Map((product?.colors || []).map((color) => [color.id, color.name]));
     return {
       category: category || 'all',
       name: name || 'Без названия',
@@ -131,7 +132,7 @@
       variants: Array.isArray(product?.variants) ? product.variants.map((variant) => ({
         ...(variant.id == null ? {} : { id: variant.id }),
         color_id: variant.colorId,
-        color_name: variant.colorName ?? variant.color?.name ?? variant.colorId,
+        color_name: colorNames.get(variant.colorId) ?? variant.colorName ?? variant.color?.name ?? variant.colorId,
         color_hex: variant.colorHex ?? variant.color?.hex ?? null,
         size: variant.size,
         stock: variant.stock,
