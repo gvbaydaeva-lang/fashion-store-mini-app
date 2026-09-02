@@ -38,6 +38,17 @@ test('getCatalog отправляет GET и преобразует сервер
   assert.deepEqual(products[0].images, ['https://cdn.example/image.webp']);
 });
 
+test('normalizeProduct принимает публичные и camelCase URL изображений', () => {
+  const product = API.normalizeProduct({
+    id: 7,
+    product_images: [
+      { public_url: 'https://cdn.example/public.webp', sort_order: 0 },
+      { publicUrl: 'https://cdn.example/public-2.webp', sort_order: 1 },
+    ],
+  });
+  assert.deepEqual(product.images, ['https://cdn.example/public.webp', 'https://cdn.example/public-2.webp']);
+});
+
 test('административный запрос передаёт сырой initData и возвращает код ошибки', async () => {
   const calls = [];
   const client = API.createApiClient({

@@ -759,7 +759,14 @@
 
   function orderItems(order) {
     return order.items.map((item) => `
-      <li class="order-item"><img class="order-item-image" src="${escapeHtml(item.image || 'assets/preorder-hero-bags.png')}" alt="${escapeHtml(item.name)}" data-order-item-image><span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.colorName)}, ${escapeHtml(item.size)} · ${item.quantity} шт.</small></span><b>${money(item.price * item.quantity)}</b></li>`).join('');
+      <li class="order-item"><img class="order-item-image" src="${escapeHtml(getOrderItemImage(item))}" alt="${escapeHtml(item.name)}" data-order-item-image><span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.colorName)}, ${escapeHtml(item.size)} · ${item.quantity} шт.</small></span><b>${money(item.price * item.quantity)}</b></li>`).join('');
+  }
+
+  function getOrderItemImage(item) {
+    return item?.image
+      || getProduct(item?.productId)?.images?.[0]
+      || getAdminProduct(item?.productId)?.images?.[0]
+      || 'assets/preorder-hero-bags.png';
   }
 
   function renderOrderDetail() {
@@ -1129,7 +1136,7 @@
     const collectCount = state.order?.status === 'paid' ? 1 : 0;
     const readyCount = state.order?.status === 'ready' ? 1 : 0;
     const content = orderMatchesTab
-      ? `<button class="seller-order-card card" type="button" data-action="seller-open-order"><span class="status-pill status-pill--${state.order.status === 'ready' ? 'ready' : 'paid'}">${state.order.status === 'ready' ? 'Заказ собран' : 'Оплачен, собираем'}</span><img class="order-item-image" src="${escapeHtml(state.order.items[0]?.image || 'assets/preorder-hero-bags.png')}" alt="${escapeHtml(state.order.items[0]?.name || 'Товар заказа')}" data-order-item-image><span><strong>${escapeHtml(state.order.id)}</strong><small>${formatOrderTime(state.order.createdAt)} · ${escapeHtml(state.order.customer.name)} · ${state.order.items.length} позиций</small><small>${escapeHtml(state.order.delivery.title)}</small></span><b>${money(state.order.total)}</b></button>`
+      ? `<button class="seller-order-card card" type="button" data-action="seller-open-order"><span class="status-pill status-pill--${state.order.status === 'ready' ? 'ready' : 'paid'}">${state.order.status === 'ready' ? 'Заказ собран' : 'Оплачен, собираем'}</span><img class="order-item-image" src="${escapeHtml(getOrderItemImage(state.order.items[0]))}" alt="${escapeHtml(state.order.items[0]?.name || 'Товар заказа')}" data-order-item-image><span><strong>${escapeHtml(state.order.id)}</strong><small>${formatOrderTime(state.order.createdAt)} · ${escapeHtml(state.order.customer.name)} · ${state.order.items.length} позиций</small><small>${escapeHtml(state.order.delivery.title)}</small></span><b>${money(state.order.total)}</b></button>`
       : `<section class="empty-state card"><span aria-hidden="true">${icon('package')}</span><h2>${state.sellerTab === 'ready' ? 'Готовых заказов пока нет' : 'Нет заказов на сборку'}</h2><p>Оплаченный демо-заказ появится в нужной вкладке.</p></section>`;
     return sellerShell('orders', `
       <section class="admin-section-heading"><div><p class="eyebrow">Рабочая очередь</p><h2>Заказы</h2><p>Только один локальный демо-заказ</p></div></section>

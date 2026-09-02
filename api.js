@@ -70,7 +70,7 @@
         .sort((left, right) => (left.sort_order || 0) - (right.sort_order || 0))
       : [];
     const images = imageRecords.length
-      ? imageRecords.map((image) => image.signed_url || image.url || image.object_path).filter(Boolean)
+      ? imageRecords.map((image) => image.signed_url || image.signedUrl || image.public_url || image.publicUrl || image.image_url || image.imageUrl || image.url || image.object_path).filter(Boolean)
       : Array.isArray(product?.images) ? product.images : [];
     const imagePaths = imageRecords.length
       ? imageRecords.map((image) => image.object_path).filter(Boolean)
