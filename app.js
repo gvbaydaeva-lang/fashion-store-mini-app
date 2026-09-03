@@ -347,7 +347,8 @@
 
   function prepareScreen(screen, params) {
     if (screen === 'product' && params.productId !== state.params.productId) {
-      state.selectedColorId = null;
+      const product = getProduct(params.productId);
+      state.selectedColorId = product?.colors[0]?.id || null;
       state.selectedSize = null;
     }
   }
@@ -636,9 +637,6 @@
         <div class="section-heading"><h2>Размер</h2></div>
         <div class="choice-grid">${sizeButtons}</div>
         ${selectedVariant?.stock === 1 ? '<p class="low-stock-text">Осталась 1 шт.</p>' : ''}
-      </section>
-      <section class="details-list card">
-        <details><summary>Доставка, обмен и возврат</summary><p>Условия покупки предварительные. Финальные правила подтверждаются магазином.</p></details>
       </section>
       <div class="product-actions">
         <button class="secondary-button" type="button" data-action="add-to-cart">В корзину</button>

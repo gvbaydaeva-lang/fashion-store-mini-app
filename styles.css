@@ -458,10 +458,6 @@ img { display: block; max-width: 100%; }
 .size-button:disabled { border-color: transparent; background: color-mix(in srgb, var(--muted) 8%, var(--surface)); color: var(--muted); opacity: 0.38; cursor: not-allowed; text-decoration: line-through; }
 .choice-hint { padding: 12px; border-radius: 13px; background: var(--accent-soft); font-size: 14px; }
 
-.details-list { margin-bottom: 110px; overflow: hidden; }
-.details-list details + details { border-top: 1px solid var(--border); }
-.details-list summary { min-height: 52px; padding: 15px; font-weight: 700; cursor: pointer; }
-.details-list p { padding: 0 15px 15px; }
 .product-actions { position: fixed; z-index: 24; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: 0.9fr 1.1fr; width: 100%; max-width: var(--app-width); margin: 0 auto; padding: 10px 16px calc(10px + var(--safe-bottom)); gap: 9px; border-top: 1px solid var(--border); background: color-mix(in srgb, var(--surface) 96%, transparent); backdrop-filter: blur(18px); }
 .product-actions__cart { grid-column: 1 / -1; min-height: 44px; border: 0; background: transparent; color: var(--accent-dark); font-weight: 750; }
 
@@ -931,13 +927,11 @@ img { display: block; max-width: 100%; }
 
 .product-gallery { border-radius: 16px; box-shadow: none; }
 .product-info { padding-top: 24px; }
-.product-info h1 { font-size: clamp(38px, 10vw, 54px); }
+.product-info h1 { font-size: clamp(32px, 8.5vw, 40px); line-height: 1; }
 .product-price b { font-size: 25px; font-variant-numeric: tabular-nums; }
-.choice-section { margin-top: 20px; }
+.choice-section { margin-top: 10px; }
 .color-button,
 .size-button { border-radius: 10px; }
-.details-list { border-radius: 12px; box-shadow: none; }
-.details-list summary { padding-right: 44px; }
 .product-actions,
 .sticky-checkout {
   max-width: var(--app-width);
@@ -1345,6 +1339,25 @@ img { display: block; max-width: 100%; }
 
 /* Узкий мобильный слой админ-панели: 320–430 px. */
 @media (max-width: 430px) {
+  .choice-grid--colors {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .choice-grid--colors .color-button {
+    gap: 6px;
+    padding: 6px;
+    font-size: 12px;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+  }
+
+  .choice-grid--colors .color-button > span {
+    flex-basis: 18px;
+    width: 18px;
+    height: 18px;
+  }
+
   .seller-shell {
     min-width: 0;
     max-width: 100%;

@@ -112,8 +112,8 @@ test('Mini App запрещает автоматическое увеличен�
 
 test('страница запрашивает новую версию стилей и редактора после мобильной правки', () => {
   assert.match(indexSource, /data\.js\?v=20260903-profitable-purchases-1/);
-  assert.match(indexSource, /styles\.css\?v=20260902-admin-stability-6/);
-  assert.match(indexSource, /app\.js\?v=20260903-orders-profitable-purchases-1/);
+  assert.match(indexSource, /styles\.css\?v=20260903-product-card-1/);
+  assert.match(indexSource, /app\.js\?v=20260903-product-card-1/);
 });
 
 test('заказ не показывает битую картинку, если у позиции нет сохранённого изображения', () => {
@@ -426,6 +426,29 @@ test('остаток одной единицы показывается поку
   app.selectSize('S');
   assert.match(screen.innerHTML, /Осталась 1 шт\./);
   assert.doesNotMatch(screen.innerHTML, /<span class="badge">Осталась 1 шт/);
+});
+
+test('доступный размер активен сразу при первом открытии карточки', async () => {
+  const product = {
+    id: 'available-on-open', name: 'Костюм', category: 'all', price: 2600, oldPrice: null,
+    images: ['assets/preorder-hero.png'], colors: [{ id: 'black', name: 'Чёрный', hex: '#242424' }],
+    variants: [
+      { colorId: 'black', size: '42–46', stock: 2, enabled: true },
+      { colorId: 'black', size: '48–50', stock: 0, enabled: true },
+    ],
+    adminStatus: 'published', description: '', composition: '', care: '', fit: '', model: '', measurements: {},
+  };
+  const { app, screen } = loadApp({}, {
+    createApiClient() {
+      return { getCatalog: async () => [product] };
+    },
+  });
+
+  await app.loadRemoteCatalog();
+  app.navigate('product', { productId: 'available-on-open' });
+
+  assert.match(screen.innerHTML, /data-action="select-size" data-size="42–46"(?![^>]*disabled)[^>]*>[\s\S]*?<small>В наличии<\/small>/);
+  assert.doesNotMatch(screen.innerHTML, /Выберите цвет/);
 });
 
 test('переключение цвета в склейке меняет данные без выхода из карточки', async () => {
