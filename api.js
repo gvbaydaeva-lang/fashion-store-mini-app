@@ -140,7 +140,7 @@
       delivery: {
         id: order.delivery_id,
         title: order.delivery_id === 'pickup' ? 'Самовывоз в Элисте' : 'Получение',
-        description: order.delivery_id === 'pickup' ? 'Адрес магазина сообщим отдельно' : '',
+        description: order.delivery_id === 'pickup' ? 'Адрес самовывоза сообщим позже.' : '',
         price: Number(order.delivery_price) || 0,
       },
       customer: order.customer || {},

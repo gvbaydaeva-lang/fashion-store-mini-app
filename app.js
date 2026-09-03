@@ -800,7 +800,6 @@
       ${checkoutProgress(2)}
       <section class="checkout-summary card">${renderCheckoutItems({ ...Core.getCartSummary(state.cart, 0) })}</section>
       <div class="delivery-list">${methods}</div>
-      <section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>Адрес, стоимость и сроки указаны предварительно.</p></section>
       <section class="sticky-checkout">
         <div><span>Итого</span><b>${money(subtotal + deliveryPrice)}</b></div>
         <button class="primary-button" type="button" data-action="delivery-continue" ${state.delivery ? '' : 'disabled'}>Продолжить</button>
@@ -813,9 +812,9 @@
     return `
       ${pageHeader('Проверка заказа', 'Шаг 3 из 3')}
       ${checkoutProgress(3)}
-      <section class="review-section card"><div class="review-heading"><h2>Товары</h2><button type="button" data-action="navigate" data-screen="cart">Изменить</button></div>${renderCheckoutItems(summary)}</section>
-      <section class="review-section card"><div class="review-heading"><h2>Контакты</h2><button type="button" data-action="edit-contact">Изменить</button></div><p><strong>${escapeHtml(state.customer.name)}</strong><br>${escapeHtml(state.customer.phone)}</p></section>
-      <section class="review-section card"><div class="review-heading"><h2>Получение</h2><button type="button" data-action="edit-delivery">Изменить</button></div><p><strong>${escapeHtml(state.delivery.title)}</strong><br>${escapeHtml(state.delivery.description)}</p></section>
+      <section class="review-section card"><h2>Товары</h2>${renderCheckoutItems(summary)}</section>
+      <section class="review-section card"><h2>Контакты</h2><p><strong>${escapeHtml(state.customer.name)}</strong><br>${escapeHtml(state.customer.phone)}</p></section>
+      <section class="review-section card"><h2>Получение</h2><p><strong>${escapeHtml(state.delivery.title)}</strong><br>${escapeHtml(state.delivery.description)}</p></section>
       <section class="summary-card card">
         <div><span>Товары</span><b>${money(summary.subtotal)}</b></div>
         <div><span>Получение</span><b>${summary.deliveryPrice ? money(summary.deliveryPrice) : 'Бесплатно'}</b></div>
@@ -1470,10 +1469,8 @@
   }
 
   function requestDemoPayment() {
-    const summary = Core.getCartSummary(state.cart, state.delivery?.price || 0);
     openSheet(`
       <div class="sheet__header"><p class="eyebrow">Проверка заказа</p><h2>Оформить заказ?</h2></div>
-      <p>Мы получим состав заказа и свяжемся с вами для подтверждения.</p>
       <div class="sheet__actions"><button class="secondary-button" type="button" data-action="close-sheet">Отмена</button><button class="primary-button" type="button" data-action="confirm-demo-payment">Подтвердить</button></div>
     `, { title: 'Подтверждение заказа' });
   }
@@ -1500,9 +1497,12 @@
       saveState();
       closeSheet();
       navigate('payment-success');
-    } catch (_error) {
+    } catch (error) {
       closeSheet();
-      showToast('Не удалось создать заказ. Проверь интернет и попробуй ещё раз');
+      const unavailable = error?.status === 404 || error?.code === 'NOT_FOUND';
+      showToast(unavailable
+        ? 'Сервис оформления заказа пока не подключён. Заказ не создан.'
+        : 'Не удалось создать заказ. Проверь интернет и попробуй ещё раз');
       render();
     } finally {
       state.isSubmitting = false;

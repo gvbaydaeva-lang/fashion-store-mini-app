@@ -113,8 +113,8 @@ test('Mini App запрещает автоматическое увеличен�
 
 test('страница запрашивает новую версию стилей и редактора после мобильной правки', () => {
   assert.match(indexSource, /data\.js\?v=20260903-profitable-purchases-1/);
-  assert.match(indexSource, /styles\.css\?v=20260903-product-card-3/);
-  assert.match(indexSource, /app\.js\?v=20260903-product-card-3/);
+  assert.match(indexSource, /styles\.css\?v=20260903-product-card-4/);
+  assert.match(indexSource, /app\.js\?v=20260903-product-card-4/);
 });
 
 test('заказ не показывает битую картинку, если у позиции нет сохранённого изображения', () => {
@@ -241,10 +241,27 @@ test('ошибка checkout сохраняет корзину и не созда
   assert.match(appSource, /Не удалось создать заказ\. Проверь интернет и попробуй ещё раз/);
 });
 
+test('checkout объясняет, если серверная функция оформления ещё не подключена', () => {
+  assert.match(appSource, /status === 404 \|\| error\?\.code === 'NOT_FOUND'/);
+  assert.match(appSource, /Сервис оформления заказа пока не подключён/);
+});
+
+test('checkout delivery использует короткий адрес самовывоза и не показывает предварительную информацию', () => {
+  assert.equal(Data.DELIVERY_METHODS[0].description, 'Адрес самовывоза сообщим позже.');
+  assert.doesNotMatch(appSource, /Адрес, стоимость и сроки указаны предварительно/);
+});
+
+test('проверка заказа не позволяет редактировать контакты и получение на этом шаге', () => {
+  const reviewSource = appSource.match(/function renderCheckoutReview\(\) \{[\s\S]*?\n  \}\n\n  function renderPaymentSuccess/);
+  assert.ok(reviewSource, 'не найден экран проверки заказа');
+  assert.doesNotMatch(reviewSource[0], /data-action="edit-contact"/);
+  assert.doesNotMatch(reviewSource[0], /data-action="edit-delivery"/);
+  assert.doesNotMatch(appSource, /Мы получим состав заказа и свяжемся с вами для подтверждения/);
+});
+
 test('buyer UI использует понятный текст без лишних демо и технических слов', () => {
   assert.match(appSource, /Оформить заказ \$\{money\(summary\.total\)\}/);
   assert.match(appSource, /Оформить заказ\?/);
-  assert.match(appSource, /Мы получим состав заказа и свяжемся с вами для подтверждения/);
   assert.doesNotMatch(appSource, /Тестовый заказ|Демо-оплата|Подтвердить демо-оплату|Демонстрационный контакт|Демонстрационные условия|Итог с сервера|загружаются с сервера/);
 });
 
