@@ -23,7 +23,7 @@
   const PREORDER_RESET_KEY = 'fashion-store-preorder-reset-v1';
   const MAIN_APP_URL = Core.buildMainMiniAppUrl('fashion_katalog_bot');
   const OFFER_BOT_URL = 'https://t.me/fashion_katalog_bot?start=from_app';
-  const SHARE_TEXT = 'Посмотри каталог «Фэшн стор» в Telegram';
+  const SHARE_TEXT = 'Посмотри «Выгодные покупки» в Telegram 🛍';
   const ROOT_SCREENS = new Set(['home', 'catalog', 'cart', 'orders', 'store']);
   const CHECKOUT_SCREENS = new Set([
     'product', 'checkout-contact', 'checkout-delivery', 'checkout-review',
@@ -423,13 +423,13 @@
     modalRoot.innerHTML = `
       <div class="offer-overlay">
         <section class="offer-dialog" role="dialog" aria-modal="true" aria-labelledby="offer-title" aria-describedby="offer-description">
-          <div class="offer-dialog__emoji" aria-hidden="true">🎁</div>
-          <h2 id="offer-title">Добро пожаловать в магазин Фэшн стор</h2>
-          <p id="offer-description">Подпишитесь на бота, чтобы быть в курсе акций и новинок</p>
+          <div class="offer-dialog__emoji" aria-hidden="true">🛍</div>
+          <h2 id="offer-title">Добро пожаловать в «Выгодные покупки» 🛍</h2>
+          <p id="offer-description">Здесь вы найдёте товары по приятным ценам и сможете оформить заказ в период закупа.</p>
           <ul class="offer-dialog__benefits">
-            <li>Расскажем про акции</li>
-            <li>Первыми узнаете о новинках</li>
-            <li>Эксклюзивные акции для подписчиков</li>
+            <li>Выгодные цены на женскую одежду</li>
+            <li>Новинки и ближайшие закупки</li>
+            <li>Новости и акции в Telegram</li>
           </ul>
           <button class="offer-dialog__cta" type="button" data-action="open-offer-bot">Получить скидку 15%</button>
           <button class="offer-dialog__skip" type="button" data-action="close-sheet">Пропустить</button>
@@ -516,7 +516,7 @@
     return `
       <header class="home-header">
         <div><p class="eyebrow">Здравствуйте, ${escapeHtml(getTelegramFirstName())}</p><h1>${Data.STORE.name}</h1></div>
-        <div class="brand-mark brand-mark--small" aria-hidden="true">Ф</div>
+        <div class="brand-mark brand-mark--small" aria-hidden="true">🛍</div>
       </header>
       <section class="hero card">
         <span class="hero__orb hero__orb--one" aria-hidden="true"></span>
@@ -548,7 +548,7 @@
   function renderCatalog() {
     const catalogProducts = getCatalogProducts();
     if (state.catalogStatus === 'loading' && !catalogProducts.length) {
-      return `${pageHeader('Каталог')}<section class="loading-screen card"><p class="eyebrow">Фэшн стор</p><h1>Загружаем каталог…</h1></section>`;
+      return `${pageHeader('Каталог')}<section class="loading-screen card"><p class="eyebrow">🛍 Выгодные покупки</p><h1>Загружаем каталог…</h1></section>`;
     }
     if (state.catalogStatus === 'error' && !catalogProducts.length) {
       return `${pageHeader('Каталог')}<section class="empty-state card"><span aria-hidden="true">${icon('info')}</span><h2>Каталог временно недоступен</h2><p>${escapeHtml(state.catalogError || 'Попробуй ещё раз через несколько секунд.')}</p><button class="primary-button" type="button" data-action="reload-catalog">Повторить</button></section>`;
@@ -726,7 +726,8 @@
         <article class="information-item card"><span class="information-item__icon" aria-hidden="true">₽</span><div><h3>Выгодные цены</h3><p>${escapeHtml(information.prices)}</p></div></article>
         <article class="information-item card"><span class="information-item__icon" aria-hidden="true">♡</span><div><h3>Развиваемся вместе</h3><p>${escapeHtml(information.future)}</p></div></article>
         <article class="information-item card"><span class="information-item__icon" aria-hidden="true">✦</span><div><h3>Больше пользы впереди</h3><p>${escapeHtml(information.benefits)}</p></div></article>
-      </section>`;
+      </section>
+      <button class="secondary-button full-width" type="button" data-action="open-seller-demo">Войти в админ</button>`;
   }
 
   function renderNotFound() {
@@ -842,7 +843,7 @@
     return `
       <div class="seller-shell">
         <header class="seller-header">
-          <div><p class="eyebrow">Управление магазином</p><h1>Фэшн стор</h1></div>
+          <div><p class="eyebrow">Управление магазином</p><h1>🛍 Выгодные покупки</h1></div>
           <button class="secondary-button" type="button" data-action="exit-seller">В магазин</button>
         </header>
         <nav class="seller-main-tabs" aria-label="Разделы админ-панели">
@@ -854,11 +855,11 @@
   }
 
   function renderSellerAccess() {
-    if (state.sellerAuthStatus === 'loading') return `<section class="seller-access"><div class="brand-mark" aria-hidden="true">Ф</div><p class="eyebrow">Проверка доступа</p><h1>Подключаем панель</h1><p>Проверяю настоящий Telegram-сеанс и загружаю товары.</p></section>`;
-    if (state.sellerAuthStatus === 'error') return `<section class="seller-access"><div class="brand-mark" aria-hidden="true">Ф</div><p class="eyebrow">Доступ закрыт</p><h1>Не удалось открыть панель</h1><section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>${escapeHtml(state.sellerAuthError || 'Открой Mini App из Telegram и повтори вход.')}</p></section><button class="primary-button full-width" type="button" data-action="enter-seller">Повторить</button><button class="text-button text-button--center" type="button" data-action="exit-seller">Вернуться в магазин</button></section>`;
+    if (state.sellerAuthStatus === 'loading') return `<section class="seller-access"><div class="brand-mark" aria-hidden="true">🛍</div><p class="eyebrow">Проверка доступа</p><h1>Подключаем панель</h1><p>Проверяю настоящий Telegram-сеанс и загружаю товары.</p></section>`;
+    if (state.sellerAuthStatus === 'error') return `<section class="seller-access"><div class="brand-mark" aria-hidden="true">🛍</div><p class="eyebrow">Доступ закрыт</p><h1>Не удалось открыть панель</h1><section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>${escapeHtml(state.sellerAuthError || 'Открой Mini App из Telegram и повтори вход.')}</p></section><button class="primary-button full-width" type="button" data-action="enter-seller">Повторить</button><button class="text-button text-button--center" type="button" data-action="exit-seller">Вернуться в магазин</button></section>`;
     return `
       <section class="seller-access">
-        <div class="brand-mark" aria-hidden="true">Ф</div>
+        <div class="brand-mark" aria-hidden="true">🛍</div>
         <p class="eyebrow">Закрытая зона</p>
         <h1>Управление магазином</h1>
         <p>Панель доступна только авторизованному продавцу в Telegram.</p>

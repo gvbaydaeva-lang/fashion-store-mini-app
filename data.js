@@ -5,9 +5,9 @@
   root.FashionStoreData = data;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function createData() {
   const STORE = {
-    name: 'Fashion Style',
+    name: '🛍 Выгодные покупки',
     tagline: 'Трендовая одежда для стильных образов без лишних наценок.',
-    description: 'Выбирайте в каталоге и оформляйте заказ прямо в Telegram.',
+    description: 'Выгодные покупки и закупки женской одежды по приятным ценам с доставкой до Элисты. Новинки, акции и заказ прямо в Telegram.',
     address: 'Самовывоз в Элисте — адрес сообщим после оформления заказа.',
     hours: '',
     support: '',

@@ -111,9 +111,9 @@ test('Mini App запрещает автоматическое увеличен�
 });
 
 test('страница запрашивает новую версию стилей и редактора после мобильной правки', () => {
-  assert.match(indexSource, /data\.js\?v=20260902-fashion-style-1/);
+  assert.match(indexSource, /data\.js\?v=20260903-profitable-purchases-1/);
   assert.match(indexSource, /styles\.css\?v=20260902-admin-stability-6/);
-  assert.match(indexSource, /app\.js\?v=20260903-orders-1/);
+  assert.match(indexSource, /app\.js\?v=20260903-orders-profitable-purchases-1/);
 });
 
 test('заказ не показывает битую картинку, если у позиции нет сохранённого изображения', () => {
@@ -268,14 +268,15 @@ test('новая версия один раз очищает только утв
 test('главная использует утверждённый текст и пять условий заказа', () => {
   const { screen } = loadApp();
 
-  assert.match(screen.innerHTML, /Fashion Style/);
+  assert.match(screen.innerHTML, /🛍 Выгодные покупки/);
   assert.match(screen.innerHTML, /Трендовая одежда для стильных образов без лишних наценок/);
-  assert.match(screen.innerHTML, /Выбирайте в каталоге и оформляйте заказ прямо в Telegram/);
+  assert.match(screen.innerHTML, /Выгодные покупки и закупки женской одежды по приятным ценам с доставкой до Элисты/);
   assert.match(screen.innerHTML, /Полная оплата при оформлении заказа/);
   assert.match(screen.innerHTML, /Заказ можно оформить только в период действующего закупа/);
   assert.match(screen.innerHTML, /Срок поступления: 7–10 дней/);
   assert.match(screen.innerHTML, /Самовывоз в Элисте/);
   assert.match(screen.innerHTML, /Цены указаны с учётом доставки до Элисты/);
+  assert.doesNotMatch(screen.innerHTML, /Fashion Style|Фэшн стор/);
   assert.doesNotMatch(screen.innerHTML, /<p class="eyebrow">Fashion Store<\/p>/);
   assert.match(screen.innerHTML, /preorder-terms--compact/);
   assert.doesNotMatch(screen.innerHTML, /preorder-terms card/);
@@ -300,6 +301,7 @@ test('вкладка информации показывает условия п
   assert.match(screen.innerHTML, /подарки, розыгрыши/);
   assert.doesNotMatch(screen.innerHTML, /Трендовая одежда для стильных образов/);
   assert.doesNotMatch(screen.innerHTML, /Адрес|Часы работы|Поддержка|Связаться|Оплата и возврат|Режим продавца/);
+  assert.match(screen.innerHTML, /data-action="open-seller-demo"[^>]*>Войти в админ<\/button>/);
 });
 
 test('приложение загружает покупательский каталог через API-клиент', async () => {

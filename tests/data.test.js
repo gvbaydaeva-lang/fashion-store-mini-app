@@ -7,9 +7,9 @@ const path = require('node:path');
 const { STORE, CATEGORIES, PRODUCTS, DELIVERY_METHODS } = require('../data.js');
 
 test('стартовый каталог пуст, а главная использует утверждённое позиционирование и условия заказа', () => {
-  assert.equal(STORE.name, 'Fashion Style');
+  assert.equal(STORE.name, '🛍 Выгодные покупки');
   assert.equal(STORE.tagline, 'Трендовая одежда для стильных образов без лишних наценок.');
-  assert.equal(STORE.description, 'Выбирайте в каталоге и оформляйте заказ прямо в Telegram.');
+  assert.equal(STORE.description, 'Выгодные покупки и закупки женской одежды по приятным ценам с доставкой до Элисты. Новинки, акции и заказ прямо в Telegram.');
   assert.equal(STORE.preorderTerms.payment, 'Полная оплата при оформлении заказа.');
   assert.equal(STORE.preorderTerms.orderPeriod, 'Заказ можно оформить только в период действующего закупа.');
   assert.equal(STORE.preorderTerms.leadTime, 'Срок поступления: 7–10 дней.');
