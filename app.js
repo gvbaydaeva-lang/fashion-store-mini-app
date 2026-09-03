@@ -15,6 +15,7 @@
   const modalRoot = document.querySelector('#modal-root');
   const CART_KEY = 'fashion-store-cart-v1';
   const ORDER_KEY = 'fashion-store-order-v1';
+  const ORDERS_KEY = 'fashion-store-orders-v2';
   const ORDER_IDEMPOTENCY_KEY = 'fashion-store-order-idempotency-v1';
   const OFFER_KEY = 'fashion-store-offer-seen-v1';
   const ADMIN_PRODUCTS_KEY = 'fashion-store-admin-products-v1';
@@ -56,7 +57,8 @@
     selectedColorId: null,
     selectedSize: null,
     cart: [],
-    order: null,
+    orders: [],
+    activeOrderId: null,
     checkoutIdempotencyKey: null,
     customer: { name: '', phone: '' },
     delivery: null,
@@ -153,15 +155,19 @@
 
   function loadPersistedState() {
     const cart = readStored(CART_KEY, []);
-    const order = readStored(ORDER_KEY, null);
+    const legacyOrder = readStored(ORDER_KEY, null);
+    const storedOrders = readStored(ORDERS_KEY, []);
     state.cart = Array.isArray(cart)
       ? cart.filter((item) => item && typeof item.key === 'string' && item.quantity > 0)
       : [];
-    state.order = order && typeof order === 'object' && typeof order.id === 'string'
-      && order.orderType === 'server'
-      ? order
-      : null;
-    if (!state.order && order) window.localStorage.removeItem(ORDER_KEY);
+    const validOrders = Array.isArray(storedOrders)
+      ? storedOrders.filter((order) => order && order.orderType === 'server' && typeof order.id === 'string')
+      : [];
+    if (legacyOrder && legacyOrder.orderType === 'server' && typeof legacyOrder.id === 'string'
+      && !validOrders.some(({ id }) => id === legacyOrder.id)) validOrders.unshift(legacyOrder);
+    state.orders = validOrders;
+    state.activeOrderId = state.orders[0]?.id || null;
+    window.localStorage.removeItem(ORDER_KEY);
     state.checkoutIdempotencyKey = readStored(ORDER_IDEMPOTENCY_KEY, null);
     state.adminProducts = [];
     state.adminCategories = [];
@@ -176,14 +182,14 @@
 
   function applyApprovedDemoReset() {
     if (window.localStorage.getItem(PREORDER_RESET_KEY) === '1') return;
-    [CART_KEY, ORDER_KEY, ADMIN_PRODUCTS_KEY].forEach((key) => window.localStorage.removeItem(key));
+    [CART_KEY, ORDER_KEY, ORDERS_KEY, ADMIN_PRODUCTS_KEY].forEach((key) => window.localStorage.removeItem(key));
     window.localStorage.setItem(PREORDER_RESET_KEY, '1');
   }
 
   function saveState() {
     window.localStorage.setItem(CART_KEY, JSON.stringify(state.cart));
-    if (state.order) window.localStorage.setItem(ORDER_KEY, JSON.stringify(state.order));
-    else window.localStorage.removeItem(ORDER_KEY);
+    window.localStorage.setItem(ORDERS_KEY, JSON.stringify(state.orders));
+    window.localStorage.removeItem(ORDER_KEY);
     if (state.checkoutIdempotencyKey) window.localStorage.setItem(ORDER_IDEMPOTENCY_KEY, state.checkoutIdempotencyKey);
     else window.localStorage.removeItem(ORDER_IDEMPOTENCY_KEY);
   }
@@ -241,6 +247,15 @@
 
   function getProduct(productId) {
     return getCatalogProducts().find((product) => product.id === productId) || null;
+  }
+
+  function getActiveOrder() {
+    return state.orders.find(({ id }) => id === state.activeOrderId) || null;
+  }
+
+  function replaceOrder(order) {
+    state.orders = [order, ...state.orders.filter(({ id }) => id !== order.id)];
+    state.activeOrderId = order.id;
   }
 
   function getProductGroup(product) {
@@ -623,7 +638,7 @@
         ${selectedVariant?.stock === 1 ? '<p class="low-stock-text">Осталась 1 шт.</p>' : ''}
       </section>
       <section class="details-list card">
-        <details><summary>Доставка, обмен и возврат</summary><p>Условия в прототипе предварительные. Финальные правила подтверждаются магазином до запуска.</p></details>
+        <details><summary>Доставка, обмен и возврат</summary><p>Условия покупки предварительные. Финальные правила подтверждаются магазином.</p></details>
       </section>
       <div class="product-actions">
         <button class="secondary-button" type="button" data-action="add-to-cart">В корзину</button>
@@ -665,13 +680,13 @@
 
   function orderStatus(order) {
     if (order.orderType === 'server' && order.status === 'demo') {
-      return { title: 'Тестовый заказ создан', text: 'Деньги не списываются', className: 'demo' };
+      return { title: 'Заказ создан', text: 'Мы свяжемся с вами для подтверждения.', className: 'demo' };
     }
     if (order.orderType !== 'server' || order.status === 'draft') {
-      return { title: 'Черновик', text: 'Заказ ещё не создан', className: 'draft' };
+      return { title: 'Ожидает подтверждения', text: 'Мы уточняем детали заказа.', className: 'draft' };
     }
     if (order.status === 'pending_payment') {
-      return { title: 'Ожидает оплаты', text: 'Оплата подключается отдельной задачей', className: 'paid' };
+      return { title: 'Ожидает подтверждения', text: 'Мы уточняем детали заказа.', className: 'paid' };
     }
     return order.status === 'ready'
       ? { title: 'Заказ собран', text: order.delivery.id === 'pickup' ? 'Ждёт вас в магазине' : 'Готов к передаче в доставку', className: 'ready' }
@@ -679,19 +694,21 @@
   }
 
   function renderOrders() {
-    if (!state.order) {
+    if (!state.orders.length) {
       return `
         ${pageHeader('Заказы')}
-        <section class="empty-state card"><span aria-hidden="true">${icon('receipt')}</span><h2>Заказов пока нет</h2><p>После подтверждения заказа здесь появится текущий заказ.</p><button class="primary-button" type="button" data-action="navigate" data-screen="catalog">Перейти в каталог</button></section>`;
+        <section class="empty-state card"><span aria-hidden="true">${icon('receipt')}</span><h2>Заказов пока нет</h2><p>Оформленные заказы появятся здесь.</p><button class="primary-button" type="button" data-action="navigate" data-screen="catalog">Перейти в каталог</button></section>`;
     }
-    const status = orderStatus(state.order);
     return `
-      ${pageHeader('Заказы', 'Текущий заказ')}
-      <button class="order-card card" type="button" data-action="open-order">
-        <span class="status-pill status-pill--${status.className}">${status.title}</span>
-        <span class="order-card__top"><strong>Заказ ${escapeHtml(state.order.id)}</strong><b>${money(state.order.total)}</b></span>
-        <span>${escapeHtml(status.text)}</span><small>${state.order.items.length} позиций · ${escapeHtml(state.order.delivery.title)}</small>
-      </button>`;
+      ${pageHeader('Заказы', `${state.orders.length} ${state.orders.length === 1 ? 'заказ' : 'заказа'}`)}
+      <div class="order-list">${state.orders.map((order) => {
+        const status = orderStatus(order);
+        return `<button class="order-card card" type="button" data-action="open-order" data-order-id="${escapeHtml(order.id)}">
+          <span class="status-pill status-pill--${status.className}">${status.title}</span>
+          <span class="order-card__top"><strong>Заказ ${escapeHtml(order.id)}</strong><b>${money(order.total)}</b></span>
+          <span>${escapeHtml(status.text)}</span><small>${order.items.length} позиций · ${escapeHtml(order.delivery.title)}</small>
+        </button>`;
+      }).join('')}</div>`;
   }
 
   function renderStore() {
@@ -770,21 +787,20 @@
         <div><span>Товары</span><b>${money(summary.subtotal)}</b></div>
         <div><span>Получение</span><b>${summary.deliveryPrice ? money(summary.deliveryPrice) : 'Бесплатно'}</b></div>
         <div class="summary-total"><span>Итого</span><b>${money(summary.total)}</b></div>
-        <button class="primary-button" type="button" data-action="request-payment">Подтвердить тестовый заказ ${money(summary.total)}</button>
-        <p class="demo-caption">Деньги не списываются</p>
+        <button class="primary-button" type="button" data-action="request-payment">Оформить заказ ${money(summary.total)}</button>
       </section>`;
   }
 
   function renderPaymentSuccess() {
-    if (!state.order) return renderNotFound();
+    const order = getActiveOrder();
+    if (!order) return renderNotFound();
     return `
       <section class="success-screen">
         <div class="success-mark" aria-hidden="true">${icon('check')}</div>
-        <p class="eyebrow">Тестовый заказ</p>
         <h1>Заказ создан</h1>
-        <p>Деньги не списываются</p>
-        <section class="success-card card"><span>Заказ</span><strong>${escapeHtml(state.order.id)}</strong><span>Статус</span><strong>${escapeHtml(orderStatus(state.order).title)}</strong><span>Итого</span><strong>${money(state.order.total)}</strong></section>
-        <section class="review-section card"><h2>Состав заказа</h2><ul class="review-items">${orderItems(state.order)}</ul></section>
+        <p>Мы свяжемся с вами для подтверждения.</p>
+        <section class="success-card card"><span>Заказ</span><strong>${escapeHtml(order.id)}</strong><span>Статус</span><strong>${escapeHtml(orderStatus(order).title)}</strong><span>Итого</span><strong>${money(order.total)}</strong></section>
+        <section class="review-section card"><h2>Состав заказа</h2><ul class="review-items">${orderItems(order)}</ul></section>
         <button class="primary-button" type="button" data-action="open-order">Открыть заказ</button>
         <button class="text-button text-button--center" type="button" data-action="navigate" data-screen="catalog">Вернуться в каталог</button>
       </section>`;
@@ -807,15 +823,16 @@
   }
 
   function renderOrderDetail() {
-    if (!state.order) return renderNotFound();
-    const status = orderStatus(state.order);
+    const order = getActiveOrder();
+    if (!order) return renderNotFound();
+    const status = orderStatus(order);
     return `
-      ${pageHeader(`Заказ ${state.order.id}`)}
-      <section class="order-status-card order-status-card--${status.className} card"><span class="status-pill status-pill--${status.className}">${status.title}</span><h2>${escapeHtml(status.text)}</h2><p>${state.order.orderType === 'server' ? 'Состав и итог подтверждены при создании заказа.' : 'Заказ ещё не создан.'}</p></section>
-      <section class="review-section card"><h2>Состав</h2><ul class="review-items">${orderItems(state.order)}</ul></section>
+      ${pageHeader(`Заказ ${order.id}`)}
+      <section class="order-status-card order-status-card--${status.className} card"><span class="status-pill status-pill--${status.className}">${status.title}</span><h2>${escapeHtml(status.text)}</h2><p>Состав и итог подтверждены при создании заказа.</p></section>
+      <section class="review-section card"><h2>Состав</h2><ul class="review-items">${orderItems(order)}</ul></section>
       <section class="info-list card">
-        <div><span aria-hidden="true">${icon('map-pin')}</span><p><strong>${escapeHtml(state.order.delivery.title)}</strong><small>${escapeHtml(state.order.delivery.description)}</small></p></div>
-        <div><span aria-hidden="true">₽</span><p><strong>${money(state.order.total)}</strong><small>Итог заказа</small></p></div>
+        <div><span aria-hidden="true">${icon('map-pin')}</span><p><strong>${escapeHtml(order.delivery.title)}</strong><small>${escapeHtml(order.delivery.description)}</small></p></div>
+        <div><span aria-hidden="true">₽</span><p><strong>${money(order.total)}</strong><small>Итог заказа</small></p></div>
       </section>
       <button class="secondary-button full-width" type="button" data-action="demo-contact">Связаться с магазином</button>`;
   }
@@ -1362,8 +1379,7 @@
   function openRules() {
     openSheet(`
       <div class="sheet__header"><p class="eyebrow">Важно</p><h2>Оплата и возврат</h2></div>
-      <p>В прототипе нет настоящей оплаты, доставки и возврата денег.</p>
-      <p>Перед запуском магазин должен подтвердить платёжного провайдера, онлайн-кассу, сроки получения и правила обмена.</p>
+      <p>Порядок оплаты, получения и возврата магазин подтверждает перед оформлением.</p>
       <button class="primary-button" type="button" data-action="close-sheet">Понятно</button>
     `, { title: 'Условия магазина' });
   }
@@ -1373,30 +1389,20 @@
       showToast('Корзина пока пуста');
       return;
     }
-    if (state.order) {
-      showToast('В прототипе доступен один текущий заказ');
-      navigate('order-detail');
-      return;
-    }
     navigate('checkout-contact');
   }
 
   function requestDemoPayment() {
     const summary = Core.getCartSummary(state.cart, state.delivery?.price || 0);
     openSheet(`
-      <div class="sheet__header"><p class="eyebrow">Без списания денег</p><h2>Подтвердить тестовый заказ?</h2></div>
-      <p>Деньги не списываются</p>
+      <div class="sheet__header"><p class="eyebrow">Проверка заказа</p><h2>Оформить заказ?</h2></div>
+      <p>Мы получим состав заказа и свяжемся с вами для подтверждения.</p>
       <div class="sheet__actions"><button class="secondary-button" type="button" data-action="close-sheet">Отмена</button><button class="primary-button" type="button" data-action="confirm-demo-payment">Подтвердить</button></div>
-    `, { title: 'Подтверждение тестового заказа' });
+    `, { title: 'Подтверждение заказа' });
   }
 
   async function submitDemoPayment() {
     if (state.isSubmitting || !state.cart.length || !state.delivery) return;
-    if (state.order) {
-      closeSheet();
-      navigate('order-detail');
-      return;
-    }
     state.isSubmitting = true;
     state.checkoutIdempotencyKey ||= (globalThis.crypto?.randomUUID?.() || `checkout-${Date.now()}`);
     try {
@@ -1410,7 +1416,8 @@
           variantId: item.variantId ?? getVariant(getProduct(item.productId), item.colorId, item.size)?.id,
         })),
       });
-      state.order = serverOrder;
+      state.orders = [serverOrder, ...state.orders.filter(({ id }) => id !== serverOrder.id)];
+      state.activeOrderId = serverOrder.id;
       state.cart = [];
       state.checkoutIdempotencyKey = null;
       saveState();
@@ -1428,7 +1435,7 @@
   function enterSellerMode() {
     state.sellerMode = true;
     state.sellerSection = 'products';
-    state.sellerTab = state.order?.status === 'ready' ? 'ready' : 'collect';
+    state.sellerTab = 'collect';
     state.sellerAuthStatus = 'loading';
     state.sellerAuthError = '';
     state.sellerOrder = null;
@@ -1875,7 +1882,7 @@
       const updatedOrder = await apiClient.markOrderReady(state.sellerOrder.id);
       state.sellerOrder = updatedOrder;
       state.sellerOrders = state.sellerOrders.map((order) => order.id === updatedOrder.id ? updatedOrder : order);
-      if (state.order?.id === updatedOrder.id) state.order = updatedOrder;
+      if (state.orders.some(({ id }) => id === updatedOrder.id)) replaceOrder(updatedOrder);
       state.sellerTab = 'ready';
       saveState();
       closeSheet();
@@ -1889,13 +1896,15 @@
     }
   }
 
-  async function openBuyerOrder() {
-    if (!state.order) return;
+  async function openBuyerOrder(orderId = state.activeOrderId) {
+    const order = state.orders.find(({ id }) => id === orderId);
+    if (!order) return;
+    state.activeOrderId = order.id;
     navigate('order-detail');
-    if (state.order.orderType !== 'server' || !apiClient?.getBuyerOrder) return;
+    if (order.orderType !== 'server' || !apiClient?.getBuyerOrder) return;
     try {
-      const latestOrder = await apiClient.getBuyerOrder(state.order.id);
-      state.order = latestOrder;
+      const latestOrder = await apiClient.getBuyerOrder(order.id);
+      replaceOrder(latestOrder);
       saveState();
       render();
     } catch (_error) {
@@ -1978,6 +1987,7 @@
     try {
       const products = await apiClient.getCatalog(state.filters);
       state.catalogProducts = Core.createAdminCatalog(products);
+      await preloadCatalogImages(state.catalogProducts);
       state.catalogStatus = 'ready';
       render();
       return true;
@@ -1987,6 +1997,17 @@
       render();
       return false;
     }
+  }
+
+  function preloadCatalogImages(products) {
+    if (typeof window.Image !== 'function') return Promise.resolve();
+    const urls = [...new Set(products.flatMap((product) => product.images || []).filter(Boolean))];
+    return Promise.all(urls.map((source) => new Promise((resolve) => {
+      const image = new window.Image();
+      image.onload = resolve;
+      image.onerror = resolve;
+      image.src = source;
+    })));
   }
 
   async function saveAdminProduct(status) {
@@ -2126,7 +2147,7 @@
     'edit-delivery': () => navigate('checkout-delivery'),
     'request-payment': requestDemoPayment,
     'confirm-demo-payment': submitDemoPayment,
-    'open-order': () => void openBuyerOrder(),
+    'open-order': (control) => void openBuyerOrder(control.dataset.orderId),
     'demo-contact': () => showToast('Контакт магазина: ' + Data.STORE.support),
     'store-rules': openRules,
     'enter-seller': enterSellerMode,
@@ -2211,11 +2232,9 @@
     tg?.onEvent?.('themeChanged', applyTelegramTheme);
     tg?.onEvent?.('viewportChanged', applyViewportHeight);
     window.addEventListener('orientationchange', applyViewportLayout);
-    window.setTimeout(() => {
-      render();
-      showFirstOpenOffer();
-      void loadRemoteCatalog();
-    }, 300);
+    render();
+    showFirstOpenOffer();
+    void loadRemoteCatalog();
   }
 
   document.addEventListener('click', (event) => {
