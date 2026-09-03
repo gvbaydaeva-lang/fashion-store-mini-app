@@ -115,6 +115,7 @@ button:active,
 }
 
 .screen--full { padding-bottom: calc(24px + var(--safe-bottom)); }
+.screen--product { padding-bottom: calc(150px + var(--safe-bottom)); }
 
 .bottom-nav {
   position: fixed;
@@ -438,7 +439,9 @@ img { display: block; max-width: 100%; }
 .choice-section.needs-attention { animation: choice-alert 420ms ease; }
 .choice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(82px, 1fr)); gap: 9px; margin-bottom: 20px; }
 .choice-grid--compact { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.choice-grid--colors { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.choice-grid--single { grid-template-columns: 1fr; }
+.choice-grid--single .size-button { grid-column: 1 / -1; }
+.choice-grid--colors { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .color-button,
 .size-button {
   min-width: 0;
@@ -453,10 +456,12 @@ img { display: block; max-width: 100%; }
 .color-button > span { flex: 0 0 21px; width: 21px; height: 21px; border: 1px solid rgba(0, 0, 0, 0.12); border-radius: 50%; background: var(--swatch); }
 .color-button.is-active,
 .size-button.is-active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-dark); box-shadow: 0 0 0 1px var(--accent); }
+.color-button.is-unavailable { border-style: dashed; opacity: 0.62; }
 .size-button { display: grid; place-items: center; }
 .size-button small { color: var(--muted); font-size: 14px; }
 .size-button:disabled { border-color: transparent; background: color-mix(in srgb, var(--muted) 8%, var(--surface)); color: var(--muted); opacity: 0.38; cursor: not-allowed; text-decoration: line-through; }
 .choice-hint { padding: 12px; border-radius: 13px; background: var(--accent-soft); font-size: 14px; }
+.choice-hint--unavailable { color: var(--danger); }
 
 .product-actions { position: fixed; z-index: 24; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: 0.9fr 1.1fr; width: 100%; max-width: var(--app-width); margin: 0 auto; padding: 10px 16px calc(10px + var(--safe-bottom)); gap: 9px; border-top: 1px solid var(--border); background: color-mix(in srgb, var(--surface) 96%, transparent); backdrop-filter: blur(18px); }
 .product-actions__cart { grid-column: 1 / -1; min-height: 44px; border: 0; background: transparent; color: var(--accent-dark); font-weight: 750; }

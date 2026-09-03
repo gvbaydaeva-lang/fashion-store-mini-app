@@ -32,7 +32,17 @@
 
   function getAvailableOptions(product, colorId) {
     return (product?.variants || []).filter((variant) => (
-      variant.colorId === colorId && variant.enabled !== false && Number(variant.stock) > 0
+      variant.colorId === colorId && isVariantAvailable(variant)
+    ));
+  }
+
+  function isVariantAvailable(variant) {
+    return Boolean(variant) && variant.enabled !== false && Number(variant.stock) > 0;
+  }
+
+  function hasAvailableVariant(product, colorId = null) {
+    return (product?.variants || []).some((variant) => (
+      (!colorId || variant.colorId === colorId) && isVariantAvailable(variant)
     ));
   }
 
@@ -354,6 +364,8 @@
     filterProducts,
     sortProducts,
     getAvailableOptions,
+    isVariantAvailable,
+    hasAvailableVariant,
     flattenCatalogProductGroups,
     getSelectedProductOption,
     addCartItem,

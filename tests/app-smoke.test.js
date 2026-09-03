@@ -10,6 +10,7 @@ const Core = require('../core.js');
 const UI = require('../ui.js');
 
 const appSource = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+const stylesSource = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
 const indexSource = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 
 function createClassList() {
@@ -112,8 +113,8 @@ test('Mini App запрещает автоматическое увеличен�
 
 test('страница запрашивает новую версию стилей и редактора после мобильной правки', () => {
   assert.match(indexSource, /data\.js\?v=20260903-profitable-purchases-1/);
-  assert.match(indexSource, /styles\.css\?v=20260903-product-card-1/);
-  assert.match(indexSource, /app\.js\?v=20260903-product-card-1/);
+  assert.match(indexSource, /styles\.css\?v=20260903-product-card-2/);
+  assert.match(indexSource, /app\.js\?v=20260903-product-card-2/);
 });
 
 test('заказ не показывает битую картинку, если у позиции нет сохранённого изображения', () => {
@@ -488,6 +489,83 @@ test('переключение цвета в склейке меняет дан�
   app.selectProductOption('milk-dress');
   assert.match(screen.innerHTML, /Платье молочное/);
   assert.match(screen.innerHTML, /5 490 ₽/);
+});
+
+test('опубликованные цвета без остатка остаются видимыми', async () => {
+  const products = [
+    {
+      id: 'black-coat', groupId: 'coat-group', name: 'Пальто чёрное', category: 'all', price: 7990,
+      images: ['black-coat.webp'], colors: [{ id: 'black', name: 'Чёрный' }],
+      variants: [{ id: 'black-s', colorId: 'black', size: 'S', stock: 2 }], adminStatus: 'published', description: 'Чёрное',
+    },
+    {
+      id: 'cream-coat', groupId: 'coat-group', name: 'Пальто кремовое', category: 'all', price: 7990,
+      images: ['cream-coat.webp'], colors: [{ id: 'cream', name: 'Кремовый' }],
+      variants: [{ id: 'cream-s', colorId: 'cream', size: 'S', stock: 0 }], adminStatus: 'published', description: 'Кремовое',
+    },
+  ];
+  const { app, screen } = loadApp({}, { createApiClient() { return { getCatalog: async () => products }; } });
+
+  await app.loadRemoteCatalog();
+  app.navigate('product', { productId: 'black-coat' });
+
+  assert.match(screen.innerHTML, /Пальто чёрное/);
+  assert.match(screen.innerHTML, /Кремовый/);
+  assert.match(screen.innerHTML, /data-product-id="cream-coat"[^>]*aria-disabled="true"/);
+  assert.doesNotMatch(screen.innerHTML, /data-product-id="cream-coat"[^>]*\sdisabled(?:=|>)/);
+});
+
+test('переключение цвета сохраняет его productId, изображение и варианты', async () => {
+  const products = [
+    {
+      id: 'navy-set', groupId: 'set-group', name: 'Комплект синий', category: 'all', price: 5000,
+      images: ['navy.webp'], colors: [{ id: 'navy', name: 'Синий' }],
+      variants: [{ colorId: 'navy', size: 'S', stock: 1 }], adminStatus: 'published', description: 'Синий',
+    },
+    {
+      id: 'rose-set', groupId: 'set-group', name: 'Комплект розовый', category: 'all', price: 5000,
+      images: ['rose.webp'], colors: [{ id: 'rose', name: 'Розовый' }],
+      variants: [{ colorId: 'rose', size: 'L', stock: 2 }], adminStatus: 'published', description: 'Розовый',
+    },
+  ];
+  const { app, screen } = loadApp({}, { createApiClient() { return { getCatalog: async () => products }; } });
+
+  await app.loadRemoteCatalog();
+  app.navigate('product', { productId: 'navy-set' });
+  app.selectProductOption('rose-set');
+
+  assert.match(screen.innerHTML, /rose\.webp/);
+  assert.match(screen.innerHTML, /data-size="L"/);
+  assert.doesNotMatch(screen.innerHTML, /data-size="S"/);
+});
+
+test('опубликованный товар без положительных остатков остаётся видимым', () => {
+  const products = [
+    { id: 'sold-out', adminStatus: 'published', variants: [{ size: 'S', stock: 0 }] },
+    { id: 'draft', adminStatus: 'draft', variants: [{ size: 'S', stock: 5 }] },
+  ];
+
+  assert.deepEqual(Core.getPublishedProducts(products).map(({ id }) => id), ['sold-out']);
+});
+
+test('один размер получает широкую ячейку, а несколько размеров и цвета используют три колонки', async () => {
+  const product = {
+    id: 'grid-product', name: 'Сетка', category: 'all', price: 1000,
+    images: ['grid.webp'], colors: [{ id: 'black', name: 'Чёрный' }],
+    variants: [
+      { colorId: 'black', size: 'S', stock: 2 },
+      { colorId: 'black', size: 'M', stock: 1 },
+    ], adminStatus: 'published', description: '',
+  };
+  const { app, screen } = loadApp({}, { createApiClient() { return { getCatalog: async () => [product] }; } });
+  await app.loadRemoteCatalog();
+  app.navigate('product', { productId: 'grid-product' });
+  assert.match(screen.innerHTML, /choice-grid choice-grid--sizes choice-grid--compact/);
+  assert.match(appSource, /sizes\.length === 1 \? 'choice-grid--single'/);
+  assert.match(stylesSource, /\.choice-grid--single \.size-button\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/);
+  assert.match(stylesSource, /\.choice-grid--compact\s*\{[^}]*repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(stylesSource, /\.choice-grid--colors\s*\{[^}]*repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(stylesSource, /\.screen--product\s*\{[^}]*padding-bottom/);
 });
 
 test('после публикации продавцом покупательский каталог обновляется до уведомления', () => {

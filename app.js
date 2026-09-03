@@ -267,8 +267,8 @@
 
   function getProductGroup(product) {
     if (!product) return [];
-    return getCatalogProducts().filter((item) => item.groupId === product.groupId
-      && item.variants.some((variant) => variant.enabled !== false && Number(variant.stock) > 0));
+    if (!product.groupId) return [product];
+    return getCatalogProducts().filter((item) => item.groupId === product.groupId);
   }
 
   function getAdminProduct(productId) {
@@ -597,23 +597,20 @@
     const groupedProducts = getProductGroup(product);
     const colorButtons = groupedProducts.map((option) => {
       const color = option.colors[0] || { id: option.id, name: 'Цвет' };
+      const unavailable = !Core.hasAvailableVariant(option);
       return `
-      <button class="color-button ${option.id === product.id ? 'is-active' : ''}" type="button" data-action="select-product-option" data-product-id="${escapeHtml(option.id)}" aria-pressed="${option.id === product.id}">
+      <button class="color-button ${option.id === product.id ? 'is-active' : ''}${unavailable ? ' is-unavailable' : ''}" type="button" data-action="select-product-option" data-product-id="${escapeHtml(option.id)}" aria-pressed="${option.id === product.id}"${unavailable ? ' aria-disabled="true"' : ''}>
         <span style="--swatch:${color.hex || '#8e8e93'}" aria-hidden="true"></span>${escapeHtml(color.name)}
       </button>`;
     }).join('');
-    const availableVariants = product.variants.filter((variant) => (
-      variant.enabled !== false && Number(variant.stock) > 0
-    ));
-    const sizes = [...new Set((state.selectedColorId
-      ? availableVariants.filter(({ colorId }) => colorId === state.selectedColorId)
-      : availableVariants).map(({ size }) => size))];
+    const colorVariants = product.variants.filter(({ colorId }) => colorId === state.selectedColorId);
+    const sizes = [...new Set(colorVariants.map(({ size }) => size).filter(Boolean))];
     const sizeButtons = sizes.map((size) => {
       const variant = state.selectedColorId ? getVariant(product, state.selectedColorId, size) : null;
-      const unavailable = !variant || variant.enabled === false || Number(variant.stock) <= 0;
+      const unavailable = !Core.isVariantAvailable(variant);
       const status = !state.selectedColorId
         ? 'Выберите цвет'
-        : !variant || variant.enabled === false || Number(variant.stock) <= 0 ? 'Нет' : variant.stock === 1 ? 'Последний' : 'В наличии';
+        : unavailable ? 'Нет' : variant.stock === 1 ? 'Последний' : 'В наличии';
       return `
       <button class="size-button ${state.selectedSize === size ? 'is-active' : ''}" type="button" data-action="select-size" data-size="${size}" ${unavailable ? 'disabled' : ''} aria-pressed="${state.selectedSize === size}">
         <strong>${size}</strong><small>${status}</small>
@@ -622,6 +619,8 @@
     const selectedVariant = state.selectedColorId && state.selectedSize
       ? getVariant(product, state.selectedColorId, state.selectedSize)
       : null;
+    const colorUnavailable = !Core.hasAvailableVariant(product, state.selectedColorId);
+    const actionsDisabled = !Core.isVariantAvailable(selectedVariant);
 
     return `
       ${productBackHeader()}
@@ -642,12 +641,13 @@
         <div class="section-heading"><h2>Цвет</h2><span>${escapeHtml(product.colors[0]?.name || 'Не указан')}</span></div>
         <div class="choice-grid choice-grid--colors">${colorButtons}</div>
         <div class="section-heading"><h2>Размер</h2></div>
-        <div class="choice-grid">${sizeButtons}</div>
+        <div class="choice-grid choice-grid--sizes ${sizes.length === 1 ? 'choice-grid--single' : sizes.length > 1 ? 'choice-grid--compact' : ''}">${sizeButtons}</div>
+        ${colorUnavailable ? '<p class="choice-hint choice-hint--unavailable">Для этого цвета доступных размеров нет.</p>' : ''}
         ${selectedVariant?.stock === 1 ? '<p class="low-stock-text">Осталась 1 шт.</p>' : ''}
       </section>
       <div class="product-actions">
-        <button class="secondary-button" type="button" data-action="add-to-cart">В корзину</button>
-        <button class="primary-button" type="button" data-action="buy-now">Купить сейчас</button>
+        <button class="secondary-button" type="button" data-action="add-to-cart" ${actionsDisabled ? 'disabled' : ''}>В корзину</button>
+        <button class="primary-button" type="button" data-action="buy-now" ${actionsDisabled ? 'disabled' : ''}>Купить сейчас</button>
         <button class="product-actions__cart" type="button" data-action="navigate" data-screen="cart">Перейти в корзину</button>
       </div>`;
   }
@@ -1066,7 +1066,10 @@
 
   function adminProductPreview(product) {
     const sizes = [...new Set(product.variants.filter((variant) => variant.enabled !== false).map(({ size }) => size))];
-    const colors = product.colors.map((color) => `<span class="color-button"><span style="--swatch:${color.hex}" aria-hidden="true"></span>${escapeHtml(color.name)}</span>`).join('');
+    const colors = product.colors.map((color) => {
+      const unavailable = !Core.hasAvailableVariant(product, color.id);
+      return `<span class="color-button${unavailable ? ' is-unavailable' : ''}"${unavailable ? ' aria-disabled="true"' : ''}><span style="--swatch:${color.hex}" aria-hidden="true"></span>${escapeHtml(color.name)}</span>`;
+    }).join('');
     return `
       <article class="admin-preview-card card">
         <div class="admin-preview-card__media">${product.images[0] ? `<img src="${escapeHtml(product.images[0])}" alt="${escapeHtml(product.name)}">` : icon('image')}</div>
@@ -1293,6 +1296,7 @@
     const previousScrollTop = screenElement.scrollTop;
     applyTelegramTheme();
     screenElement.dataset.screen = state.screen;
+    screenElement.classList.toggle('screen--product', state.screen === 'product');
     screenElement.classList.toggle('screen--full', CHECKOUT_SCREENS.has(state.screen));
     screenElement.innerHTML = (renderers[state.screen] || renderNotFound)();
     bottomNav.hidden = !ROOT_SCREENS.has(state.screen);
