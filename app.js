@@ -16,6 +16,7 @@
   const CART_KEY = 'fashion-store-cart-v1';
   const ORDER_KEY = 'fashion-store-order-v1';
   const ORDERS_KEY = 'fashion-store-orders-v2';
+  const DEMO_ORDERS_KEY = 'fashion-store-demo-orders-v1';
   const ORDER_IDEMPOTENCY_KEY = 'fashion-store-order-idempotency-v1';
   const OFFER_KEY = 'fashion-store-offer-seen-v1';
   const ADMIN_PRODUCTS_KEY = 'fashion-store-admin-products-v1';
@@ -58,6 +59,8 @@
     selectedSize: null,
     cart: [],
     orders: [],
+    demoOrders: [],
+    lastCheckoutOrder: null,
     activeOrderId: null,
     checkoutIdempotencyKey: null,
     customer: { name: '', phone: '' },
@@ -173,6 +176,10 @@
     if (legacyOrder && legacyOrder.orderType === 'server' && typeof legacyOrder.id === 'string'
       && !validOrders.some(({ id }) => id === legacyOrder.id)) validOrders.unshift(legacyOrder);
     state.orders = validOrders;
+    const storedDemoOrders = readStored(DEMO_ORDERS_KEY, []);
+    state.demoOrders = Array.isArray(storedDemoOrders)
+      ? storedDemoOrders.filter((order) => order && order.demoPayment === true && typeof order.id === 'string')
+      : [];
     state.activeOrderId = state.orders[0]?.id || null;
     window.localStorage.removeItem(ORDER_KEY);
     state.checkoutIdempotencyKey = readStored(ORDER_IDEMPOTENCY_KEY, null);
@@ -199,6 +206,25 @@
     window.localStorage.removeItem(ORDER_KEY);
     if (state.checkoutIdempotencyKey) window.localStorage.setItem(ORDER_IDEMPOTENCY_KEY, state.checkoutIdempotencyKey);
     else window.localStorage.removeItem(ORDER_IDEMPOTENCY_KEY);
+  }
+
+  function saveDemoOrders() {
+    window.localStorage.setItem(DEMO_ORDERS_KEY, JSON.stringify(state.demoOrders));
+  }
+
+  function createLocalDemoOrder() {
+    const now = new Date().toISOString();
+    return {
+      id: `DEMO-${Date.now().toString(36).toUpperCase()}`,
+      orderType: 'demo',
+      demoPayment: true,
+      status: 'paid',
+      total: Core.getCartSummary(state.cart, state.delivery.price).total,
+      createdAt: now,
+      customer: { ...state.customer },
+      delivery: { ...state.delivery },
+      items: state.cart.map((item) => ({ ...item })),
+    };
   }
 
   function persistAdminDraft() {
@@ -684,6 +710,11 @@
   }
 
   function orderStatus(order) {
+    if (order.demoPayment) {
+      return order.status === 'ready'
+        ? { title: 'Заказ собран', text: order.delivery.id === 'pickup' ? 'Ждёт вас в магазине' : 'Готов к передаче в доставку', className: 'ready' }
+        : { title: 'Оплачен, собираем', text: 'Сообщим, когда всё будет готово', className: 'paid' };
+    }
     if (order.orderType === 'server' && order.status === 'demo') {
       return { title: 'Заказ создан', text: 'Мы свяжемся с вами для подтверждения.', className: 'demo' };
     }
@@ -824,7 +855,7 @@
   }
 
   function renderPaymentSuccess() {
-    const order = getActiveOrder();
+    const order = state.lastCheckoutOrder || getActiveOrder();
     if (!order) return renderNotFound();
     return `
       <section class="success-screen">
@@ -833,7 +864,6 @@
         <p>Мы свяжемся с вами для подтверждения.</p>
         <section class="success-card card"><span>Заказ</span><strong>${escapeHtml(order.id)}</strong><span>Статус</span><strong>${escapeHtml(orderStatus(order).title)}</strong><span>Итого</span><strong>${money(order.total)}</strong></section>
         <section class="review-section card"><h2>Состав заказа</h2><ul class="review-items">${orderItems(order)}</ul></section>
-        <button class="primary-button" type="button" data-action="open-order">Открыть заказ</button>
         <button class="text-button text-button--center" type="button" data-action="navigate" data-screen="catalog">Вернуться в каталог</button>
       </section>`;
   }
@@ -1221,15 +1251,16 @@
   }
 
   function renderSellerOrders() {
-    const orders = state.sellerOrders.filter((order) => state.sellerTab === 'ready' ? order.status === 'ready' : order.status === 'paid');
-    const collectCount = state.sellerOrders.filter((order) => order.status === 'paid').length;
-    const readyCount = state.sellerOrders.filter((order) => order.status === 'ready').length;
+    const allOrders = [...state.sellerOrders, ...state.demoOrders];
+    const orders = allOrders.filter((order) => state.sellerTab === 'ready' ? order.status === 'ready' : order.status === 'paid');
+    const collectCount = allOrders.filter((order) => order.status === 'paid').length;
+    const readyCount = allOrders.filter((order) => order.status === 'ready').length;
     const content = state.sellerOrdersStatus === 'loading'
       ? '<section class="empty-state card"><h2>Загружаем заказы…</h2></section>'
-      : state.sellerOrdersStatus === 'error'
+      : state.sellerOrdersStatus === 'error' && !state.demoOrders.length
         ? `<section class="empty-state card"><h2>Не удалось загрузить заказы</h2><p>${escapeHtml(state.sellerOrdersError)}</p><button class="primary-button" type="button" data-action="reload-seller-orders">Повторить</button></section>`
         : orders.length
-          ? orders.map((order) => `<button class="seller-order-card card" type="button" data-action="seller-open-order" data-order-id="${escapeHtml(order.id)}"><span class="status-pill status-pill--${order.status === 'ready' ? 'ready' : 'paid'}">${order.status === 'ready' ? 'Заказ собран' : 'Оплачен, собираем'}</span><img class="order-item-image" src="${escapeHtml(getOrderItemImage(order.items[0]))}" alt="${escapeHtml(order.items[0]?.name || 'Товар заказа')}" data-order-item-image><span><strong>${escapeHtml(order.id)}</strong><small>${formatOrderTime(order.createdAt)} · ${escapeHtml(order.customer.name || 'Покупатель')} · ${order.items.length} позиций</small><small>${escapeHtml(order.delivery.title)}</small></span><b>${money(order.total)}</b></button>`).join('')
+          ? orders.map((order) => `<button class="seller-order-card card" type="button" data-action="seller-open-order" data-order-id="${escapeHtml(order.id)}"><span class="status-pill status-pill--${order.status === 'ready' ? 'ready' : 'paid'}">${order.status === 'ready' ? 'Заказ собран' : 'Оплачен, собираем'}</span>${order.demoPayment ? '<em class="admin-status admin-status--draft">Демо-оплата</em>' : ''}<img class="order-item-image" src="${escapeHtml(getOrderItemImage(order.items[0]))}" alt="${escapeHtml(order.items[0]?.name || 'Товар заказа')}" data-order-item-image><span><strong>${escapeHtml(order.id)}</strong><small>${formatOrderTime(order.createdAt)} · ${escapeHtml(order.customer.name || 'Покупатель')} · ${order.items.length} позиций</small><small>${escapeHtml(order.delivery.title)}</small></span><b>${money(order.total)}</b></button>`).join('')
           : `<section class="empty-state card"><span aria-hidden="true">${icon('package')}</span><h2>${state.sellerTab === 'ready' ? 'Готовых заказов пока нет' : 'Нет заказов на сборку'}</h2><p>Очередь пуста.</p></section>`;
     return sellerShell('orders', `
       <section class="admin-section-heading"><div><p class="eyebrow">Рабочая очередь</p><h2>Заказы</h2><p>Актуальные заказы магазина</p></div></section>
@@ -1478,22 +1509,13 @@
   async function submitDemoPayment() {
     if (state.isSubmitting || !state.cart.length || !state.delivery) return;
     state.isSubmitting = true;
-    state.checkoutIdempotencyKey ||= (globalThis.crypto?.randomUUID?.() || `checkout-${Date.now()}`);
     try {
-      if (!apiClient?.createOrder) throw new Error('server-unavailable');
-      const serverOrder = await apiClient.createOrder({
-        idempotencyKey: state.checkoutIdempotencyKey,
-        customer: state.customer,
-        deliveryId: state.delivery.id,
-        items: state.cart.map((item) => ({
-          ...item,
-          variantId: item.variantId ?? getVariant(getProduct(item.productId), item.colorId, item.size)?.id,
-        })),
-      });
-      state.orders = [serverOrder, ...state.orders.filter(({ id }) => id !== serverOrder.id)];
-      state.activeOrderId = serverOrder.id;
+      const demoOrder = createLocalDemoOrder();
+      state.demoOrders = [demoOrder, ...state.demoOrders.filter(({ id }) => id !== demoOrder.id)];
+      state.lastCheckoutOrder = demoOrder;
       state.cart = [];
       state.checkoutIdempotencyKey = null;
+      saveDemoOrders();
       saveState();
       closeSheet();
       navigate('payment-success');
@@ -1958,7 +1980,18 @@
   }
 
   async function confirmOrderReady() {
-    if (!state.sellerOrder || state.sellerOrder.status !== 'paid' || state.isSubmitting || !apiClient?.markOrderReady) return;
+    if (!state.sellerOrder || state.sellerOrder.status !== 'paid' || state.isSubmitting || (!state.sellerOrder.demoPayment && !apiClient?.markOrderReady)) return;
+    if (state.sellerOrder.demoPayment) {
+      const updatedOrder = { ...state.sellerOrder, status: 'ready' };
+      state.demoOrders = state.demoOrders.map((order) => order.id === updatedOrder.id ? updatedOrder : order);
+      state.sellerOrder = updatedOrder;
+      state.sellerTab = 'ready';
+      saveDemoOrders();
+      closeSheet();
+      showToast('Статус обновлён: заказ собран');
+      render();
+      return;
+    }
     state.isSubmitting = true;
     try {
       const updatedOrder = await apiClient.markOrderReady(state.sellerOrder.id);
@@ -2019,9 +2052,13 @@
   async function openSellerOrder(control) {
     const orderId = control?.dataset?.orderId;
     if (!orderId || !apiClient?.getSellerOrder) return;
-    const cachedOrder = state.sellerOrders.find((order) => order.id === orderId);
+    const cachedOrder = [...state.sellerOrders, ...state.demoOrders].find((order) => order.id === orderId);
     state.sellerOrder = cachedOrder || null;
     navigate('seller-order', { orderId });
+    if (cachedOrder?.demoPayment) {
+      render();
+      return;
+    }
     try {
       state.sellerOrder = await apiClient.getSellerOrder(orderId);
       state.sellerOrders = state.sellerOrders.map((order) => order.id === state.sellerOrder.id ? state.sellerOrder : order);

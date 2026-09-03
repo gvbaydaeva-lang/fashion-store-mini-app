@@ -113,8 +113,8 @@ test('Mini App запрещает автоматическое увеличен�
 
 test('страница запрашивает новую версию стилей и редактора после мобильной правки', () => {
   assert.match(indexSource, /data\.js\?v=20260903-profitable-purchases-1/);
-  assert.match(indexSource, /styles\.css\?v=20260903-product-card-4/);
-  assert.match(indexSource, /app\.js\?v=20260903-product-card-4/);
+  assert.match(indexSource, /styles\.css\?v=20260903-demo-payment-1/);
+  assert.match(indexSource, /app\.js\?v=20260903-demo-payment-1/);
 });
 
 test('заказ не показывает битую картинку, если у позиции нет сохранённого изображения', () => {
@@ -162,11 +162,12 @@ test('созданный заказ не называется оплаченны
   assert.match(appSource, /order\.status === 'paid'/);
 });
 
-test('checkout отправляет весь снимок корзины и очищает её только после ответа сервера', () => {
+test('checkout создаёт локальную демо-оплату из полного снимка корзины', () => {
   assert.match(appSource, /items: state\.cart\.map/);
-  assert.match(appSource, /const serverOrder = await apiClient\.createOrder/);
-  assert.match(appSource, /const serverOrder = await apiClient\.createOrder[\s\S]*state\.orders = \[serverOrder, \.\.\.state\.orders[\s\S]*state\.cart = \[\];/);
-  assert.match(appSource, /state\.activeOrderId = serverOrder\.id;[\s\S]*navigate\('payment-success'\)/);
+  assert.match(appSource, /const demoOrder = createLocalDemoOrder\(\)/);
+  assert.match(appSource, /const demoOrder = createLocalDemoOrder\(\)[\s\S]*state\.demoOrders = \[demoOrder/);
+  assert.match(appSource, /state\.demoOrders = \[demoOrder[\s\S]*state\.cart = \[\];/);
+  assert.match(appSource, /state\.lastCheckoutOrder = demoOrder[\s\S]*navigate\('payment-success'\)/);
   assert.match(appSource, /review-items">\$\{orderItems\(order\)\}/);
 });
 
@@ -215,7 +216,7 @@ test('экран заказов хранит несколько подтверж
 test('оформление не блокируется старым заказом и не показывает текст про один заказ', () => {
   assert.doesNotMatch(appSource, /В прототипе доступен один текущий заказ/);
   assert.match(appSource, /orders: \[\],/);
-  assert.match(appSource, /state\.orders = \[serverOrder, \.\.\.state\.orders/);
+  assert.match(appSource, /state\.demoOrders = \[demoOrder, \.\.\.state\.demoOrders/);
 });
 
 test('каталог ждёт предзагрузку фото и не откладывает запрос на 300 мс', () => {
@@ -262,12 +263,62 @@ test('проверка заказа не позволяет редактиров
 test('buyer UI использует понятный текст без лишних демо и технических слов', () => {
   assert.match(appSource, /Оформить заказ \$\{money\(summary\.total\)\}/);
   assert.match(appSource, /Оформить заказ\?/);
-  assert.doesNotMatch(appSource, /Тестовый заказ|Демо-оплата|Подтвердить демо-оплату|Демонстрационный контакт|Демонстрационные условия|Итог с сервера|загружаются с сервера/);
+  const buyerSource = appSource.match(/function renderPaymentSuccess\(\) \{[\s\S]*?\n  \}\n\n  function orderItems/);
+  assert.ok(buyerSource, 'не найден экран успешного оформления');
+  assert.doesNotMatch(buyerSource[0], /Демо-оплата|Подтвердить демо-оплату|Демонстрационные условия|Итог с сервера/);
 });
 
 test('тестовый заказ не отображается в оплаченной очереди продавца', () => {
-  assert.match(appSource, /order\.status === 'paid'/);
-  assert.doesNotMatch(appSource, /order\.status === 'demo'[^\n]*seller/);
+  assert.match(appSource, /demoPayment: true/);
+  assert.match(appSource, /demoOrders/);
+  assert.doesNotMatch(appSource, /state\.orders = \[demoOrder/);
+});
+
+test('демо-оплата не обращается к order-api и сохраняет заказ отдельно', () => {
+  const paymentSource = appSource.match(/async function submitDemoPayment\(\) \{[\s\S]*?\n  \}\n\n  function enterSellerMode/);
+  assert.ok(paymentSource, 'не найден обработчик демо-оплаты');
+  assert.doesNotMatch(paymentSource[0], /apiClient\.createOrder/);
+  assert.match(paymentSource[0], /createLocalDemoOrder/);
+  assert.match(paymentSource[0], /saveDemoOrders/);
+  assert.match(appSource, /const DEMO_ORDERS_KEY = 'fashion-store-demo-orders-v1'/);
+});
+
+test('локальный демо-заказ отображается в админской очереди и содержит пометку', () => {
+  const demoOrder = {
+    id: 'DEMO-1', orderType: 'demo', demoPayment: true, status: 'paid', total: 2600,
+    createdAt: '2026-09-03T10:00:00.000Z', customer: { name: 'Гиляна', phone: '+79999999999' },
+    delivery: { id: 'pickup', title: 'Самовывоз в Элисте', description: 'Адрес самовывоза сообщим позже.', price: 0 },
+    items: [{ name: 'Костюм двойка', colorName: 'Чёрный', size: '42-46', quantity: 1, price: 2600 }],
+  };
+  const { app, screen } = loadApp({
+    'fashion-store-preorder-reset-v1': '1',
+    'fashion-store-demo-orders-v1': JSON.stringify([demoOrder]),
+  });
+
+  app.navigate('seller-orders');
+
+  assert.match(screen.innerHTML, /DEMO-1/);
+  assert.match(screen.innerHTML, /Демо-оплата/);
+  assert.match(screen.innerHTML, /Костюм двойка/);
+});
+
+test('демо-заказ не попадает в покупательский список заказов', () => {
+  const demoOrder = { id: 'DEMO-2', orderType: 'demo', demoPayment: true, status: 'paid', total: 100, items: [] };
+  const { app, screen } = loadApp({
+    'fashion-store-preorder-reset-v1': '1',
+    'fashion-store-demo-orders-v1': JSON.stringify([demoOrder]),
+  });
+
+  app.navigate('orders');
+
+  assert.doesNotMatch(screen.innerHTML, /DEMO-2/);
+  assert.match(screen.innerHTML, /Заказов пока нет/);
+});
+
+test('для демо-заказа сборка меняет статус локально без API', () => {
+  assert.match(appSource, /if \(state\.sellerOrder\.demoPayment\)/);
+  assert.match(appSource, /saveDemoOrders\(\)/);
+  assert.doesNotMatch(appSource, /demoPayment[\s\S]{0,300}apiClient\.markOrderReady/);
 });
 
 test('новая версия один раз очищает только утверждённые локальные демо-ключи', () => {
