@@ -169,6 +169,33 @@ test('checkout отправляет весь снимок корзины и оч
   assert.match(appSource, /review-items">\$\{orderItems\(state\.order\)\}/);
 });
 
+test('позиция корзины сохраняет variantId для серверного заказа', () => {
+  assert.match(appSource, /variantId: variant\.id/);
+});
+
+test('старый локальный черновик заказа удаляется и не блокирует новый checkout', () => {
+  const { storage } = loadApp({
+    'fashion-store-preorder-reset-v1': '1',
+    'fashion-store-order-v1': JSON.stringify({
+      id: 'FS-323345',
+      status: 'draft',
+      items: [{ name: 'Старый товар' }],
+    }),
+  });
+
+  assert.equal(storage.get('fashion-store-order-v1'), undefined);
+});
+
+test('фотографии карточек каталога загружаются сразу', () => {
+  assert.doesNotMatch(appSource, /<img src="\$\{escapeHtml\(image\)\}" alt="\$\{escapeHtml\(product\.name\)\}" loading="lazy">/);
+  assert.match(appSource, /fetchpriority="high"/);
+});
+
+test('в корзине нет лишнего текста о закреплении товара и резерве', () => {
+  assert.doesNotMatch(appSource, /Товары закрепятся за вами/);
+  assert.doesNotMatch(appSource, /Корзина не является резервом/);
+});
+
 test('ошибка checkout сохраняет корзину и не создаёт ложный локальный заказ', () => {
   assert.match(appSource, /catch \(_error\) \{[\s\S]*state\.cart/);
   assert.doesNotMatch(appSource, /catch \(_error\) \{[\s\S]*Core\.createDemoOrder/);

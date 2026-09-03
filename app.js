@@ -158,8 +158,10 @@
       ? cart.filter((item) => item && typeof item.key === 'string' && item.quantity > 0)
       : [];
     state.order = order && typeof order === 'object' && typeof order.id === 'string'
-      ? (order.orderType === 'server' ? order : { ...order, orderType: 'draft', status: 'draft' })
+      && order.orderType === 'server'
+      ? order
       : null;
+    if (!state.order && order) window.localStorage.removeItem(ORDER_KEY);
     state.checkoutIdempotencyKey = readStored(ORDER_IDEMPOTENCY_KEY, null);
     state.adminProducts = [];
     state.adminCategories = [];
@@ -480,7 +482,7 @@
       <article class="product-card card">
         <button class="product-card__open" type="button" data-action="open-product" data-product-id="${product.id}" aria-label="Открыть ${escapeHtml(product.name)}">
           <span class="product-card__media">
-            <img src="${escapeHtml(image)}" alt="${escapeHtml(product.name)}" loading="lazy">
+            <img src="${escapeHtml(image)}" alt="${escapeHtml(product.name)}" loading="eager" fetchpriority="high" decoding="async">
             ${product.badge ? `<span class="badge">${escapeHtml(product.badge)}</span>` : ''}
           </span>
           <span class="product-card__body">
@@ -602,7 +604,7 @@
       ${productBackHeader()}
       <section class="product-gallery card" aria-label="Фотографии ${escapeHtml(product.name)}">
         <div class="product-gallery__track">
-          ${galleryImages.map((image, index) => `<img src="${escapeHtml(image)}" alt="${escapeHtml(product.name)} — фото ${index + 1}" ${index ? 'loading="lazy"' : ''}>`).join('')}
+          ${galleryImages.map((image, index) => `<img src="${escapeHtml(image)}" alt="${escapeHtml(product.name)} — фото ${index + 1}" loading="eager" fetchpriority="${index ? 'auto' : 'high'}" decoding="async">`).join('')}
         </div>
         <div class="gallery-dots" aria-hidden="true">${galleryImages.map((_, index) => `<span class="gallery-dot${index === 0 ? ' is-active' : ''}"></span>`).join('')}</div>
         ${product.badge ? `<span class="badge">${escapeHtml(product.badge)}</span>` : ''}
@@ -654,7 +656,6 @@
     return `
       ${pageHeader('Корзина', `${summary.itemCount} ${summary.itemCount === 1 ? 'товар' : 'товара'}`)}
       <div class="cart-list">${items}</div>
-      <section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>Товары закрепятся за вами только после подтверждения заказа. Корзина не является резервом.</p></section>
       <section class="summary-card card">
         <div><span>Товары</span><b>${money(summary.subtotal)}</b></div><div class="summary-total"><span>Итого</span><b>${money(summary.total)}</b></div>
         <button class="primary-button" type="button" data-action="checkout-start">Оформить заказ</button>
@@ -1274,6 +1275,7 @@
     const item = {
       key: `${product.id}:${color.id}:${variant.size}`,
       productId: product.id,
+      variantId: variant.id,
       name: product.name,
       image: product.images[0],
       colorId: color.id,
@@ -1402,7 +1404,10 @@
         idempotencyKey: state.checkoutIdempotencyKey,
         customer: state.customer,
         deliveryId: state.delivery.id,
-        items: state.cart,
+        items: state.cart.map((item) => ({
+          ...item,
+          variantId: item.variantId ?? getVariant(getProduct(item.productId), item.colorId, item.size)?.id,
+        })),
       });
       state.order = serverOrder;
       state.cart = [];
