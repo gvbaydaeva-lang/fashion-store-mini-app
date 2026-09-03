@@ -15,6 +15,10 @@ test('стартовый каталог пуст, а главная исполь
   assert.equal(STORE.preorderTerms.leadTime, 'Срок поступления: 7–10 дней.');
   assert.equal(STORE.preorderTerms.pickup, 'Самовывоз в Элисте.');
   assert.equal(STORE.preorderTerms.delivery, 'Цены указаны с учётом доставки до Элисты.');
+  assert.equal(STORE.information.title, 'Условия покупок');
+  assert.match(STORE.information.purchasing, /раз в 7–10 дней/);
+  assert.match(STORE.information.prices, /минимальной наценкой/);
+  assert.match(STORE.information.benefits, /подарки, розыгрыши/);
   assert.deepEqual(CATEGORIES.map(({ id }) => id), ['all']);
   assert.deepEqual(PRODUCTS, []);
   assert.deepEqual(DELIVERY_METHODS.map(({ id }) => id), ['pickup']);

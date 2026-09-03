@@ -695,20 +695,21 @@
   }
 
   function renderStore() {
+    const information = Data.STORE.information;
     return `
-      ${pageHeader('Магазин')}
-      <section class="store-visual card">
-        <img src="assets/storefront.jpg" alt="Фасад магазина Фэшн стор">
+      ${pageHeader('Информация')}
+      <section class="information-intro card">
+        <span class="information-intro__mark" aria-hidden="true">✦</span>
+        <p class="eyebrow">Для вас</p>
+        <h2>${escapeHtml(information.title)}</h2>
+        <p>${escapeHtml(information.intro)}</p>
       </section>
-      <section class="store-card card"><p class="eyebrow">Фэшн стор</p><h2>${escapeHtml(Data.STORE.tagline)}</h2><p>${escapeHtml(Data.STORE.description)}</p></section>
-      <section class="info-list card">
-        <div><span aria-hidden="true">${icon('map-pin')}</span><p><strong>Адрес</strong><small>${escapeHtml(Data.STORE.address)}</small></p></div>
-        <div><span aria-hidden="true">${icon('clock')}</span><p><strong>Часы работы</strong><small>${escapeHtml(Data.STORE.hours)}</small></p></div>
-        <div><span aria-hidden="true">${icon('at-sign')}</span><p><strong>Поддержка</strong><small>${escapeHtml(Data.STORE.support)}</small></p></div>
-      </section>
-      <section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>Адрес, контакты, доставка и правила будут подтверждены магазином до запуска.</p></section>
-      <div class="store-actions"><button class="secondary-button" type="button" data-action="demo-contact">Связаться</button><button class="secondary-button" type="button" data-action="store-rules">Оплата и возврат</button></div>
-      <button class="seller-entry" type="button" data-action="enter-seller">Режим продавца <span>${icon('chevron-right')}</span></button>`;
+      <section class="information-list" aria-label="Информация о покупках">
+        <article class="information-item card"><span class="information-item__icon" aria-hidden="true">↗</span><div><h3>Как проходят закупки</h3><p>${escapeHtml(information.purchasing)}</p></div></article>
+        <article class="information-item card"><span class="information-item__icon" aria-hidden="true">₽</span><div><h3>Выгодные цены</h3><p>${escapeHtml(information.prices)}</p></div></article>
+        <article class="information-item card"><span class="information-item__icon" aria-hidden="true">♡</span><div><h3>Развиваемся вместе</h3><p>${escapeHtml(information.future)}</p></div></article>
+        <article class="information-item card"><span class="information-item__icon" aria-hidden="true">✦</span><div><h3>Больше пользы впереди</h3><p>${escapeHtml(information.benefits)}</p></div></article>
+      </section>`;
   }
 
   function renderNotFound() {

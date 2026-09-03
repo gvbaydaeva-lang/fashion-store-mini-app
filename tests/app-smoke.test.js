@@ -113,7 +113,7 @@ test('Mini App запрещает автоматическое увеличен�
 test('страница запрашивает новую версию стилей и редактора после мобильной правки', () => {
   assert.match(indexSource, /data\.js\?v=20260902-fashion-style-1/);
   assert.match(indexSource, /styles\.css\?v=20260902-admin-stability-6/);
-  assert.match(indexSource, /app\.js\?v=20260902-admin-delete-1/);
+  assert.match(indexSource, /app\.js\?v=20260903-information-1/);
 });
 
 test('заказ не показывает битую картинку, если у позиции нет сохранённого изображения', () => {
@@ -249,6 +249,20 @@ test('пустой каталог объясняет, что ассортиме�
 
   app.navigate('catalog');
   assert.match(screen.innerHTML, /Ассортимент скоро появится/);
+});
+
+test('вкладка информации показывает условия покупок вместо старой страницы магазина', () => {
+  const { app, screen } = loadApp();
+
+  app.navigate('store');
+
+  assert.match(indexSource, /data-screen="store"[\s\S]*?aria-label="Информация"[\s\S]*?<span>Информация<\/span>/);
+  assert.match(screen.innerHTML, /Условия покупок/);
+  assert.match(screen.innerHTML, /раз в 7–10 дней/);
+  assert.match(screen.innerHTML, /минимальной наценкой/);
+  assert.match(screen.innerHTML, /подарки, розыгрыши/);
+  assert.doesNotMatch(screen.innerHTML, /Трендовая одежда для стильных образов/);
+  assert.doesNotMatch(screen.innerHTML, /Адрес|Часы работы|Поддержка|Связаться|Оплата и возврат|Режим продавца/);
 });
 
 test('приложение загружает покупательский каталог через API-клиент', async () => {
