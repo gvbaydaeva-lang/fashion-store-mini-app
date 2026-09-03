@@ -743,12 +743,40 @@
     return `<div class="checkout-progress" aria-label="Шаг ${current} из 3">${[1, 2, 3].map((step) => `<span class="${step <= current ? 'is-active' : ''}">${step}</span>`).join('')}</div>`;
   }
 
+  function formatItemCount(count) {
+    const remainder = count % 100;
+    const lastDigit = count % 10;
+    const word = remainder >= 11 && remainder <= 19
+      ? 'товаров'
+      : lastDigit === 1
+        ? 'товар'
+        : lastDigit >= 2 && lastDigit <= 4
+          ? 'товара'
+          : 'товаров';
+    return `${count} ${word}`;
+  }
+
+  function renderCheckoutItems(summary = Core.getCartSummary(state.cart, 0)) {
+    const items = state.cart.map((item) => `
+      <li>
+        <img src="${escapeHtml(getProductImage(item))}" alt="${escapeHtml(item.name)}">
+        <span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.colorName)}, ${escapeHtml(item.size)} · ${item.quantity} шт.</small></span>
+        <b>${money(item.price * item.quantity)}</b>
+        <button class="remove-button checkout-items-disclosure__remove" type="button" data-action="cart-remove" data-key="${escapeHtml(item.key)}">Удалить</button>
+      </li>`).join('');
+    return `
+      <details class="checkout-items-disclosure">
+        <summary data-checkout-items-toggle><span>${formatItemCount(summary.itemCount)}</span><b>${money(summary.subtotal)}</b><span class="checkout-items-disclosure__arrow" aria-hidden="true">⌄</span></summary>
+        <ul class="review-items">${items}</ul>
+      </details>`;
+  }
+
   function renderCheckoutContact() {
     const summary = Core.getCartSummary(state.cart, 0);
     return `
       ${pageHeader('Контакты', 'Шаг 1 из 3')}
       ${checkoutProgress(1)}
-      <section class="checkout-summary card"><span>${summary.itemCount} товара</span><b>${money(summary.subtotal)}</b></section>
+      <section class="checkout-summary card">${renderCheckoutItems(summary)}</section>
       <form id="contact-form" class="form-card card" novalidate>
         <label><span>Имя</span><input name="name" type="text" autocomplete="name" maxlength="60" value="${escapeHtml(state.customer.name)}" placeholder="Как к вам обращаться" required></label>
         <label><span>Телефон</span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" value="${escapeHtml(state.customer.phone)}" placeholder="+7 999 000-00-00" required aria-describedby="phone-help phone-error"></label>
@@ -770,6 +798,7 @@
     return `
       ${pageHeader('Получение', 'Шаг 2 из 3')}
       ${checkoutProgress(2)}
+      <section class="checkout-summary card">${renderCheckoutItems({ ...Core.getCartSummary(state.cart, 0) })}</section>
       <div class="delivery-list">${methods}</div>
       <section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>Адрес, стоимость и сроки указаны предварительно.</p></section>
       <section class="sticky-checkout">
@@ -781,12 +810,10 @@
   function renderCheckoutReview() {
     if (!state.delivery) return renderCheckoutDelivery();
     const summary = Core.getCartSummary(state.cart, state.delivery.price);
-    const items = state.cart.map((item) => `
-      <li><img src="${item.image}" alt=""><span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.colorName)}, ${escapeHtml(item.size)} · ${item.quantity} шт.</small></span><b>${money(item.price * item.quantity)}</b></li>`).join('');
     return `
       ${pageHeader('Проверка заказа', 'Шаг 3 из 3')}
       ${checkoutProgress(3)}
-      <section class="review-section card"><div class="review-heading"><h2>Товары</h2><button type="button" data-action="navigate" data-screen="cart">Изменить</button></div><ul class="review-items">${items}</ul></section>
+      <section class="review-section card"><div class="review-heading"><h2>Товары</h2><button type="button" data-action="navigate" data-screen="cart">Изменить</button></div>${renderCheckoutItems(summary)}</section>
       <section class="review-section card"><div class="review-heading"><h2>Контакты</h2><button type="button" data-action="edit-contact">Изменить</button></div><p><strong>${escapeHtml(state.customer.name)}</strong><br>${escapeHtml(state.customer.phone)}</p></section>
       <section class="review-section card"><div class="review-heading"><h2>Получение</h2><button type="button" data-action="edit-delivery">Изменить</button></div><p><strong>${escapeHtml(state.delivery.title)}</strong><br>${escapeHtml(state.delivery.description)}</p></section>
       <section class="summary-card card">
@@ -1373,7 +1400,8 @@
     state.cart = Core.removeCartItem(state.cart, key);
     saveState();
     showToast('Товар удалён');
-    render();
+    if (CHECKOUT_SCREENS.has(state.screen) && !state.cart.length) navigate('cart');
+    else render();
   }
 
   function renderFilterSheet() {

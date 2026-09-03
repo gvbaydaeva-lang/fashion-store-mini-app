@@ -113,8 +113,8 @@ test('Mini App запрещает автоматическое увеличен�
 
 test('страница запрашивает новую версию стилей и редактора после мобильной правки', () => {
   assert.match(indexSource, /data\.js\?v=20260903-profitable-purchases-1/);
-  assert.match(indexSource, /styles\.css\?v=20260903-product-card-2/);
-  assert.match(indexSource, /app\.js\?v=20260903-product-card-2/);
+  assert.match(indexSource, /styles\.css\?v=20260903-product-card-3/);
+  assert.match(indexSource, /app\.js\?v=20260903-product-card-3/);
 });
 
 test('заказ не показывает битую картинку, если у позиции нет сохранённого изображения', () => {
@@ -566,6 +566,41 @@ test('один размер получает широкую ячейку, а н�
   assert.match(stylesSource, /\.choice-grid--compact\s*\{[^}]*repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(stylesSource, /\.choice-grid--colors\s*\{[^}]*repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(stylesSource, /\.screen--product\s*\{[^}]*padding-bottom/);
+});
+
+test('карточка товара использует компактные заголовок и блок выбора', () => {
+  assert.match(stylesSource, /\.product-card__body strong\s*\{[^}]*font-size:\s*13px/);
+  assert.match(stylesSource, /\.product-info h1\s*\{[^}]*font-size:\s*clamp\(28px, 7\.5vw, 36px\)/);
+  assert.match(stylesSource, /\.product-info\s*\{[^}]*padding-top:\s*12px/);
+  assert.match(stylesSource, /\.choice-section\s*\{[^}]*padding:\s*12px 0/);
+});
+
+test('checkout показывает компактный состав заказа с раскрытием и удалением позиции', () => {
+  assert.match(appSource, /<details class="checkout-items-disclosure"/);
+  assert.match(appSource, /<summary[^>]*data-checkout-items-toggle/);
+  assert.match(appSource, /data-action="cart-remove" data-key="\$\{item\.key\}"/);
+  assert.match(appSource, /checkout-items-disclosure__arrow/);
+  assert.match(stylesSource, /\.checkout-items-disclosure\s*\{[^}]*overflow:\s*hidden/);
+  assert.match(stylesSource, /\.checkout-items-disclosure__arrow/);
+});
+
+test('checkout показывает правильное количество товаров в сворачиваемой строке', () => {
+  const cart = [
+    { key: 'dress:black:S', productId: 'dress', name: 'Платье', image: 'dress.webp', colorName: 'Чёрный', size: 'S', price: 2600, quantity: 1 },
+    { key: 'coat:milk:M', productId: 'coat', name: 'Пальто', image: 'coat.webp', colorName: 'Молочный', size: 'M', price: 4000, quantity: 2 },
+  ];
+  const { app, screen } = loadApp({
+    'fashion-store-preorder-reset-v1': '1',
+    'fashion-store-cart-v1': JSON.stringify(cart),
+  });
+
+  app.navigate('checkout-contact');
+
+  assert.match(screen.innerHTML, /<details class="checkout-items-disclosure">/);
+  assert.match(screen.innerHTML, />3 товара</);
+  assert.match(screen.innerHTML, /Платье/);
+  assert.match(screen.innerHTML, /Пальто/);
+  assert.match(screen.innerHTML, /data-action="cart-remove" data-key="dress:black:S"/);
 });
 
 test('после публикации продавцом покупательский каталог обновляется до уведомления', () => {
