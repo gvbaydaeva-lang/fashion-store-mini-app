@@ -80,6 +80,42 @@ test('административный запрос передаёт сырой 
   });
 });
 
+test('учёт открытия передаёт только raw initData в user-api', async () => {
+  const calls = [];
+  const client = API.createApiClient({
+    baseUrl: 'https://example.supabase.co/functions/v1',
+    initData: 'signed-telegram-data',
+    fetch: async (url, options) => {
+      calls.push({ url, options });
+      return { ok: true, async json() { return { ok: true, data: { tracked: true } }; } };
+    },
+  });
+
+  assert.deepEqual(await client.trackOpen(), { tracked: true });
+  assert.equal(calls[0].url, 'https://example.supabase.co/functions/v1/user-api');
+  assert.deepEqual(JSON.parse(calls[0].options.body), {
+    action: 'track-open', initData: 'signed-telegram-data',
+  });
+});
+
+test('клиент запрашивает список пользователей и карточку владельца через admin-api', async () => {
+  const bodies = [];
+  const client = API.createApiClient({
+    initData: 'signed-telegram-data',
+    fetch: async (_url, options) => {
+      bodies.push(JSON.parse(options.body));
+      return { ok: true, async json() { return { ok: true, data: { users: [] } }; } };
+    },
+  });
+
+  await client.listAdminUsers({ query: 'Анна', filter: 'orders' });
+  await client.getAdminUser(17);
+  assert.deepEqual(bodies, [
+    { action: 'list-users', initData: 'signed-telegram-data', query: 'Анна', filter: 'orders' },
+    { action: 'get-user', initData: 'signed-telegram-data', userId: 17 },
+  ]);
+});
+
 test('клиент не маскирует сетевую ошибку успешным ответом', async () => {
   const client = API.createApiClient({
     baseUrl: 'https://example.supabase.co/functions/v1',

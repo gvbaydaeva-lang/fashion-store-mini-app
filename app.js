@@ -28,7 +28,7 @@
   const CHECKOUT_SCREENS = new Set([
     'product', 'checkout-contact', 'checkout-delivery', 'checkout-review',
     'payment-success', 'order-detail', 'seller-access', 'seller-products',
-    'seller-product-edit', 'seller-orders', 'seller-order',
+    'seller-product-edit', 'seller-orders', 'seller-order', 'seller-users', 'seller-user',
   ]);
   const DEFAULT_FILTERS = {
     category: 'all',
@@ -69,6 +69,13 @@
     sellerOrder: null,
     sellerOrdersStatus: 'idle',
     sellerOrdersError: '',
+    adminUsers: [],
+    adminUserStats: { total: 0, joinedToday: 0, openedApp: 0, ordered: 0 },
+    adminUsersStatus: 'idle',
+    adminUsersError: '',
+    adminUsersQuery: '',
+    adminUsersFilter: 'all',
+    adminUser: null,
     catalogProducts: [],
     adminProducts: [],
     adminCategories: [],
@@ -847,6 +854,7 @@
         <nav class="seller-main-tabs" aria-label="Разделы админ-панели">
           <button class="${section === 'products' ? 'is-active' : ''}" type="button" data-action="set-seller-section" data-section="products" aria-current="${section === 'products' ? 'page' : 'false'}">Товары</button>
           <button class="${section === 'orders' ? 'is-active' : ''}" type="button" data-action="set-seller-section" data-section="orders" aria-current="${section === 'orders' ? 'page' : 'false'}">Заказы</button>
+          <button class="${section === 'users' ? 'is-active' : ''}" type="button" data-action="set-seller-section" data-section="users" aria-current="${section === 'users' ? 'page' : 'false'}">Пользователи</button>
         </nav>
         ${content}
       </div>`;
@@ -1213,6 +1221,42 @@
     return sellerShell('orders', content);
   }
 
+  function formatUserDate(value, empty = '—') {
+    if (!value) return empty;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return empty;
+    return new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+  }
+
+  function userDisplayName(user) {
+    return [user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'Имя не указано';
+  }
+
+  function renderSellerUsers() {
+    const filters = [{ id: 'all', label: 'Все' }, { id: 'today', label: 'Сегодня' }, { id: 'orders', label: 'Оформляли заказ' }];
+    const query = state.adminUsersQuery.trim().toLocaleLowerCase('ru-RU');
+    const visibleUsers = state.adminUsers.filter((user) => !query || `${user.firstName} ${user.lastName} ${user.username || ''}`.toLocaleLowerCase('ru-RU').includes(query));
+    const content = state.adminUsersStatus === 'loading'
+      ? '<section class="empty-state card"><p>Загружаем пользователей…</p></section>'
+      : state.adminUsersStatus === 'error'
+        ? `<section class="empty-state card"><h2>Не удалось загрузить пользователей</h2><p>${escapeHtml(state.adminUsersError)}</p><button class="primary-button" type="button" data-action="reload-admin-users">Повторить</button></section>`
+        : visibleUsers.length
+          ? `<div class="admin-user-list">${visibleUsers.map((user) => `<button class="admin-user-row card" type="button" data-action="open-admin-user" data-user-id="${escapeHtml(user.telegramUserId)}"><span class="admin-user-row__avatar" aria-hidden="true">${escapeHtml((userDisplayName(user)[0] || 'П').toUpperCase())}</span><span class="admin-user-row__content"><strong>${escapeHtml(userDisplayName(user))}</strong><small>${user.username ? `@${escapeHtml(String(user.username).replace(/^@/, ''))}` : 'Username не указан'}</small><small>Присоединился: ${escapeHtml(formatUserDate(user.firstAppOpenedAt))}</small><small>Открывал: ${escapeHtml(formatUserDate(user.lastAppOpenedAt))}</small>${user.ordered ? '<em class="admin-user-badge">Оформлял заказ</em>' : ''}</span></button>`).join('')}</div>`
+          : '<section class="empty-state card"><span aria-hidden="true">👤</span><h2>Пользователей пока нет</h2><p>Они появятся после первого открытия приложения в Telegram.</p></section>';
+    return sellerShell('users', `
+      <section class="admin-section-heading"><div><p class="eyebrow">Аудитория Mini App</p><h2>Пользователи</h2><p>Только открытия с проверенным Telegram-сеансом.</p></div></section>
+      <div class="admin-user-stats"><div class="card"><strong>${state.adminUserStats.total}</strong><span>Всего пользователей</span></div><div class="card"><strong>${state.adminUserStats.joinedToday}</strong><span>Сегодня присоединились</span></div><div class="card"><strong>${state.adminUserStats.openedApp}</strong><span>Открыли приложение</span></div><div class="card"><strong>${state.adminUserStats.ordered}</strong><span>Оформляли заказ</span></div></div>
+      <label class="admin-search"><span aria-hidden="true">${icon('search')}</span><span class="sr-only">Поиск по имени или username</span><input type="search" data-action="admin-users-search" value="${escapeHtml(state.adminUsersQuery)}" placeholder="Найти пользователя" autocomplete="off"></label>
+      <div class="admin-filter-strip" aria-label="Фильтр пользователей">${filters.map((filter) => `<button class="filter-chip ${state.adminUsersFilter === filter.id ? 'is-active' : ''}" type="button" data-action="set-admin-users-filter" data-filter="${filter.id}" aria-pressed="${state.adminUsersFilter === filter.id}">${filter.label}</button>`).join('')}</div>
+      ${content}`);
+  }
+
+  function renderSellerUser() {
+    if (!state.adminUser) return renderSellerUsers();
+    const user = state.adminUser;
+    return sellerShell('users', `<header class="admin-editor-header"><button class="icon-button" type="button" data-action="go-back" aria-label="Назад">${icon('chevron-left')}</button><div><p class="eyebrow">Профиль Mini App</p><h1>Карточка пользователя</h1></div></header><section class="admin-user-detail card"><div class="admin-user-detail__avatar" aria-hidden="true">${escapeHtml((userDisplayName(user)[0] || 'П').toUpperCase())}</div><h2>${escapeHtml(userDisplayName(user))}</h2><p>${user.username ? `@${escapeHtml(String(user.username).replace(/^@/, ''))}` : 'Username не указан'}</p></section><section class="info-list card"><div><span aria-hidden="true">◷</span><p><strong>Первое открытие</strong><small>${escapeHtml(formatUserDate(user.firstAppOpenedAt))}</small></p></div><div><span aria-hidden="true">◷</span><p><strong>Последнее открытие</strong><small>${escapeHtml(formatUserDate(user.lastAppOpenedAt))}</small></p></div><div><span aria-hidden="true">✓</span><p><strong>Заказы</strong><small>${user.ordered ? 'Оформлял заказ' : 'Заказов нет'}</small></p></div></section>`);
+  }
+
   const renderers = {
     home: renderHome,
     catalog: renderCatalog,
@@ -1230,6 +1274,8 @@
     'seller-product-edit': renderAdminEditor,
     'seller-orders': renderSellerOrders,
     'seller-order': renderSellerOrder,
+    'seller-users': renderSellerUsers,
+    'seller-user': renderSellerUser,
   };
 
   function updateNav() {
@@ -1458,6 +1504,11 @@
     if (section === 'orders') {
       navigate('seller-orders', {}, { root: true });
       void loadRemoteSellerOrders();
+      return;
+    }
+    if (section === 'users') {
+      navigate('seller-users', {}, { root: true });
+      void loadRemoteAdminUsers();
       return;
     }
     navigate('seller-products', {}, { root: true });
@@ -1978,6 +2029,31 @@
     }
   }
 
+  async function loadRemoteAdminUsers() {
+    if (!apiClient?.listAdminUsers) return false;
+    state.adminUsersStatus = 'loading';
+    state.adminUsersError = '';
+    render();
+    try {
+      const result = await apiClient.listAdminUsers({ query: state.adminUsersQuery, filter: state.adminUsersFilter });
+      state.adminUsers = result.users || [];
+      state.adminUserStats = result.stats || state.adminUserStats;
+      state.adminUsersStatus = 'ready';
+      render();
+      return true;
+    } catch (error) {
+      state.adminUsersStatus = 'error';
+      state.adminUsersError = error?.status === 403
+        ? 'У тебя нет доступа к пользователям.'
+        : error?.status === 401
+          ? 'Не удалось подтвердить Telegram-сеанс. Открой Mini App заново.'
+          : error?.message || 'Не удалось загрузить пользователей.';
+      state.adminUsers = [];
+      render();
+      return false;
+    }
+  }
+
   async function loadRemoteCatalog() {
     if (!apiClient) return false;
     state.catalogStatus = 'loading';
@@ -2153,6 +2229,11 @@
     'open-seller-demo': openSellerDemo,
     'exit-seller': exitSellerMode,
     'set-seller-section': (control) => setSellerSection(control.dataset.section),
+    'open-admin-user': (control) => void openAdminUser(control.dataset.userId),
+    'set-admin-users-filter': (control) => {
+      state.adminUsersFilter = ['today', 'orders'].includes(control.dataset.filter) ? control.dataset.filter : 'all';
+      void loadRemoteAdminUsers();
+    },
     'add-admin-product': () => startAdminDraft(),
     'edit-admin-product': (control) => {
       const product = getAdminProduct(control.dataset.productId);
@@ -2213,6 +2294,7 @@
     'request-ready': requestOrderReady,
     'confirm-ready': confirmOrderReady,
     'reload-seller-orders': () => void loadRemoteSellerOrders(),
+    'reload-admin-users': () => void loadRemoteAdminUsers(),
     'open-offer-bot': openOfferBot,
     'share-bot': shareBot,
     'close-sheet': closeSheet,
@@ -2233,6 +2315,7 @@
     window.addEventListener('orientationchange', applyViewportLayout);
     render();
     showFirstOpenOffer();
+    if (tg?.initData && apiClient?.trackOpen) void apiClient.trackOpen().catch(() => {});
     void loadRemoteCatalog();
   }
 
@@ -2266,6 +2349,14 @@
     }
     if (control.matches('[data-action="admin-stock"]')) {
       updateAdminStock(control);
+      return;
+    }
+    if (control.matches('[data-action="admin-users-search"]')) {
+      state.adminUsersQuery = control.value;
+      render();
+      const search = document.querySelector('[data-action="admin-users-search"]');
+      search?.focus();
+      search?.setSelectionRange?.(search.value.length, search.value.length);
       return;
     }
     if (control.closest('#admin-product-form')) state.adminDirty = true;
@@ -2326,6 +2417,19 @@
     }
   }, true);
 
-  window.FashionStoreApp = { init, navigate, goBack, render, selectColor, selectProductOption, selectSize, loadRemoteCatalog };
+  async function openAdminUser(userId) {
+    if (!userId || !apiClient?.getAdminUser) return;
+    state.adminUser = state.adminUsers.find((user) => String(user.telegramUserId) === String(userId)) || null;
+    navigate('seller-user', { userId });
+    try {
+      state.adminUser = await apiClient.getAdminUser(userId);
+      render();
+    } catch (error) {
+      showToast(error?.message || 'Не удалось загрузить карточку пользователя.');
+      navigate('seller-users', {}, { root: true });
+    }
+  }
+
+  window.FashionStoreApp = { init, navigate, goBack, render, selectColor, selectProductOption, selectSize, loadRemoteCatalog, loadRemoteAdminUsers };
   document.addEventListener('DOMContentLoaded', init, { once: true });
 })(window, document);

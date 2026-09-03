@@ -149,6 +149,19 @@
     };
   }
 
+  function normalizeUser(user) {
+    return {
+      ...user,
+      telegramUserId: Number(user?.telegramUserId ?? user?.telegram_user_id),
+      firstName: user?.firstName ?? user?.first_name ?? '',
+      lastName: user?.lastName ?? user?.last_name ?? '',
+      username: user?.username || null,
+      firstAppOpenedAt: user?.firstAppOpenedAt ?? user?.first_app_opened_at ?? null,
+      lastAppOpenedAt: user?.lastAppOpenedAt ?? user?.last_app_opened_at ?? null,
+      ordered: user?.ordered === true,
+    };
+  }
+
   function serializeProduct(product) {
     const category = String(product?.category ?? '').trim();
     const name = String(product?.name ?? '').trim();
@@ -277,6 +290,15 @@
       return readResponse(response);
     }
 
+    async function userRequest(action, payload = {}) {
+      const response = await requestWithTimeout(`${baseUrl}/user-api`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, initData: options.initData ?? getInitData(), ...payload }),
+      });
+      return readResponse(response);
+    }
+
     async function uploadAdminImage(productId, image) {
       const { mimeType, extension } = parseDataImage(image);
       const data = await adminRequest('upload-url', { productId, fileExtension: extension });
@@ -294,6 +316,9 @@
 
     return {
       getCatalog,
+      async trackOpen() {
+        return userRequest('track-open');
+      },
       async createOrder(order) {
         const data = await orderRequest('create', {
           idempotencyKey: order.idempotencyKey,
@@ -327,6 +352,17 @@
       async getAdminProducts(filters) {
         const data = await adminRequest('list', { filters });
         return (Array.isArray(data.products) ? data.products : []).map(normalizeProduct);
+      },
+      async listAdminUsers(filters = {}) {
+        const data = await adminRequest('list-users', filters);
+        return {
+          ...data,
+          users: (Array.isArray(data.users) ? data.users : []).map(normalizeUser),
+        };
+      },
+      async getAdminUser(userId) {
+        const data = await adminRequest('get-user', { userId });
+        return normalizeUser(data.user);
       },
       async createAdminProduct(product) {
         const data = await adminRequest('create', { product: serializeProduct(product) });
@@ -362,7 +398,7 @@
     };
   }
 
-  const API = { FashionStoreApiError, createApiClient, normalizeProduct, normalizeOrder };
+  const API = { FashionStoreApiError, createApiClient, normalizeProduct, normalizeOrder, normalizeUser };
   window.FashionStoreApi = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
 }(typeof window !== 'undefined' ? window : globalThis));

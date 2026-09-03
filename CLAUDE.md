@@ -61,6 +61,8 @@
 
 - `seller-orders` — вкладки «Собрать» и «Готовы»;
 - `seller-order` — состав заказа и изменение статуса.
+- `seller-users` — счётчики и список пользователей с проверенным открытием Mini App;
+- `seller-user` — карточка пользователя, даты открытий и факт созданного заказа.
 
 Вход продавца выполняется через серверную проверку raw `Telegram.WebApp.initData`, свежесть `auth_date` и Telegram ID сотрудника. Кнопка демо-доступа удалена.
 
@@ -175,6 +177,7 @@ https://telegram.org/js/telegram-web-app.js
 - `BackButton`;
 - `openTelegramLink()` для шаринга ссылки на бота;
 - имя из `initDataUnsafe.user` только для приветствия;
+- raw `Telegram.WebApp.initData` отправляется в `user-api` для учёта открытия только внутри Telegram; `initDataUnsafe` не используется для доступа или статистики;
 - safe areas через CSS-переменные Telegram и `env(safe-area-inset-*)`.
 
 В обычном браузере используется безопасный fallback: имя «Гость», собственная кнопка назад и запасные цвета темы.

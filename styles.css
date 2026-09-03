@@ -1050,6 +1050,23 @@ img { display: block; max-width: 100%; }
 .admin-filter-strip::-webkit-scrollbar { display: none; }
 .admin-filter-strip button { flex: 0 0 auto; min-height: 44px; padding: 8px 13px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--muted); font-size: 13px; font-weight: 700; }
 .admin-filter-strip button.is-active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-dark); }
+
+.admin-user-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 16px; }
+.admin-user-stats .card { display: grid; gap: 4px; padding: 14px; }
+.admin-user-stats strong { font-size: 24px; line-height: 1; }
+.admin-user-stats span { color: var(--muted); font-size: 12px; line-height: 1.25; }
+.admin-user-list { display: grid; gap: 10px; }
+.admin-user-row { display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 14px; text-align: left; }
+.admin-user-row__avatar,
+.admin-user-detail__avatar { display: grid; flex: 0 0 44px; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-dark); font-weight: 800; }
+.admin-user-row__content { display: grid; min-width: 0; gap: 3px; }
+.admin-user-row__content strong { overflow-wrap: anywhere; }
+.admin-user-row__content small { color: var(--muted); overflow-wrap: anywhere; }
+.admin-user-badge { width: fit-content; margin-top: 4px; padding: 4px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-dark); font-size: 12px; font-style: normal; font-weight: 700; }
+.admin-user-detail { display: grid; justify-items: center; gap: 8px; margin-bottom: 12px; text-align: center; }
+.admin-user-detail__avatar { width: 56px; height: 56px; font-size: 20px; }
+.admin-user-detail h2 { margin: 0; }
+.admin-user-detail p { margin: 0; color: var(--muted); overflow-wrap: anywhere; }
 .admin-filter-tools { display: flex; margin: -4px 0 16px; align-items: center; gap: 8px; overflow-x: auto; scrollbar-width: none; }
 .admin-filter-tools::-webkit-scrollbar { display: none; }
 .admin-filter-select { flex: 0 0 170px; }

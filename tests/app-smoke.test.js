@@ -403,6 +403,23 @@ test('административные экраны рендерятся из р
   assert.doesNotMatch(screen.innerHTML, /name="care"/);
 });
 
+test('админка содержит защищённую вкладку пользователей и карточку без бонусной статистики', () => {
+  assert.match(appSource, /data-section="users"[^>]*>Пользователи/);
+  assert.match(appSource, /seller-users/);
+  assert.match(appSource, /Всего пользователей/);
+  assert.match(appSource, /Сегодня присоединились/);
+  assert.match(appSource, /Найти пользователя/);
+  assert.match(appSource, /Оформлял заказ/);
+  assert.match(appSource, /Пользователей пока нет/);
+  assert.match(appSource, /Карточка пользователя/);
+  assert.doesNotMatch(appSource, /Получили 500 ₽/);
+});
+
+test('track-open вызывается только при наличии Telegram initData', () => {
+  assert.match(appSource, /if \(tg\?\.initData && apiClient\?\.trackOpen\)/);
+  assert.match(appSource, /apiClient\.trackOpen\(\)/);
+});
+
 test('остаток одной единицы показывается покупателю простым текстом', async () => {
   const product = {
     id: 'single-item', name: 'Платье', category: 'all', price: 4990, oldPrice: null,
