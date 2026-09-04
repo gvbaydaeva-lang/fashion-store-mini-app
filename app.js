@@ -1903,33 +1903,36 @@
         <button type="button" data-action="duplicate-admin-product" data-product-id="${escapeHtml(product.id)}">${icon('copy')}<span><strong>Создать похожий</strong><small>Остатки не перенесутся</small></span>${icon('chevron-right')}</button>
         ${product.adminStatus !== 'archived' ? `<button type="button" data-action="archive-admin-product" data-product-id="${escapeHtml(product.id)}">${icon('archive')}<span><strong>Убрать в архив</strong><small>Скрыть товар без удаления истории</small></span>${icon('chevron-right')}</button>` : ''}
       </div>
+      <button class="danger-button full-width admin-menu-delete-button" type="button" data-action="delete-admin-product" data-product-id="${escapeHtml(product.id)}">Удалить товар</button>
       <button class="secondary-button full-width" type="button" data-action="close-sheet">Отмена</button>
     `, { title: 'Действия с товаром' });
   }
 
-  function confirmDeleteAdminProduct() {
-    const product = state.adminDraft;
+  function confirmDeleteAdminProduct(productId = state.adminDraft?.id) {
+    const product = getAdminProduct(productId) || state.adminDraft;
     if (!product || !/^\d+$/.test(String(product.id))) return;
     openSheet(`
       <div class="sheet__header"><p class="eyebrow">Удаление варианта</p><h2>Удалить «${escapeHtml(product.name || 'Без названия')}»?</h2></div>
-      <p>Будет удалена только эта карточка товара вместе с её фото, цветами и размерами. Остальные цветовые варианты сохранятся; если это владелец группы, они продолжат работать как самостоятельные карточки.</p>
-      <div class="sheet__actions"><button class="secondary-button" type="button" data-action="close-sheet">Отмена</button><button class="danger-button" type="button" data-action="confirm-delete-admin-product">Удалить</button></div>
+      <p>Будет удалена только эта карточка товара вместе с её фото, цветами и размерами. Остальные цветовые варианты в склейке сохранятся; если это владелец группы, они продолжат работать как самостоятельные карточки. История уже оформленных заказов останется.</p>
+      <div class="sheet__actions"><button class="secondary-button" type="button" data-action="close-sheet">Отмена</button><button class="danger-button" type="button" data-action="confirm-delete-admin-product" data-product-id="${escapeHtml(product.id)}">Удалить</button></div>
     `, { title: 'Подтверждение удаления' });
   }
 
-  async function deleteAdminProduct() {
-    const productId = state.adminDraft?.id;
+  async function deleteAdminProduct(productId = state.adminDraft?.id) {
     if (!apiClient || !/^\d+$/.test(String(productId))) return;
     try {
       const result = await apiClient.deleteAdminProduct(productId);
       if (Number(result?.deletedProductId) !== Number(productId)) {
         throw new Error('Не удалось подтвердить удаление варианта.');
       }
-      state.adminProducts = state.adminProducts.filter((product) => product.id !== String(productId));
-      state.adminDraft = null;
-      state.adminDirty = false;
-      state.adminErrors = {};
-      clearAdminDraft();
+      state.adminProducts = state.adminProducts.filter((product) => String(product.id) !== String(productId));
+      if (String(state.adminDraft?.id) === String(productId)) {
+        state.adminDraft = null;
+        state.adminDirty = false;
+        state.adminErrors = {};
+        clearAdminDraft();
+      }
+      await loadRemoteCatalog();
       closeSheet();
       state.history = [];
       state.screen = 'seller-products';
@@ -2434,8 +2437,8 @@
     'save-admin-changes': () => void saveAdminProduct('published'),
     'publish-admin-product': () => void saveAdminProduct('published'),
     'confirm-leave-admin': confirmLeaveAdminEditor,
-    'delete-admin-product': confirmDeleteAdminProduct,
-    'confirm-delete-admin-product': () => void deleteAdminProduct(),
+    'delete-admin-product': (control) => confirmDeleteAdminProduct(control.dataset.productId),
+    'confirm-delete-admin-product': (control) => void deleteAdminProduct(control.dataset.productId),
     'toggle-admin-color': (control) => toggleAdminColor(control.dataset.colorId),
     'toggle-admin-size': (control) => toggleAdminSize(control.dataset.size),
     'add-admin-product-option': addAdminProductOption,

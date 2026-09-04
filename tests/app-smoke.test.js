@@ -111,12 +111,12 @@ test('Mini App запрещает автоматическое увеличен�
   assert.match(indexSource, /user-scalable=no/);
 });
 
-test('страница запрашивает новую версию стилей и редактора после мобильной правки', () => {
+test('страница запрашивает новые версии стилей и редактора после правки меню удаления', () => {
   assert.match(indexSource, /data\.js\?v=20260903-profitable-purchases-1/);
-  assert.match(indexSource, /styles\.css\?v=20260903-demo-payment-1/);
+  assert.match(indexSource, /styles\.css\?v=20260904-admin-delete-menu-1/);
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
   assert.match(indexSource, /api\.js\?v=20260904-admin-save-2/);
-  assert.match(indexSource, /app\.js\?v=20260904-admin-draft-flow-1/);
+  assert.match(indexSource, /app\.js\?v=20260904-admin-delete-menu-1/);
 });
 
 test('кнопка добавления товара всегда начинает пустую карточку, не восстанавливая прошлый черновик', () => {
@@ -811,9 +811,11 @@ test('черновик сохраняет фото в IndexedDB и исполь�
 test('редактор показывает удаление только сохранённого варианта с подтверждением', () => {
   assert.match(appSource, /data-action="delete-admin-product"/);
   assert.match(appSource, /Удалить этот вариант/);
+  assert.match(appSource, /Удалить товар/);
   assert.match(appSource, /data-action="confirm-delete-admin-product"/);
   assert.match(appSource, /apiClient\.deleteAdminProduct/);
   assert.match(appSource, /deletedProductId/);
+  assert.match(appSource, /await loadRemoteCatalog\(\)/);
 });
 
 test('seller-очередь не читает локальный order и меняет ready только ответом API', () => {

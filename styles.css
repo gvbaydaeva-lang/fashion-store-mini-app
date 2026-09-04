@@ -1231,9 +1231,11 @@ img { display: block; max-width: 100%; }
 
 .admin-action-list { display: grid; margin: 16px 0; }
 .admin-action-list button { display: grid; grid-template-columns: 24px minmax(0, 1fr) 20px; min-height: 64px; padding: 10px 2px; align-items: center; gap: 10px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); text-align: left; }
+.admin-action-list button > span { min-width: 0; }
 .admin-action-list button > span strong,
 .admin-action-list button > span small { display: block; }
 .admin-action-list button > span small { margin-top: 2px; color: var(--muted); }
+.admin-menu-delete-button { margin: 0 0 10px; }
 .admin-action-list .ui-icon { width: 20px; height: 20px; }
 .seller-tabs button span { display: inline-grid; min-width: 22px; height: 22px; margin-left: 4px; place-items: center; border-radius: 999px; background: color-mix(in srgb, var(--muted) 12%, transparent); font-size: 11px; }
 .seller-tabs button.is-active span { background: color-mix(in srgb, var(--surface) 18%, transparent); }
