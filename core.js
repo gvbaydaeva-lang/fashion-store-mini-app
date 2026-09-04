@@ -321,16 +321,28 @@
   }
 
   function createAdminProductVariant(product, id) {
-    const copy = cloneAdminProduct(product);
     return {
-      ...copy,
       id,
       groupId: product.groupId || product.id,
       sourceProductId: product.id,
-      images: [...copy.images],
-      imagePaths: [...copy.imagePaths],
+      name: String(product.name || ''),
+      sellerSku: String(product.sellerSku || ''),
+      supplier: String(product.supplier || ''),
+      description: String(product.description || ''),
+      category: 'all',
+      categoryNew: '',
+      wholesalePrice: null,
+      price: '',
+      oldPrice: null,
+      badge: null,
+      images: [],
+      imagePaths: [],
       colors: [],
       sizes: [],
+      composition: '',
+      care: '',
+      fit: '',
+      model: '',
       measurements: {},
       variants: [],
       adminStatus: 'draft',

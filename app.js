@@ -358,8 +358,11 @@
     return Core.createAdminCatalog([product])[0];
   }
 
-  function startAdminDraft(product = null) {
-    const restored = !product ? readAdminDraft() : null;
+  function startAdminDraft(product = null, { restoreLocalDraft = false } = {}) {
+    // «Добавить товар» всегда начинает новую карточку. Восстановление возможно
+    // только при явно запрошенном продолжении локального черновика, иначе
+    // прошлый черновик превращается в незаметное редактирование старого товара.
+    const restored = restoreLocalDraft && !product ? readAdminDraft() : null;
     state.adminDraft = product ? cloneAdminProduct(product) : restored?.draft || createBlankAdminProduct();
     if (!state.adminDraft.clientDraftKey) state.adminDraft.clientDraftKey = createAdminDraftKey();
     state.adminStep = restored?.step || 1;
@@ -2391,7 +2394,7 @@
       state.adminUsersFilter = ['today', 'orders'].includes(control.dataset.filter) ? control.dataset.filter : 'all';
       void loadRemoteAdminUsers();
     },
-    'add-admin-product': () => startAdminDraft(),
+    'add-admin-product': () => startAdminDraft(null, { restoreLocalDraft: false }),
     'edit-admin-product': (control) => {
       const product = getAdminProduct(control.dataset.productId);
       if (!product) return;

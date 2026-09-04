@@ -116,7 +116,14 @@ test('страница запрашивает новую версию стиле
   assert.match(indexSource, /styles\.css\?v=20260903-demo-payment-1/);
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
   assert.match(indexSource, /api\.js\?v=20260904-admin-save-2/);
-  assert.match(indexSource, /app\.js\?v=20260904-admin-save-3/);
+  assert.match(indexSource, /app\.js\?v=20260904-admin-draft-flow-1/);
+});
+
+test('кнопка добавления товара всегда начинает пустую карточку, не восстанавливая прошлый черновик', () => {
+  const draftStart = appSource.match(/function startAdminDraft\(product = null, \{ restoreLocalDraft = false \} = \{\}\) \{([\s\S]*?)\n  \}/);
+  assert.ok(draftStart, 'не найден старт редактора товара');
+  assert.match(draftStart[1], /const restored = restoreLocalDraft && !product \? readAdminDraft\(\) : null;/);
+  assert.match(appSource, /'add-admin-product': \(\) => startAdminDraft\(null, \{ restoreLocalDraft: false \}\)/);
 });
 
 test('заказ не показывает битую картинку, если у позиции нет сохранённого изображения', () => {

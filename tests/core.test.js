@@ -156,7 +156,7 @@ test('неполный товар разрешён для серверного �
   }, 'draft'), {});
 });
 
-test('новый цветовой вариант сохраняет текст и фотографии исходной карточки', () => {
+test('новый цветовой вариант не переносит фотографии исходной карточки', () => {
   const variant = createAdminProductVariant({
     id: '12', groupId: '12', name: 'Платье', description: 'Описание',
     images: ['12/photo.webp'], imagePaths: ['12/photo.webp'],
@@ -167,8 +167,8 @@ test('новый цветовой вариант сохраняет текст �
 
   assert.equal(variant.name, 'Платье');
   assert.equal(variant.description, 'Описание');
-  assert.deepEqual(variant.images, ['12/photo.webp']);
-  assert.deepEqual(variant.imagePaths, ['12/photo.webp']);
+  assert.deepEqual(variant.images, []);
+  assert.deepEqual(variant.imagePaths, []);
   assert.equal(variant.sourceProductId, '12');
   assert.equal(variant.adminStatus, 'draft');
 });
@@ -546,7 +546,7 @@ test('похожий товар становится независимым че
   assert.equal(source.variants[0].stock, 4);
 });
 
-test('новый вариант копирует текст и фото, но начинает без цвета, размеров и остатков', () => {
+test('новый вариант переносит только название, описание, артикул и поставщика', () => {
   const source = {
     id: '31', groupId: 'dress-group', name: 'Платье', category: 'dresses', sellerSku: 'DR-31',
     price: 5990, oldPrice: 6990, wholesalePrice: 2800, supplier: 'Milan Fashion',
@@ -561,8 +561,13 @@ test('новый вариант копирует текст и фото, но н
   assert.equal(variant.groupId, 'dress-group');
   assert.equal(variant.name, 'Платье');
   assert.equal(variant.description, 'Платье миди');
-  assert.deepEqual(variant.images, ['dress.jpg']);
-  assert.deepEqual(variant.imagePaths, ['products/31/dress.jpg']);
+  assert.equal(variant.sellerSku, 'DR-31');
+  assert.equal(variant.supplier, 'Milan Fashion');
+  assert.equal(variant.price, '');
+  assert.equal(variant.wholesalePrice, null);
+  assert.equal(variant.category, 'all');
+  assert.deepEqual(variant.images, []);
+  assert.deepEqual(variant.imagePaths, []);
   assert.deepEqual(variant.colors, []);
   assert.deepEqual(variant.sizes, []);
   assert.deepEqual(variant.variants, []);
