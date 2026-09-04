@@ -116,7 +116,7 @@ test('страница запрашивает новые версии стиле
   assert.match(indexSource, /styles\.css\?v=20260904-admin-grouping-1/);
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
   assert.match(indexSource, /api\.js\?v=20260904-admin-save-2/);
-  assert.match(indexSource, /app\.js\?v=20260904-admin-grouping-1/);
+  assert.match(indexSource, /app\.js\?v=20260904-admin-selection-scroll-1/);
 });
 
 test('кнопка добавления товара всегда начинает пустую карточку, не восстанавливая прошлый черновик', () => {
@@ -725,10 +725,22 @@ test('меню товара не содержит архив и предпрос
   assert.ok(groupSource, 'не найден обработчик склеек');
   assert.match(groupSource[0], /apiClient\.combineAdminProducts/);
   assert.match(groupSource[0], /apiClient\.ungroupAdminProducts/);
-  assert.match(groupSource[0], /await loadRemoteAdminProducts\(\)/);
-  assert.match(groupSource[0], /await loadRemoteCatalog\(\)/);
+  assert.match(groupSource[0], /await loadRemoteAdminProducts\(\{ preserveScroll: true \}\)/);
+  assert.match(groupSource[0], /await loadRemoteCatalog\(\{ preserveScroll: true \}\)/);
   assert.match(appSource, /data-action="toggle-admin-product-selection"/);
   assert.match(appSource, /Для разъединения отметь все карточки одной склейки/);
+});
+
+test('выбор и изменение склейки сохраняют позицию списка продавца', () => {
+  const selectionSource = appSource.match(/function toggleAdminProductSelection\(productId\) \{[\s\S]*?\n  \}/);
+  const groupSource = appSource.match(/async function updateAdminProductGroups\(action\) \{[\s\S]*?\n  \}\n\n  function jumpToFirstAdminError/);
+
+  assert.ok(selectionSource, 'не найден обработчик выбора карточки');
+  assert.match(selectionSource[0], /render\(\{ preserveScroll: true \}\)/);
+  assert.ok(groupSource, 'не найден обработчик изменения склеек');
+  assert.match(groupSource[0], /loadRemoteAdminProducts\(\{ preserveScroll: true \}\)/);
+  assert.match(groupSource[0], /loadRemoteCatalog\(\{ preserveScroll: true \}\)/);
+  assert.match(groupSource[0], /render\(\{ preserveScroll: true \}\)/);
 });
 
 test('ошибка buyer-refresh сохраняет последний корректный каталог', async () => {

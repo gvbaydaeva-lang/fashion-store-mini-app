@@ -1994,7 +1994,8 @@
     state.adminSelectedProductIds = state.adminSelectedProductIds.some((selectedId) => String(selectedId) === id)
       ? state.adminSelectedProductIds.filter((selectedId) => String(selectedId) !== id)
       : [...state.adminSelectedProductIds, id];
-    render();
+    // Выбор галочки не должен отправлять продавца в начало длинного списка.
+    render({ preserveScroll: true });
   }
 
   async function updateAdminProductGroups(action) {
@@ -2012,11 +2013,13 @@
     try {
       if (action === 'combine') await apiClient.combineAdminProducts(productIds);
       else await apiClient.ungroupAdminProducts(productIds);
-      await loadRemoteAdminProducts();
-      await loadRemoteCatalog();
+      // После действия остаёмся возле тех же карточек: продавец видит результат,
+      // а не возвращается к верхней части списка.
+      await loadRemoteAdminProducts({ preserveScroll: true });
+      await loadRemoteCatalog({ preserveScroll: true });
       state.adminSelectedProductIds = [];
       state.adminSelectionMode = false;
-      render();
+      render({ preserveScroll: true });
       showToast(action === 'combine' ? 'Карточки объединены' : 'Карточки разъединены');
     } catch (error) {
       showToast(error?.message || 'Не удалось изменить склейку.');
@@ -2134,11 +2137,11 @@
     }
   }
 
-  async function loadRemoteAdminProducts() {
+  async function loadRemoteAdminProducts(options = {}) {
     if (!apiClient) {
       state.sellerAuthStatus = 'error';
       state.sellerAuthError = 'Открой Mini App в Telegram: в обычном браузере нет подтверждённого Telegram-сеанса.';
-      render();
+      render({ preserveScroll: options.preserveScroll });
       return false;
     }
     try {
@@ -2148,7 +2151,7 @@
       state.sellerAuthStatus = 'ready';
       state.screen = 'seller-products';
       state.history = [];
-      render();
+      render({ preserveScroll: options.preserveScroll });
       return true;
     } catch (error) {
       state.sellerAuthStatus = 'error';
@@ -2158,7 +2161,7 @@
           ? 'Не удалось подтвердить Telegram-сеанс. Открой Mini App заново.'
           : error?.message || 'Не удалось загрузить товары.';
       state.adminProducts = [];
-      render();
+      render({ preserveScroll: options.preserveScroll });
       return false;
     }
   }
@@ -2188,22 +2191,22 @@
     }
   }
 
-  async function loadRemoteCatalog() {
+  async function loadRemoteCatalog(options = {}) {
     if (!apiClient) return false;
     state.catalogStatus = 'loading';
     state.catalogError = '';
-    render();
+    render({ preserveScroll: options.preserveScroll });
     try {
       const products = await apiClient.getCatalog(state.filters);
       state.catalogProducts = Core.createAdminCatalog(products);
       await preloadCatalogImages(state.catalogProducts);
       state.catalogStatus = 'ready';
-      render();
+      render({ preserveScroll: options.preserveScroll });
       return true;
     } catch (error) {
       state.catalogStatus = 'error';
       state.catalogError = error?.message || 'Каталог временно недоступен.';
-      render();
+      render({ preserveScroll: options.preserveScroll });
       return false;
     }
   }
