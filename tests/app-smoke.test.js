@@ -778,6 +778,22 @@ test('ошибка сохранения честно различает серв
   assert.doesNotMatch(saveSource, /Данные сохранены в черновик\. Исправь ошибку и повтори\./);
 });
 
+test('повторный артикул подсвечивается в форме, а не маскируется серверной ошибкой', () => {
+  const saveSource = appSource.match(/async function saveAdminProduct\(status\) \{[\s\S]*?\n  \}/)?.[0] || '';
+  assert.match(saveSource, /error\?\.code === 'SELLER_SKU_CONFLICT'/);
+  assert.match(saveSource, /sellerSku: 'Артикул уже используется в другой карточке/);
+  assert.match(saveSource, /Черновик не сохранён: исправь артикул продавца\./);
+  assert.match(appSource, /adminFieldError\('sellerSku'\)/);
+});
+
+test('тайм-аут сохранения сначала восстанавливает результат, а публикация передаёт подтверждённую версию', () => {
+  const saveSource = appSource.match(/async function saveAdminProduct\(status\) \{[\s\S]*?\n  \}/)?.[0] || '';
+  assert.match(saveSource, /getAdminSaveResult/);
+  assert.match(saveSource, /Черновик сохранён на сервере\. Ответ задержался/);
+  assert.match(saveSource, /publishAdminProduct\(saved\)/);
+  assert.match(saveSource, /каталог покупателя пока не подтвердил обновление/);
+});
+
 test('черновик сохраняет фото в IndexedDB и использует localStorage как резерв', () => {
   assert.match(appSource, /FashionStoreAdminDraftStore/);
   assert.match(appSource, /AdminDraftStore\?\.save\(ADMIN_DRAFT_KEY, state\.adminDraft\.images\)/);

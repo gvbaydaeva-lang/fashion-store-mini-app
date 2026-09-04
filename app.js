@@ -1087,6 +1087,7 @@
           <label><span>Название товара</span><input name="name" type="text" maxlength="80" value="${escapeHtml(product.name)}" placeholder="Например, Платье Миди" autocomplete="off"></label>
           ${adminFieldError('name')}
           <label><span>Артикул продавца</span><input name="sellerSku" type="text" maxlength="40" value="${escapeHtml(product.sellerSku)}" placeholder="Например, DR-204" autocomplete="off"></label>
+          ${adminFieldError('sellerSku')}
           <label><span>Категория</span><select name="category">${categories}</select></label>
         </section>
         ${adminEditorActions('Продолжить')}
@@ -1231,7 +1232,7 @@
     )).join('');
     return `
       ${adminEditorHeader()}
-      ${state.adminSaveError ? `<section class="notice-card admin-save-error" role="alert"><span aria-hidden="true">${icon('info')}</span><p>${escapeHtml(state.adminSaveError)}<br><small>Введённые данные сохранены на этом устройстве. Исправь ошибку и повтори сохранение.</small></p></section>` : ''}
+      ${state.adminSaveError ? `<section class="notice-card admin-save-error" role="alert"><span aria-hidden="true">${icon('info')}</span><p>${escapeHtml(state.adminSaveError)}<br><small>${state.adminDraft?.id && /^\d+$/.test(String(state.adminDraft.id)) ? 'Подтверждённая часть черновика есть на сервере; введённые данные также оставлены на этом устройстве.' : 'Введённые данные сохранены только на этом устройстве. Исправь ошибку и повтори сохранение.'}</small></p></section>` : ''}
       <form id="admin-product-form" class="admin-editor-form admin-editor-form--single" novalidate>
         <section class="admin-form-section card">
           <div class="admin-form-heading"><div><p class="eyebrow">Карточка товара</p><h2>Основная информация</h2></div><span>${product.images.length}/4 фото</span></div>
@@ -1251,7 +1252,7 @@
             <label><span>Оптовая цена, ₽</span><input name="wholesalePrice" type="number" min="1" step="1" inputmode="numeric" value="${product.wholesalePrice || ''}" placeholder="Необязательно"></label>
             <label><span>Поставщик</span><input name="supplier" type="text" maxlength="80" value="${escapeHtml(product.supplier)}" placeholder="Например, Milan Fashion" autocomplete="off"></label>
           </div>
-          ${adminFieldError('name')}${adminFieldError('price')}${adminFieldError('oldPrice')}${adminFieldError('wholesalePrice')}
+          ${adminFieldError('name')}${adminFieldError('sellerSku')}${adminFieldError('price')}${adminFieldError('oldPrice')}${adminFieldError('wholesalePrice')}
           <div class="admin-form-heading admin-form-heading--variants"><div><p class="eyebrow">Варианты товара</p><h2>Цвет и размеры</h2></div><span>${product.variants.length} размеров</span></div>
           ${colorFields || emptyColorBlocks || renderColorFields({ id: '', name: '' }, 0, true)}
           ${adminFieldError('colors')}${adminFieldError('sizes')}${adminFieldError('variants')}
@@ -2228,14 +2229,22 @@
         }
       }
       const finalProduct = status === 'published'
-        ? await apiClient.publishAdminProduct(saved.id)
+        ? await apiClient.publishAdminProduct(saved)
         : saved;
       const normalizedProduct = normalizeAdminProductCategory(finalProduct);
       state.adminProducts = state.adminProducts.some(({ id }) => id === normalizedProduct.id)
         ? state.adminProducts.map((item) => item.id === normalizedProduct.id ? normalizedProduct : item)
         : [normalizedProduct, ...state.adminProducts];
       rebuildAdminCategories();
-      if (status === 'published') await loadRemoteCatalog();
+      if (status === 'published' && !await loadRemoteCatalog()) {
+        state.adminDraft = { ...state.adminDraft, ...finalProduct, id: finalProduct.id, updatedAt: finalProduct.updatedAt };
+        state.isSubmitting = false;
+        state.adminSaveError = 'Товар опубликован на сервере, но каталог покупателя пока не подтвердил обновление. Обнови список и проверь интернет.';
+        persistAdminDraft();
+        render();
+        showToast('Публикация требует проверки каталога.');
+        return;
+      }
       state.adminDraft = null;
       clearAdminDraft();
       state.adminDirty = false;
@@ -2250,14 +2259,56 @@
       showToast(status === 'published' ? 'Товар опубликован' : 'Черновик сохранён');
     } catch (error) {
       state.isSubmitting = false;
-      state.adminSaveError = serverDraftSaved
-        ? 'Черновик сохранён на сервере. Не удалось завершить загрузку фотографии. Повтори сохранение.'
-        : 'Сервер не сохранил черновик. Введённые данные оставлены только на этом устройстве.';
+      const mayNeedRecovery = error?.code === 'timeout' || error?.status === 408;
+      if (mayNeedRecovery && apiClient?.getAdminSaveResult && state.adminDraft?.clientDraftKey) {
+        try {
+          const recovered = await apiClient.getAdminSaveResult({
+            productId: /^\d+$/.test(String(state.adminDraft.id)) ? state.adminDraft.id : undefined,
+            draftKey: state.adminDraft.clientDraftKey,
+          });
+          state.adminDraft = {
+            ...state.adminDraft,
+            ...recovered,
+            id: recovered.id,
+            updatedAt: recovered.updatedAt,
+            imagePaths: recovered.imagePaths || state.adminDraft.imagePaths || [],
+          };
+          state.adminProducts = state.adminProducts.some(({ id }) => id === recovered.id)
+            ? state.adminProducts.map((item) => item.id === recovered.id ? normalizeAdminProductCategory(recovered) : item)
+            : [normalizeAdminProductCategory(recovered), ...state.adminProducts];
+          state.adminSaveError = 'Черновик сохранён на сервере. Ответ задержался, поэтому фото и публикация не были повторены автоматически.';
+          persistAdminDraft();
+          rebuildAdminCategories();
+          render();
+          showToast('Сервер подтвердил черновик.');
+          return;
+        } catch (_recoveryError) {
+          // Результат действительно неизвестен: повтор сохранения использует тот же ключ черновика.
+        }
+      }
+      const sellerSkuConflict = error?.code === 'SELLER_SKU_CONFLICT';
+      const versionConflict = error?.code === 'PRODUCT_VERSION_CONFLICT' || error?.status === 409;
+      if (error?.code === 'PUBLICATION_VALIDATION_FAILED' && error?.fieldErrors) {
+        state.adminErrors = { ...state.adminErrors, ...error.fieldErrors };
+        state.adminStep = 4;
+      }
+      if (sellerSkuConflict) {
+        state.adminErrors = { ...state.adminErrors, sellerSku: 'Артикул уже используется в другой карточке. Укажи другой или очисти поле.' };
+      }
+      state.adminSaveError = sellerSkuConflict
+        ? 'Черновик не сохранён: исправь артикул продавца.'
+        : versionConflict
+          ? 'Карточка изменилась на другом устройстве. Обнови список, чтобы не затереть чужие изменения.'
+        : serverDraftSaved
+          ? 'Черновик сохранён на сервере. Не удалось завершить загрузку фотографии. Повтори сохранение.'
+          : 'Сервер не сохранил черновик. Введённые данные оставлены только на этом устройстве.';
       persistAdminDraft();
       render();
-      showToast(error?.status === 409
+      showToast(sellerSkuConflict
+        ? 'Артикул уже используется в другой карточке.'
+        : versionConflict
         ? 'Товар изменён на другом устройстве. Обнови список.'
-        : state.adminSaveError);
+        : `${state.adminSaveError}${error?.requestId ? ` Код обращения: ${error.requestId}.` : ''}`);
     }
   }
 

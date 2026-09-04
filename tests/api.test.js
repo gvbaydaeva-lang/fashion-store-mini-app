@@ -56,6 +56,37 @@ test('normalizeProduct восстанавливает ключ серверно�
   assert.equal(product.clientDraftKey, '123e4567-e89b-42d3-a456-426614174000');
 });
 
+test('клиент передаёт версию для публикации и восстанавливает сохранение по ключу черновика', async () => {
+  const calls = [];
+  const client = API.createApiClient({
+    initData: 'signed-telegram-data',
+    fetch: async (_url, options) => {
+      calls.push(JSON.parse(options.body));
+      return { ok: true, async json() { return { ok: true, data: { product: { id: 12, updated_at: '2026-09-04T10:00:00.000Z' } } }; } };
+    },
+  });
+  await client.publishAdminProduct({ id: 12, updatedAt: '2026-09-04T10:00:00.000Z' });
+  await client.getAdminSaveResult({ draftKey: '123e4567-e89b-42d3-a456-426614174000' });
+  assert.deepEqual(calls, [
+    { action: 'publish', initData: 'signed-telegram-data', productId: 12, updatedAt: '2026-09-04T10:00:00.000Z' },
+    { action: 'get-save-result', initData: 'signed-telegram-data', draftKey: '123e4567-e89b-42d3-a456-426614174000' },
+  ]);
+});
+
+test('клиент сохраняет requestId и поля серверной проверки публикации', async () => {
+  const client = API.createApiClient({
+    fetch: async () => ({
+      ok: false, status: 422,
+      headers: { get: (name) => name === 'X-Request-Id' ? 'req-42' : null },
+      async json() { return { requestId: 'req-42', error: { code: 'PUBLICATION_VALIDATION_FAILED', message: 'Загрузи хотя бы одно фото', fields: { images: 'Загрузи хотя бы одно фото' } } }; },
+    }),
+  });
+  await assert.rejects(
+    () => client.publishAdminProduct({ id: 12, updatedAt: '2026-09-04T10:00:00.000Z' }),
+    (error) => error.code === 'PUBLICATION_VALIDATION_FAILED' && error.requestId === 'req-42' && error.fieldErrors.images === 'Загрузи хотя бы одно фото',
+  );
+});
+
 test('административный запрос передаёт сырой initData и возвращает код ошибки', async () => {
   const calls = [];
   const client = API.createApiClient({
@@ -363,6 +394,28 @@ test('клиент скрывает внутренний текст неожид
       && error.message === 'Не удалось выполнить запрос.'
       && !error.message.includes('Postgres')
       && !error.message.includes('stack.ts'),
+  );
+});
+
+test('клиент сохраняет понятный конфликт повторного артикула', async () => {
+  const client = API.createApiClient({
+    fetch: async () => ({
+      ok: false,
+      status: 409,
+      async json() {
+        return { ok: false, error: {
+          code: 'SELLER_SKU_CONFLICT',
+          message: 'Артикул уже используется в другой карточке. Укажи другой или очисти поле.',
+        } };
+      },
+    }),
+  });
+
+  await assert.rejects(
+    () => client.createAdminProduct({ clientDraftKey: '123e4567-e89b-42d3-a456-426614174000' }),
+    (error) => error.status === 409
+      && error.code === 'SELLER_SKU_CONFLICT'
+      && error.message === 'Артикул уже используется в другой карточке. Укажи другой или очисти поле.',
   );
 });
 

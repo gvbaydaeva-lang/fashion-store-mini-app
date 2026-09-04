@@ -5,11 +5,12 @@
   const DEFAULT_BASE_URL = 'https://sskwmffdgzytombtrhut.supabase.co/functions/v1';
 
   class FashionStoreApiError extends Error {
-    constructor(message, status = 0, code = '') {
+    constructor(message, status = 0, code = '', requestId = '') {
       super(message);
       this.name = 'FashionStoreApiError';
       this.status = status;
       this.code = code;
+      this.requestId = requestId;
     }
   }
 
@@ -216,11 +217,15 @@
       const safeMessage = code === 'INTERNAL_ERROR'
         ? 'Не удалось выполнить запрос.'
         : safeErrorMessage(message);
-      throw new FashionStoreApiError(safeMessage, response.status, code);
+      const requestError = new FashionStoreApiError(safeMessage, response.status, code, body.requestId || response.headers?.get?.('X-Request-Id') || '');
+      requestError.fieldErrors = error?.fields && typeof error.fields === 'object' ? error.fields : {};
+      throw requestError;
     }
     if (body.ok === false) {
       const error = body.error || {};
-      throw new FashionStoreApiError(safeErrorMessage(error.message), response.status, error.code || '');
+      const requestError = new FashionStoreApiError(safeErrorMessage(error.message), response.status, error.code || '', body.requestId || response.headers?.get?.('X-Request-Id') || '');
+      requestError.fieldErrors = error?.fields && typeof error.fields === 'object' ? error.fields : {};
+      throw requestError;
     }
     return body.data ?? body;
   }
@@ -384,8 +389,12 @@
         const data = await adminRequest('update', { productId: product?.id, updatedAt: product?.updatedAt, product: serializeProduct(product) });
         return normalizeProduct(data.product);
       },
-      async publishAdminProduct(productId) {
-        const data = await adminRequest('publish', { productId });
+      async publishAdminProduct(product) {
+        const data = await adminRequest('publish', { productId: product?.id ?? product, updatedAt: product?.updatedAt });
+        return normalizeProduct(data.product);
+      },
+      async getAdminSaveResult({ productId, draftKey } = {}) {
+        const data = await adminRequest('get-save-result', { productId, draftKey });
         return normalizeProduct(data.product);
       },
       async archiveAdminProduct(productId) {
