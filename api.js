@@ -300,18 +300,26 @@
     }
 
     async function uploadAdminImage(productId, image) {
-      const { mimeType, extension } = parseDataImage(image);
-      const data = await adminRequest('upload-url', { productId, fileExtension: extension });
-      const objectPath = data?.objectPath;
-      const signedUrl = data?.upload?.signedUrl;
-      if (!objectPath || !signedUrl) throw new FashionStoreApiError('Сервер не подготовил загрузку фотографии.');
-      const response = await requestWithTimeout(signedUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': mimeType },
-        body: dataImageToBlob(image),
-      });
-      if (!response.ok) throw new FashionStoreApiError('Не удалось загрузить фотографию.', response.status || 0);
-      return objectPath;
+      try {
+        const { mimeType, extension } = parseDataImage(image);
+        const data = await adminRequest('upload-url', { productId, fileExtension: extension });
+        const objectPath = data?.objectPath;
+        const signedUrl = data?.upload?.signedUrl;
+        if (!objectPath || !signedUrl) throw new FashionStoreApiError('Сервер не подготовил загрузку фотографии.');
+        const response = await requestWithTimeout(signedUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': mimeType },
+          body: dataImageToBlob(image),
+        });
+        if (!response.ok) throw new FashionStoreApiError('', response.status || 0, 'PHOTO_UPLOAD_FAILED');
+        return objectPath;
+      } catch (error) {
+        throw new FashionStoreApiError(
+          'Фотография не загрузилась. Повтори загрузку — остальные данные сохранены.',
+          error?.status || 0,
+          error?.code || 'PHOTO_UPLOAD_FAILED',
+        );
+      }
     }
 
     return {

@@ -114,7 +114,7 @@ test('Mini App запрещает автоматическое увеличен�
 test('страница запрашивает новую версию стилей и редактора после мобильной правки', () => {
   assert.match(indexSource, /data\.js\?v=20260903-profitable-purchases-1/);
   assert.match(indexSource, /styles\.css\?v=20260903-demo-payment-1/);
-  assert.match(indexSource, /app\.js\?v=20260903-orders-users-fix-1/);
+  assert.match(indexSource, /app\.js\?v=20260903-demo-payment-1/);
 });
 
 test('заказ не показывает битую картинку, если у позиции нет сохранённого изображения', () => {
@@ -147,6 +147,25 @@ test('добавление размера определяет цвет из т�
   assert.match(appSource, /querySelector\('\[data-admin-color-name\]'\)/);
 });
 
+test('выход из редактора не показывает предупреждение и не очищает draft', () => {
+  assert.doesNotMatch(appSource, /Изменения этого товара будут потеряны/);
+  const back = appSource.match(/function adminEditorBack\(\) \{([\s\S]*?)\n  \}/);
+  assert.ok(back);
+  assert.doesNotMatch(back[1], /openSheet|clearAdminDraft/);
+});
+
+test('новый цветовой вариант не требует предварительного server ID', () => {
+  assert.doesNotMatch(appSource, /Сначала сохрани первый вариант как черновик/);
+  assert.doesNotMatch(appSource, /if \(!\/\^\\d\+\$\/.test\(String\(source\.id\)\)\)/);
+});
+
+test('сохранение draft не запускает обязательную проверку публикации', () => {
+  assert.match(appSource, /if \(status === 'published'\) \{[\s\S]*?validateAdminProduct/);
+  assert.match(appSource, /adminStatus: 'draft'/);
+  assert.match(appSource, /Черновик сохранён\. Исправь ошибки перед публикацией/);
+  assert.match(appSource, /for \(let index = 0; index < state\.adminDraft\.images\.length; index \+= 1\)/);
+});
+
 test('фокус полей админки принудительно сбрасывает горизонтальный scroll offset', () => {
   assert.match(appSource, /addEventListener\('focusin'/);
   assert.match(appSource, /scrollLeft\s*=\s*0/);
@@ -159,13 +178,15 @@ test('список заказов показывает превью первог
 test('созданный заказ не называется оплаченным до подтверждения', () => {
   assert.match(appSource, /order\.orderType === 'server' && order\.status === 'demo'/);
   assert.match(appSource, /Заказ создан/);
-  assert.match(appSource, /state\.sellerOrder\.status === 'paid'/);
+  assert.match(appSource, /order\.status === 'paid'/);
 });
 
-test('checkout отправляет на сервер полный снимок корзины', () => {
+test('checkout создаёт локальную демо-оплату из полного снимка корзины', () => {
   assert.match(appSource, /items: state\.cart\.map/);
-  assert.match(appSource, /const serverOrder = await apiClient\.createOrder/);
-  assert.match(appSource, /state\.orders = \[serverOrder[\s\S]*state\.cart = \[\];/);
+  assert.match(appSource, /const demoOrder = createLocalDemoOrder\(\)/);
+  assert.match(appSource, /const demoOrder = createLocalDemoOrder\(\)[\s\S]*state\.demoOrders = \[demoOrder/);
+  assert.match(appSource, /state\.demoOrders = \[demoOrder[\s\S]*state\.cart = \[\];/);
+  assert.match(appSource, /state\.lastCheckoutOrder = demoOrder[\s\S]*navigate\('payment-success'\)/);
   assert.match(appSource, /review-items">\$\{orderItems\(order\)\}/);
 });
 
@@ -214,7 +235,7 @@ test('экран заказов хранит несколько подтверж
 test('оформление не блокируется старым заказом и не показывает текст про один заказ', () => {
   assert.doesNotMatch(appSource, /В прототипе доступен один текущий заказ/);
   assert.match(appSource, /orders: \[\],/);
-  assert.match(appSource, /state\.orders = \[serverOrder, \.\.\.state\.orders/);
+  assert.match(appSource, /state\.demoOrders = \[demoOrder, \.\.\.state\.demoOrders/);
 });
 
 test('каталог ждёт предзагрузку фото и не откладывает запрос на 300 мс', () => {
@@ -240,10 +261,9 @@ test('ошибка checkout сохраняет корзину и не созда
   assert.match(appSource, /Не удалось создать заказ\. Проверь интернет и попробуй ещё раз/);
 });
 
-test('checkout не маскирует отсутствие серверной функции созданным заказом', () => {
-  assert.match(appSource, /if \(!apiClient\?\.createOrder\) throw new Error\('server-unavailable'\)/);
-  assert.doesNotMatch(appSource, /Сервис оформления заказа пока не подключён/);
-  assert.match(appSource, /Не удалось создать заказ\. Проверь интернет и попробуй ещё раз/);
+test('checkout объясняет, если серверная функция оформления ещё не подключена', () => {
+  assert.match(appSource, /status === 404 \|\| error\?\.code === 'NOT_FOUND'/);
+  assert.match(appSource, /Сервис оформления заказа пока не подключён/);
 });
 
 test('checkout delivery использует короткий адрес самовывоза и не показывает предварительную информацию', () => {
@@ -267,32 +287,57 @@ test('buyer UI использует понятный текст без лишн�
   assert.doesNotMatch(buyerSource[0], /Демо-оплата|Подтвердить демо-оплату|Демонстрационные условия|Итог с сервера/);
 });
 
-test('демо-оформление создаёт серверный заказ и сохраняет его у покупателя', () => {
+test('тестовый заказ не отображается в оплаченной очереди продавца', () => {
+  assert.match(appSource, /demoPayment: true/);
+  assert.match(appSource, /demoOrders/);
+  assert.doesNotMatch(appSource, /state\.orders = \[demoOrder/);
+});
+
+test('демо-оплата не обращается к order-api и сохраняет заказ отдельно', () => {
   const paymentSource = appSource.match(/async function submitDemoPayment\(\) \{[\s\S]*?\n  \}\n\n  function enterSellerMode/);
   assert.ok(paymentSource, 'не найден обработчик демо-оплаты');
-  assert.match(paymentSource[0], /apiClient\.createOrder/);
-  assert.doesNotMatch(paymentSource[0], /createLocalDemoOrder/);
-  assert.match(paymentSource[0], /state\.orders = \[serverOrder/);
-  assert.match(paymentSource[0], /state\.checkoutIdempotencyKey = null/);
+  assert.doesNotMatch(paymentSource[0], /apiClient\.createOrder/);
+  assert.match(paymentSource[0], /createLocalDemoOrder/);
+  assert.match(paymentSource[0], /saveDemoOrders/);
+  assert.match(appSource, /const DEMO_ORDERS_KEY = 'fashion-store-demo-orders-v1'/);
 });
 
-test('серверный тестовый заказ попадает в очередь продавца без статуса оплаченного', () => {
-  assert.match(appSource, /\['demo', 'pending_payment', 'paid'\]/);
-  assert.match(appSource, /order\.status === 'demo'/);
-  assert.match(appSource, /order\.status === 'pending_payment'/);
-  assert.doesNotMatch(appSource, /state\.demoOrders/);
+test('локальный демо-заказ отображается в админской очереди и содержит пометку', () => {
+  const demoOrder = {
+    id: 'DEMO-1', orderType: 'demo', demoPayment: true, status: 'paid', total: 2600,
+    createdAt: '2026-09-03T10:00:00.000Z', customer: { name: 'Гиляна', phone: '+79999999999' },
+    delivery: { id: 'pickup', title: 'Самовывоз в Элисте', description: 'Адрес самовывоза сообщим позже.', price: 0 },
+    items: [{ name: 'Костюм двойка', colorName: 'Чёрный', size: '42-46', quantity: 1, price: 2600 }],
+  };
+  const { app, screen } = loadApp({
+    'fashion-store-preorder-reset-v1': '1',
+    'fashion-store-demo-orders-v1': JSON.stringify([demoOrder]),
+  });
+
+  app.navigate('seller-orders');
+
+  assert.match(screen.innerHTML, /DEMO-1/);
+  assert.match(screen.innerHTML, /Демо-оплата/);
+  assert.match(screen.innerHTML, /Костюм двойка/);
 });
 
-test('учёт Telegram-пользователя запускается через актуальный initData и сохраняет ошибку для повтора', () => {
-  assert.match(appSource, /function trackTelegramOpen\(\)/);
-  assert.match(appSource, /window\.Telegram\?\.WebApp\?\.initData/);
-  assert.match(appSource, /trackOpenPromise/);
-  assert.match(appSource, /await trackOpenPromise/);
+test('демо-заказ не попадает в покупательский список заказов', () => {
+  const demoOrder = { id: 'DEMO-2', orderType: 'demo', demoPayment: true, status: 'paid', total: 100, items: [] };
+  const { app, screen } = loadApp({
+    'fashion-store-preorder-reset-v1': '1',
+    'fashion-store-demo-orders-v1': JSON.stringify([demoOrder]),
+  });
+
+  app.navigate('orders');
+
+  assert.doesNotMatch(screen.innerHTML, /DEMO-2/);
+  assert.match(screen.innerHTML, /Заказов пока нет/);
 });
 
-test('тестовый заказ нельзя ошибочно отметить собранным', () => {
-  assert.match(appSource, /state\.sellerOrder\.status === 'paid'/);
-  assert.doesNotMatch(appSource, /state\.sellerOrder\.demoPayment/);
+test('для демо-заказа сборка меняет статус локально без API', () => {
+  assert.match(appSource, /if \(state\.sellerOrder\.demoPayment\)/);
+  assert.match(appSource, /saveDemoOrders\(\)/);
+  assert.doesNotMatch(appSource, /demoPayment[\s\S]{0,300}apiClient\.markOrderReady/);
 });
 
 test('новая версия один раз очищает только утверждённые локальные демо-ключи', () => {
@@ -459,9 +504,8 @@ test('админка содержит защищённую вкладку пол
 });
 
 test('track-open вызывается только при наличии Telegram initData', () => {
-  assert.match(appSource, /function trackTelegramOpen\(\)/);
-  assert.match(appSource, /window\.Telegram\?\.WebApp\?\.initData/);
-  assert.match(appSource, /trackOpenPromise = apiClient\.trackOpen\(\)/);
+  assert.match(appSource, /if \(tg\?\.initData && apiClient\?\.trackOpen\)/);
+  assert.match(appSource, /apiClient\.trackOpen\(\)/);
 });
 
 test('остаток одной единицы показывается покупателю простым текстом', async () => {

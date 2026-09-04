@@ -228,6 +228,27 @@ test('фотография загружается по разовой ссылк
   assert.equal(calls[1].options.headers['Content-Type'], 'image/png');
 });
 
+test('ошибка Storage возвращается понятным русским сообщением и не маскируется успехом', async () => {
+  const client = API.createApiClient({
+    initData: 'signed-telegram-data',
+    fetch: async (url) => {
+      if (url.endsWith('/admin-api')) return {
+        ok: true,
+        async json() {
+          return { ok: true, data: { objectPath: '12/photo.png', upload: { signedUrl: 'https://storage.example/upload' } } };
+        },
+      };
+      return { ok: false, status: 500, async json() { return {}; } };
+    },
+  });
+
+  await assert.rejects(
+    () => client.uploadAdminImage(12, 'data:image/png;base64,AA=='),
+    (error) => error.code === 'PHOTO_UPLOAD_FAILED'
+      && error.message === 'Фотография не загрузилась. Повтори загрузку — остальные данные сохранены.',
+  );
+});
+
 test('пустые необязательные цены отправляются на сервер как null', async () => {
   let body;
   const client = API.createApiClient({

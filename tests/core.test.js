@@ -149,6 +149,29 @@ test('вариант с нулевым остатком не попадает в
   assert.deepEqual(addCartItem([], item, 0), []);
 });
 
+test('неполный товар разрешён для серверного черновика', () => {
+  assert.deepEqual(validateAdminProduct({
+    name: '', price: '', description: '', wholesalePrice: null,
+    images: [], colors: [], sizes: [], variants: [],
+  }, 'draft'), {});
+});
+
+test('новый цветовой вариант сохраняет текст и фотографии исходной карточки', () => {
+  const variant = createAdminProductVariant({
+    id: '12', groupId: '12', name: 'Платье', description: 'Описание',
+    images: ['12/photo.webp'], imagePaths: ['12/photo.webp'],
+    colors: [{ id: 'black', name: 'Чёрный' }],
+    variants: [{ colorId: 'black', size: 'S', stock: 0, enabled: true }],
+    adminStatus: 'published',
+  }, 'local-option');
+
+  assert.equal(variant.name, 'Платье');
+  assert.equal(variant.description, 'Описание');
+  assert.deepEqual(variant.images, ['12/photo.webp']);
+  assert.deepEqual(variant.imagePaths, ['12/photo.webp']);
+  assert.equal(variant.adminStatus, 'draft');
+});
+
 test('buyer-фильтры учитывают только включённые варианты с положительным остатком', () => {
   const products = [{
     id: 'mixed', category: 'dresses',
@@ -522,7 +545,7 @@ test('похожий товар становится независимым че
   assert.equal(source.variants[0].stock, 4);
 });
 
-test('новый вариант копирует текст карточки, но начинает без фото, цвета, размеров и остатков', () => {
+test('новый вариант копирует текст и фото, но начинает без цвета, размеров и остатков', () => {
   const source = {
     id: '31', groupId: 'dress-group', name: 'Платье', category: 'dresses', sellerSku: 'DR-31',
     price: 5990, oldPrice: 6990, wholesalePrice: 2800, supplier: 'Milan Fashion',
@@ -537,8 +560,8 @@ test('новый вариант копирует текст карточки, н
   assert.equal(variant.groupId, 'dress-group');
   assert.equal(variant.name, 'Платье');
   assert.equal(variant.description, 'Платье миди');
-  assert.deepEqual(variant.images, []);
-  assert.deepEqual(variant.imagePaths, []);
+  assert.deepEqual(variant.images, ['dress.jpg']);
+  assert.deepEqual(variant.imagePaths, ['products/31/dress.jpg']);
   assert.deepEqual(variant.colors, []);
   assert.deepEqual(variant.sizes, []);
   assert.deepEqual(variant.variants, []);

@@ -16,6 +16,7 @@
   const CART_KEY = 'fashion-store-cart-v1';
   const ORDER_KEY = 'fashion-store-order-v1';
   const ORDERS_KEY = 'fashion-store-orders-v2';
+  const DEMO_ORDERS_KEY = 'fashion-store-demo-orders-v1';
   const ORDER_IDEMPOTENCY_KEY = 'fashion-store-order-idempotency-v1';
   const OFFER_KEY = 'fashion-store-offer-seen-v1';
   const ADMIN_PRODUCTS_KEY = 'fashion-store-admin-products-v1';
@@ -58,6 +59,7 @@
     selectedSize: null,
     cart: [],
     orders: [],
+    demoOrders: [],
     lastCheckoutOrder: null,
     activeOrderId: null,
     checkoutIdempotencyKey: null,
@@ -103,7 +105,6 @@
   let toastTimer = null;
   let focusBeforeSheet = null;
   let apiClient = null;
-  let trackOpenPromise = Promise.resolve(false);
 
   try {
     apiClient = API?.createApiClient?.() || null;
@@ -175,6 +176,10 @@
     if (legacyOrder && legacyOrder.orderType === 'server' && typeof legacyOrder.id === 'string'
       && !validOrders.some(({ id }) => id === legacyOrder.id)) validOrders.unshift(legacyOrder);
     state.orders = validOrders;
+    const storedDemoOrders = readStored(DEMO_ORDERS_KEY, []);
+    state.demoOrders = Array.isArray(storedDemoOrders)
+      ? storedDemoOrders.filter((order) => order && order.demoPayment === true && typeof order.id === 'string')
+      : [];
     state.activeOrderId = state.orders[0]?.id || null;
     window.localStorage.removeItem(ORDER_KEY);
     state.checkoutIdempotencyKey = readStored(ORDER_IDEMPOTENCY_KEY, null);
@@ -201,6 +206,25 @@
     window.localStorage.removeItem(ORDER_KEY);
     if (state.checkoutIdempotencyKey) window.localStorage.setItem(ORDER_IDEMPOTENCY_KEY, state.checkoutIdempotencyKey);
     else window.localStorage.removeItem(ORDER_IDEMPOTENCY_KEY);
+  }
+
+  function saveDemoOrders() {
+    window.localStorage.setItem(DEMO_ORDERS_KEY, JSON.stringify(state.demoOrders));
+  }
+
+  function createLocalDemoOrder() {
+    const now = new Date().toISOString();
+    return {
+      id: `DEMO-${Date.now().toString(36).toUpperCase()}`,
+      orderType: 'demo',
+      demoPayment: true,
+      status: 'paid',
+      total: Core.getCartSummary(state.cart, state.delivery.price).total,
+      createdAt: now,
+      customer: { ...state.customer },
+      delivery: { ...state.delivery },
+      items: state.cart.map((item) => ({ ...item })),
+    };
   }
 
   function persistAdminDraft() {
@@ -686,6 +710,11 @@
   }
 
   function orderStatus(order) {
+    if (order.demoPayment) {
+      return order.status === 'ready'
+        ? { title: 'Заказ собран', text: order.delivery.id === 'pickup' ? 'Ждёт вас в магазине' : 'Готов к передаче в доставку', className: 'ready' }
+        : { title: 'Оплачен, собираем', text: 'Сообщим, когда всё будет готово', className: 'paid' };
+    }
     if (order.orderType === 'server' && order.status === 'demo') {
       return { title: 'Заказ создан', text: 'Мы свяжемся с вами для подтверждения.', className: 'demo' };
     }
@@ -1222,18 +1251,16 @@
   }
 
   function renderSellerOrders() {
-    const collectableStatuses = ['demo', 'pending_payment', 'paid'];
-    const orders = state.sellerOrders.filter((order) => state.sellerTab === 'ready'
-      ? order.status === 'ready'
-      : collectableStatuses.includes(order.status));
-    const collectCount = state.sellerOrders.filter((order) => collectableStatuses.includes(order.status)).length;
-    const readyCount = state.sellerOrders.filter((order) => order.status === 'ready').length;
+    const allOrders = [...state.sellerOrders, ...state.demoOrders];
+    const orders = allOrders.filter((order) => state.sellerTab === 'ready' ? order.status === 'ready' : order.status === 'paid');
+    const collectCount = allOrders.filter((order) => order.status === 'paid').length;
+    const readyCount = allOrders.filter((order) => order.status === 'ready').length;
     const content = state.sellerOrdersStatus === 'loading'
       ? '<section class="empty-state card"><h2>Загружаем заказы…</h2></section>'
-      : state.sellerOrdersStatus === 'error'
+      : state.sellerOrdersStatus === 'error' && !state.demoOrders.length
         ? `<section class="empty-state card"><h2>Не удалось загрузить заказы</h2><p>${escapeHtml(state.sellerOrdersError)}</p><button class="primary-button" type="button" data-action="reload-seller-orders">Повторить</button></section>`
         : orders.length
-          ? orders.map((order) => { const status = orderStatus(order); return `<button class="seller-order-card card" type="button" data-action="seller-open-order" data-order-id="${escapeHtml(order.id)}"><span class="status-pill status-pill--${status.className}">${status.title}</span><img class="order-item-image" src="${escapeHtml(getOrderItemImage(order.items[0]))}" alt="${escapeHtml(order.items[0]?.name || 'Товар заказа')}" data-order-item-image><span><strong>${escapeHtml(order.id)}</strong><small>${formatOrderTime(order.createdAt)} · ${escapeHtml(order.customer.name || 'Покупатель')} · ${order.items.length} позиций</small><small>${escapeHtml(order.delivery.title)}</small></span><b>${money(order.total)}</b></button>`; }).join('')
+          ? orders.map((order) => `<button class="seller-order-card card" type="button" data-action="seller-open-order" data-order-id="${escapeHtml(order.id)}"><span class="status-pill status-pill--${order.status === 'ready' ? 'ready' : 'paid'}">${order.status === 'ready' ? 'Заказ собран' : 'Оплачен, собираем'}</span>${order.demoPayment ? '<em class="admin-status admin-status--draft">Демо-оплата</em>' : ''}<img class="order-item-image" src="${escapeHtml(getOrderItemImage(order.items[0]))}" alt="${escapeHtml(order.items[0]?.name || 'Товар заказа')}" data-order-item-image><span><strong>${escapeHtml(order.id)}</strong><small>${formatOrderTime(order.createdAt)} · ${escapeHtml(order.customer.name || 'Покупатель')} · ${order.items.length} позиций</small><small>${escapeHtml(order.delivery.title)}</small></span><b>${money(order.total)}</b></button>`).join('')
           : `<section class="empty-state card"><span aria-hidden="true">${icon('package')}</span><h2>${state.sellerTab === 'ready' ? 'Готовых заказов пока нет' : 'Нет заказов на сборку'}</h2><p>Очередь пуста.</p></section>`;
     return sellerShell('orders', `
       <section class="admin-section-heading"><div><p class="eyebrow">Рабочая очередь</p><h2>Заказы</h2><p>Актуальные заказы магазина</p></div></section>
@@ -1482,30 +1509,21 @@
   async function submitDemoPayment() {
     if (state.isSubmitting || !state.cart.length || !state.delivery) return;
     state.isSubmitting = true;
-    state.checkoutIdempotencyKey ||= (globalThis.crypto?.randomUUID?.() || `checkout-${Date.now()}`);
     try {
-      if (!apiClient?.createOrder) throw new Error('server-unavailable');
-      const serverOrder = await apiClient.createOrder({
-        idempotencyKey: state.checkoutIdempotencyKey,
-        customer: state.customer,
-        deliveryId: state.delivery.id,
-        items: state.cart.map((item) => ({
-          ...item,
-          variantId: item.variantId ?? getVariant(getProduct(item.productId), item.colorId, item.size)?.id,
-        })),
-      });
-      state.orders = [serverOrder, ...state.orders.filter(({ id }) => id !== serverOrder.id)];
-      state.activeOrderId = serverOrder.id;
-      state.lastCheckoutOrder = serverOrder;
+      const demoOrder = createLocalDemoOrder();
+      state.demoOrders = [demoOrder, ...state.demoOrders.filter(({ id }) => id !== demoOrder.id)];
+      state.lastCheckoutOrder = demoOrder;
       state.cart = [];
       state.checkoutIdempotencyKey = null;
+      saveDemoOrders();
       saveState();
       closeSheet();
       navigate('payment-success');
     } catch (error) {
       closeSheet();
-      showToast(error?.status === 409
-        ? 'Товар закончился. Обнови корзину.'
+      const unavailable = error?.status === 404 || error?.code === 'NOT_FOUND';
+      showToast(unavailable
+        ? 'Сервис оформления заказа пока не подключён. Заказ не создан.'
         : 'Не удалось создать заказ. Проверь интернет и попробуй ещё раз');
       render();
     } finally {
@@ -1649,17 +1667,8 @@
   }
 
   function adminEditorBack() {
-    if (!state.adminDirty) {
-      state.adminDraft = null;
-      clearAdminDraft();
-      leaveAdminEditor();
-      return;
-    }
-    openSheet(`
-      <div class="sheet__header"><p class="eyebrow">Несохранённые изменения</p><h2>Выйти из редактора?</h2></div>
-      <p>Изменения этого товара будут потеряны.</p>
-      <div class="sheet__actions"><button class="secondary-button" type="button" data-action="close-sheet">Остаться</button><button class="primary-button" type="button" data-action="confirm-leave-admin">Выйти</button></div>
-    `, { title: 'Подтверждение выхода' });
+    state.adminDraft = null;
+    leaveAdminEditor();
   }
 
   function rebuildAdminVariants() {
@@ -1733,11 +1742,6 @@
     syncAdminForm(form);
     const source = state.adminDraft;
     if (!source) return;
-    if (!/^\d+$/.test(String(source.id))) {
-      persistAdminDraft();
-      showToast('Сначала сохрани первый вариант как черновик');
-      return;
-    }
     const option = Core.createAdminProductVariant(source, `admin-${Date.now().toString(36)}`);
     startAdminDraft(option);
     showToast('Заполни новый вариант товара');
@@ -1962,7 +1966,18 @@
   }
 
   async function confirmOrderReady() {
-    if (!state.sellerOrder || state.sellerOrder.status !== 'paid' || state.isSubmitting || !apiClient?.markOrderReady) return;
+    if (!state.sellerOrder || state.sellerOrder.status !== 'paid' || state.isSubmitting || (!state.sellerOrder.demoPayment && !apiClient?.markOrderReady)) return;
+    if (state.sellerOrder.demoPayment) {
+      const updatedOrder = { ...state.sellerOrder, status: 'ready' };
+      state.demoOrders = state.demoOrders.map((order) => order.id === updatedOrder.id ? updatedOrder : order);
+      state.sellerOrder = updatedOrder;
+      state.sellerTab = 'ready';
+      saveDemoOrders();
+      closeSheet();
+      showToast('Статус обновлён: заказ собран');
+      render();
+      return;
+    }
     state.isSubmitting = true;
     try {
       const updatedOrder = await apiClient.markOrderReady(state.sellerOrder.id);
@@ -2023,9 +2038,13 @@
   async function openSellerOrder(control) {
     const orderId = control?.dataset?.orderId;
     if (!orderId || !apiClient?.getSellerOrder) return;
-    const cachedOrder = state.sellerOrders.find((order) => order.id === orderId);
+    const cachedOrder = [...state.sellerOrders, ...state.demoOrders].find((order) => order.id === orderId);
     state.sellerOrder = cachedOrder || null;
     navigate('seller-order', { orderId });
+    if (cachedOrder?.demoPayment) {
+      render();
+      return;
+    }
     try {
       state.sellerOrder = await apiClient.getSellerOrder(orderId);
       state.sellerOrders = state.sellerOrders.map((order) => order.id === state.sellerOrder.id ? state.sellerOrder : order);
@@ -2071,7 +2090,6 @@
     state.adminUsersError = '';
     render();
     try {
-      await trackOpenPromise;
       const result = await apiClient.listAdminUsers({ query: state.adminUsersQuery, filter: state.adminUsersFilter });
       state.adminUsers = result.users || [];
       state.adminUserStats = result.stats || state.adminUserStats;
@@ -2127,15 +2145,6 @@
     const form = document.querySelector('#admin-product-form');
     syncAdminForm(form);
     if (!state.adminDraft || !apiClient) return;
-    if (status === 'published') {
-      state.adminErrors = Core.validateAdminProduct(state.adminDraft, 'publish');
-      if (Object.keys(state.adminErrors).length) {
-        state.adminStep = 4;
-        render();
-        showToast('Исправь ошибки перед публикацией');
-        return;
-      }
-    }
     persistAdminDraft();
     state.isSubmitting = true;
     render();
@@ -2149,11 +2158,17 @@
       state.adminDraft = { ...state.adminDraft, id: saved.id, updatedAt: saved.updatedAt, imagePaths: saved.imagePaths || state.adminDraft.imagePaths || [] };
       persistAdminDraft();
       if (imagesToUpload.length) {
-        const imagePaths = await Promise.all(state.adminDraft.images.map((image, index) => (
-          String(image).startsWith('data:')
-            ? apiClient.uploadAdminImage(saved.id, image)
-            : state.adminDraft.imagePaths?.[index] || image
-        )));
+        const imagePaths = [...(state.adminDraft.imagePaths || [])];
+        for (let index = 0; index < state.adminDraft.images.length; index += 1) {
+          const image = state.adminDraft.images[index];
+          if (String(image).startsWith('data:')) {
+            imagePaths[index] = await apiClient.uploadAdminImage(saved.id, image);
+            state.adminDraft.imagePaths = imagePaths;
+            persistAdminDraft();
+          } else if (!imagePaths[index]) {
+            imagePaths[index] = image;
+          }
+        }
         saved = await apiClient.updateAdminProduct({
           ...state.adminDraft,
           id: saved.id,
@@ -2161,6 +2176,24 @@
           imagePaths,
           adminStatus: 'draft',
         });
+      }
+      state.adminDraft = { ...state.adminDraft, ...saved, id: saved.id, updatedAt: saved.updatedAt };
+      persistAdminDraft();
+      const normalizedSaved = normalizeAdminProductCategory(state.adminDraft);
+      state.adminProducts = state.adminProducts.some(({ id }) => id === normalizedSaved.id)
+        ? state.adminProducts.map((item) => item.id === normalizedSaved.id ? normalizedSaved : item)
+        : [normalizedSaved, ...state.adminProducts];
+      rebuildAdminCategories();
+      if (status === 'published') {
+        state.adminErrors = Core.validateAdminProduct(state.adminDraft, 'publish');
+        if (Object.keys(state.adminErrors).length) {
+          state.adminStep = 4;
+          state.isSubmitting = false;
+          state.adminSaveError = '';
+          render();
+          showToast('Черновик сохранён. Исправь ошибки перед публикацией');
+          return;
+        }
       }
       const finalProduct = status === 'published'
         ? await apiClient.publishAdminProduct(saved.id)
@@ -2338,18 +2371,6 @@
     'reload-catalog': loadRemoteCatalog,
   };
 
-  function trackTelegramOpen() {
-    const initData = window.Telegram?.WebApp?.initData || tg?.initData || '';
-    if (!initData || !apiClient?.trackOpen) {
-      trackOpenPromise = Promise.resolve(false);
-      return trackOpenPromise;
-    }
-    trackOpenPromise = apiClient.trackOpen()
-      .then(() => true)
-      .catch(() => false);
-    return trackOpenPromise;
-  }
-
   function init() {
     hydrateStaticIcons();
     applyViewportLayout();
@@ -2364,7 +2385,7 @@
     window.addEventListener('orientationchange', applyViewportLayout);
     render();
     showFirstOpenOffer();
-    trackTelegramOpen();
+    if (tg?.initData && apiClient?.trackOpen) void apiClient.trackOpen().catch(() => {});
     void loadRemoteCatalog();
   }
 
