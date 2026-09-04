@@ -89,6 +89,8 @@
     adminSupplier: 'all',
     adminAvailability: 'all',
     adminOnlyNew: false,
+    adminSelectionMode: false,
+    adminSelectedProductIds: [],
     adminDraft: null,
     adminColorEmptyRows: 0,
     adminSizeEmptyRows: {},
@@ -316,6 +318,29 @@
 
   function getAdminProduct(productId) {
     return state.adminProducts.find((product) => product.id === productId) || null;
+  }
+
+  function getAdminProductGroupMembers(groupId) {
+    return state.adminProducts.filter((product) => String(product.groupId || product.id) === String(groupId));
+  }
+
+  function getSelectedAdminProducts() {
+    const selectedIds = new Set(state.adminSelectedProductIds.map(String));
+    return state.adminProducts.filter((product) => selectedIds.has(String(product.id)));
+  }
+
+  function getAdminGroupActions() {
+    const selected = getSelectedAdminProducts();
+    const groupIds = [...new Set(selected.map((product) => String(product.groupId || product.id)))];
+    const selectedGroup = groupIds.length === 1 ? getAdminProductGroupMembers(groupIds[0]) : [];
+    const selectedAllOfOneGroup = selected.length > 1
+      && selectedGroup.length === selected.length
+      && selectedGroup.every((product) => selected.some((item) => String(item.id) === String(product.id)));
+    return {
+      selected,
+      canCombine: selected.length > 1 && !selectedAllOfOneGroup,
+      canUngroup: selectedAllOfOneGroup,
+    };
   }
 
   function createBlankAdminProduct() {
@@ -979,7 +1004,8 @@
       ? `<img src="${escapeHtml(product.images[0])}" alt="">`
       : `<span class="admin-product-row__placeholder" aria-hidden="true">${icon('image')}</span>`;
     return `
-      <article class="admin-product-row card">
+      <article class="admin-product-row card${state.adminSelectionMode ? ' admin-product-row--selectable' : ''}${state.adminSelectedProductIds.some((id) => String(id) === String(product.id)) ? ' is-selected' : ''}">
+        ${state.adminSelectionMode ? `<label class="admin-product-row__select"><input type="checkbox" data-action="toggle-admin-product-selection" data-product-id="${escapeHtml(product.id)}" ${state.adminSelectedProductIds.some((id) => String(id) === String(product.id)) ? 'checked' : ''}><span class="sr-only">Выбрать ${escapeHtml(product.name || 'товар')}</span></label>` : ''}
         <button class="admin-product-row__open" type="button" data-action="edit-admin-product" data-product-id="${escapeHtml(product.id)}">
           <span class="admin-product-row__image">${image}</span>
           <span class="admin-product-row__content">
@@ -1015,10 +1041,14 @@
     const suppliers = [...new Set(state.adminProducts
       .map((product) => String(product.supplier || '').trim())
       .filter(Boolean))].sort((left, right) => left.localeCompare(right, 'ru-RU'));
+    const groupActions = getAdminGroupActions();
     const content = `
       <section class="admin-section-heading">
         <div><p class="eyebrow">Ассортимент</p><h2>Товары</h2><p>${state.adminProducts.length} позиций в каталоге</p></div>
-        <button class="primary-button admin-add-button" type="button" data-action="add-admin-product">${icon('plus')}<span>Добавить товар</span></button>
+        <div class="admin-list-actions">
+          <button class="secondary-button admin-select-button ${state.adminSelectionMode ? 'is-active' : ''}" type="button" data-action="toggle-admin-selection-mode" aria-pressed="${state.adminSelectionMode}">${state.adminSelectionMode ? 'Готово' : 'Выбрать'}</button>
+          <button class="primary-button admin-add-button" type="button" data-action="add-admin-product">${icon('plus')}<span>Добавить товар</span></button>
+        </div>
       </section>
       <label class="admin-search">
         <span aria-hidden="true">${icon('search')}</span>
@@ -1037,6 +1067,7 @@
       ${products.length
         ? `<div class="admin-product-list">${products.map(renderAdminProductRow).join('')}</div>`
         : `<section class="empty-state card"><span aria-hidden="true">${icon('package')}</span><h2>${state.adminProducts.length ? 'Ничего не найдено' : 'Товаров пока нет'}</h2><p>${state.adminProducts.length ? 'Измени запрос или выбери другой статус.' : 'Добавь первый товар — он сохранится как черновик.'}</p><button class="primary-button" type="button" data-action="add-admin-product">Добавить товар</button></section>`}
+      ${state.adminSelectionMode ? `<section class="admin-bulk-bar card" aria-label="Действия с выбранными товарами"><p><strong>Выбрано: ${groupActions.selected.length}</strong><span>Для разъединения отметь все карточки одной склейки.</span></p><div><button class="secondary-button" type="button" data-action="combine-admin-products" ${groupActions.canCombine ? '' : 'disabled'}>Объединить</button><button class="secondary-button" type="button" data-action="ungroup-admin-products" ${groupActions.canUngroup ? '' : 'disabled'}>Разъединить</button></div></section>` : ''}
       <section class="notice-card"><span aria-hidden="true">${icon('info')}</span><p>Товары и остатки сохраняются и доступны после обновления на другом устройстве.</p></section>`;
     return sellerShell('products', content);
   }
@@ -1899,9 +1930,7 @@
       <div class="sheet__header"><p class="eyebrow">Товар</p><h2>${escapeHtml(product.name || 'Без названия')}</h2></div>
       <div class="admin-action-list">
         <button type="button" data-action="edit-admin-product" data-product-id="${escapeHtml(product.id)}">${icon('edit')}<span><strong>Редактировать</strong><small>Изменить данные и остатки</small></span>${icon('chevron-right')}</button>
-        <button type="button" data-action="preview-admin-product" data-product-id="${escapeHtml(product.id)}">${icon('image')}<span><strong>Как увидит покупатель</strong><small>Открыть предпросмотр карточки</small></span>${icon('chevron-right')}</button>
         <button type="button" data-action="duplicate-admin-product" data-product-id="${escapeHtml(product.id)}">${icon('copy')}<span><strong>Создать похожий</strong><small>Остатки не перенесутся</small></span>${icon('chevron-right')}</button>
-        ${product.adminStatus !== 'archived' ? `<button type="button" data-action="archive-admin-product" data-product-id="${escapeHtml(product.id)}">${icon('archive')}<span><strong>Убрать в архив</strong><small>Скрыть товар без удаления истории</small></span>${icon('chevron-right')}</button>` : ''}
       </div>
       <button class="danger-button full-width admin-menu-delete-button" type="button" data-action="delete-admin-product" data-product-id="${escapeHtml(product.id)}">Удалить товар</button>
       <button class="secondary-button full-width" type="button" data-action="close-sheet">Отмена</button>
@@ -1944,22 +1973,6 @@
     }
   }
 
-  async function archiveAdminProduct(productId) {
-    if (!apiClient) return;
-    try {
-      await apiClient.archiveAdminProduct(productId);
-      state.adminProducts = state.adminProducts.map((product) => (
-        product.id === productId ? { ...product, adminStatus: 'archived' } : product
-      ));
-      await loadRemoteCatalog();
-      closeSheet();
-      render();
-      showToast('Товар убран в архив');
-    } catch (error) {
-      showToast(error?.message || 'Не удалось архивировать товар.');
-    }
-  }
-
   function duplicateProduct(productId) {
     const product = getAdminProduct(productId);
     if (!product) return;
@@ -1969,15 +1982,45 @@
     state.adminDirty = true;
   }
 
-  function previewAdminProduct(productId) {
-    const product = getAdminProduct(productId);
-    if (!product) return;
-    closeSheet();
-    state.adminDraft = cloneAdminProduct(product);
-    state.adminStep = 4;
-    state.adminDirty = false;
-    state.adminErrors = {};
-    navigate('seller-product-edit', { productId: product.id });
+  function toggleAdminSelectionMode() {
+    state.adminSelectionMode = !state.adminSelectionMode;
+    state.adminSelectedProductIds = [];
+    render();
+  }
+
+  function toggleAdminProductSelection(productId) {
+    const id = String(productId || '');
+    if (!getAdminProduct(id)) return;
+    state.adminSelectedProductIds = state.adminSelectedProductIds.some((selectedId) => String(selectedId) === id)
+      ? state.adminSelectedProductIds.filter((selectedId) => String(selectedId) !== id)
+      : [...state.adminSelectedProductIds, id];
+    render();
+  }
+
+  async function updateAdminProductGroups(action) {
+    if (!apiClient) return;
+    const groupActions = getAdminGroupActions();
+    const productIds = groupActions.selected.map((product) => Number(product.id));
+    if (action === 'combine' && !groupActions.canCombine) {
+      showToast('Выбери минимум две карточки из разных склеек');
+      return;
+    }
+    if (action === 'ungroup' && !groupActions.canUngroup) {
+      showToast('Для разъединения выбери все карточки одной склейки');
+      return;
+    }
+    try {
+      if (action === 'combine') await apiClient.combineAdminProducts(productIds);
+      else await apiClient.ungroupAdminProducts(productIds);
+      await loadRemoteAdminProducts();
+      await loadRemoteCatalog();
+      state.adminSelectedProductIds = [];
+      state.adminSelectionMode = false;
+      render();
+      showToast(action === 'combine' ? 'Карточки объединены' : 'Карточки разъединены');
+    } catch (error) {
+      showToast(error?.message || 'Не удалось изменить склейку.');
+    }
   }
 
   function jumpToFirstAdminError() {
@@ -2405,9 +2448,11 @@
       startAdminDraft(product);
     },
     'admin-product-menu': (control) => openAdminProductMenu(control.dataset.productId),
-    'archive-admin-product': (control) => void archiveAdminProduct(control.dataset.productId),
-    'preview-admin-product': (control) => previewAdminProduct(control.dataset.productId),
     'duplicate-admin-product': (control) => duplicateProduct(control.dataset.productId),
+    'toggle-admin-selection-mode': toggleAdminSelectionMode,
+    'toggle-admin-product-selection': (control) => toggleAdminProductSelection(control.dataset.productId),
+    'combine-admin-products': () => void updateAdminProductGroups('combine'),
+    'ungroup-admin-products': () => void updateAdminProductGroups('ungroup'),
     'set-admin-filter': (control) => {
       state.adminFilter = ['published', 'draft', 'out'].includes(control.dataset.filter)
         ? control.dataset.filter
@@ -2494,6 +2539,7 @@
     if (control?.dataset.action === 'set-admin-category') actions['set-admin-category'](control);
     if (control?.dataset.action === 'set-admin-supplier') actions['set-admin-supplier'](control);
     if (control?.dataset.action === 'admin-stock') void persistAdminVariantStock(control);
+    if (control?.dataset.action === 'toggle-admin-product-selection') actions['toggle-admin-product-selection'](control);
     if (control?.dataset.action === 'admin-photo-input') {
       handleAdminPhotos(control.files || []);
       control.value = '';

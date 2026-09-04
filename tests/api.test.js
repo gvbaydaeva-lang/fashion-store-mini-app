@@ -189,6 +189,24 @@ test('архивирование отправляет productId и возвра�
   });
 });
 
+test('склейки отправляют выбранные карточки через отдельные действия admin-api', async () => {
+  const bodies = [];
+  const client = API.createApiClient({
+    initData: 'signed-telegram-data',
+    fetch: async (_url, options) => {
+      bodies.push(JSON.parse(options.body));
+      return { ok: true, async json() { return { ok: true, data: bodies.length === 1 ? { groupId: 12, productIds: [12, 34] } : { productIds: [12, 34] } }; } };
+    },
+  });
+
+  assert.deepEqual(await client.combineAdminProducts([12, 34]), { groupId: 12, productIds: [12, 34] });
+  assert.deepEqual(await client.ungroupAdminProducts([12, 34]), { productIds: [12, 34] });
+  assert.deepEqual(bodies, [
+    { action: 'combine-groups', initData: 'signed-telegram-data', productIds: [12, 34] },
+    { action: 'ungroup-products', initData: 'signed-telegram-data', productIds: [12, 34] },
+  ]);
+});
+
 test('изменение остатка отправляет variantId, stock и состояние варианта', async () => {
   const calls = [];
   const client = API.createApiClient({

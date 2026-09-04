@@ -407,6 +407,20 @@
         }
         return data;
       },
+      async combineAdminProducts(productIds) {
+        const data = await adminRequest('combine-groups', { productIds });
+        if (!Number.isSafeInteger(Number(data?.groupId))) {
+          throw new FashionStoreApiError('Сервер не подтвердил объединение карточек.', 500, 'INVALID_GROUP_RESPONSE');
+        }
+        return data;
+      },
+      async ungroupAdminProducts(productIds) {
+        const data = await adminRequest('ungroup-products', { productIds });
+        if (!Array.isArray(data?.productIds) || data.productIds.length !== productIds.length) {
+          throw new FashionStoreApiError('Сервер не подтвердил разъединение карточек.', 500, 'INVALID_GROUP_RESPONSE');
+        }
+        return data;
+      },
       async updateAdminStock(productId, variantId, stock, isEnabled) {
         const data = await adminRequest('update-stock', { productId, variantId, stock, isEnabled });
         return data.variant || data;

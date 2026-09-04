@@ -111,12 +111,12 @@ test('Mini App запрещает автоматическое увеличен�
   assert.match(indexSource, /user-scalable=no/);
 });
 
-test('страница запрашивает новые версии стилей и редактора после правки меню удаления', () => {
+test('страница запрашивает новые версии стилей и редактора после правки склеек', () => {
   assert.match(indexSource, /data\.js\?v=20260903-profitable-purchases-1/);
-  assert.match(indexSource, /styles\.css\?v=20260904-admin-delete-menu-1/);
+  assert.match(indexSource, /styles\.css\?v=20260904-admin-grouping-1/);
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
   assert.match(indexSource, /api\.js\?v=20260904-admin-save-2/);
-  assert.match(indexSource, /app\.js\?v=20260904-admin-delete-menu-1/);
+  assert.match(indexSource, /app\.js\?v=20260904-admin-grouping-1/);
 });
 
 test('кнопка добавления товара всегда начинает пустую карточку, не восстанавливая прошлый черновик', () => {
@@ -715,12 +715,20 @@ test('после изменения остатка продавцом запус
   assert.match(stockSource[0], /await loadRemoteCatalog\(\)/);
 });
 
-test('после архивации продавцом buyer-каталог загружается заново', () => {
-  const archiveSource = appSource.match(/async function archiveAdminProduct\(productId\) \{[\s\S]*?\n  \}\n\n  function duplicateProduct/);
+test('меню товара не содержит архив и предпросмотр, а список поддерживает безопасные склейки', () => {
+  const menuSource = appSource.match(/function openAdminProductMenu\(productId\) \{[\s\S]*?\n  \}\n\n  function confirmDeleteAdminProduct/);
+  const groupSource = appSource.match(/async function updateAdminProductGroups\(action\) \{[\s\S]*?\n  \}\n\n  function jumpToFirstAdminError/);
 
-  assert.ok(archiveSource, 'не найден обработчик архивации товара');
-  assert.match(archiveSource[0], /await apiClient\.archiveAdminProduct/);
-  assert.match(archiveSource[0], /await loadRemoteCatalog\(\)/);
+  assert.ok(menuSource, 'не найдено меню товара');
+  assert.doesNotMatch(menuSource[0], /Как увидит покупатель|Убрать в архив/);
+  assert.match(menuSource[0], /Удалить товар/);
+  assert.ok(groupSource, 'не найден обработчик склеек');
+  assert.match(groupSource[0], /apiClient\.combineAdminProducts/);
+  assert.match(groupSource[0], /apiClient\.ungroupAdminProducts/);
+  assert.match(groupSource[0], /await loadRemoteAdminProducts\(\)/);
+  assert.match(groupSource[0], /await loadRemoteCatalog\(\)/);
+  assert.match(appSource, /data-action="toggle-admin-product-selection"/);
+  assert.match(appSource, /Для разъединения отметь все карточки одной склейки/);
 });
 
 test('ошибка buyer-refresh сохраняет последний корректный каталог', async () => {
