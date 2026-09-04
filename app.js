@@ -2175,13 +2175,16 @@
     syncAdminForm(form);
     if (!state.adminDraft || !apiClient) return;
     persistAdminDraft();
+    state.adminSaveError = '';
     state.isSubmitting = true;
     render();
+    let serverDraftSaved = false;
     try {
       let saved = state.adminDraft.id && /^\d+$/.test(String(state.adminDraft.id))
         ? await apiClient.updateAdminProduct({ ...state.adminDraft, adminStatus: 'draft' })
         : await apiClient.createAdminProduct({ ...state.adminDraft, adminStatus: 'draft' });
       state.adminDraft = { ...state.adminDraft, id: saved.id, updatedAt: saved.updatedAt, imagePaths: saved.imagePaths || state.adminDraft.imagePaths || [] };
+      serverDraftSaved = true;
       persistAdminDraft();
       const hasUnconfirmedImages = state.adminDraft.images.some((image, index) => (
         String(image).startsWith('data:') && !state.adminDraft.imagePaths?.[index]
@@ -2247,10 +2250,14 @@
       showToast(status === 'published' ? 'Товар опубликован' : 'Черновик сохранён');
     } catch (error) {
       state.isSubmitting = false;
-      state.adminSaveError = error?.message || 'Не удалось сохранить товар.';
+      state.adminSaveError = serverDraftSaved
+        ? 'Черновик сохранён на сервере. Не удалось завершить загрузку фотографии. Повтори сохранение.'
+        : 'Сервер не сохранил черновик. Введённые данные оставлены только на этом устройстве.';
       persistAdminDraft();
       render();
-      showToast(error?.status === 409 ? 'Товар изменён на другом устройстве. Обнови список.' : 'Данные сохранены в черновик. Исправь ошибку и повтори.');
+      showToast(error?.status === 409
+        ? 'Товар изменён на другом устройстве. Обнови список.'
+        : state.adminSaveError);
     }
   }
 

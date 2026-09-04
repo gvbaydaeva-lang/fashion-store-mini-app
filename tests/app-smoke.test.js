@@ -115,7 +115,7 @@ test('страница запрашивает новую версию стиле
   assert.match(indexSource, /data\.js\?v=20260903-profitable-purchases-1/);
   assert.match(indexSource, /styles\.css\?v=20260903-demo-payment-1/);
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
-  assert.match(indexSource, /app\.js\?v=20260904-admin-save-1/);
+  assert.match(indexSource, /app\.js\?v=20260904-admin-save-2/);
 });
 
 test('заказ не показывает битую картинку, если у позиции нет сохранённого изображения', () => {
@@ -766,6 +766,16 @@ test('повторное сохранение не загружает повто
   const saveSource = appSource.match(/async function saveAdminProduct\(status\) \{[\s\S]*?\n  \}/)?.[0] || '';
   assert.match(saveSource, /String\(image\)\.startsWith\('data:'\) && !state\.adminDraft\.imagePaths\?\.\[index\]/);
   assert.match(saveSource, /String\(image\)\.startsWith\('data:'\) && !imagePaths\[index\]/);
+});
+
+test('ошибка сохранения честно различает серверный черновик и локальный резерв', () => {
+  const saveSource = appSource.match(/async function saveAdminProduct\(status\) \{[\s\S]*?\n  \}/)?.[0] || '';
+  assert.match(saveSource, /state\.adminSaveError = '';/);
+  assert.match(saveSource, /let serverDraftSaved = false;/);
+  assert.match(saveSource, /serverDraftSaved = true;/);
+  assert.match(saveSource, /Сервер не сохранил черновик\. Введённые данные оставлены только на этом устройстве\./);
+  assert.match(saveSource, /Черновик сохранён на сервере\. Не удалось завершить загрузку фотографии\. Повтори сохранение\./);
+  assert.doesNotMatch(saveSource, /Данные сохранены в черновик\. Исправь ошибку и повтори\./);
 });
 
 test('черновик сохраняет фото в IndexedDB и использует localStorage как резерв', () => {
