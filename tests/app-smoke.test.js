@@ -115,7 +115,8 @@ test('страница запрашивает новую версию стиле
   assert.match(indexSource, /data\.js\?v=20260903-profitable-purchases-1/);
   assert.match(indexSource, /styles\.css\?v=20260903-demo-payment-1/);
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
-  assert.match(indexSource, /app\.js\?v=20260904-admin-save-2/);
+  assert.match(indexSource, /api\.js\?v=20260904-admin-save-2/);
+  assert.match(indexSource, /app\.js\?v=20260904-admin-save-3/);
 });
 
 test('заказ не показывает битую картинку, если у позиции нет сохранённого изображения', () => {
