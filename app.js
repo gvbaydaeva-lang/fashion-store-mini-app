@@ -6,6 +6,7 @@
   const Core = window.FashionStoreCore;
   const UI = window.FashionStoreUI;
   const API = window.FashionStoreApi;
+  const AdminDraftStore = window.FashionStoreAdminDraftStore;
   const tg = window.Telegram?.WebApp;
   const screenElement = document.querySelector('#screen');
   const appShell = document.querySelector('#app');
@@ -234,6 +235,9 @@
     } catch (_error) {
       // Черновик остаётся в памяти до конца текущего открытия приложения.
     }
+    void AdminDraftStore?.save(ADMIN_DRAFT_KEY, state.adminDraft.images).catch(() => {
+      // localStorage остаётся резервом, если браузер запретил IndexedDB.
+    });
   }
 
   function readAdminDraft() {
@@ -251,6 +255,19 @@
     } catch (_error) {
       // Невозможность очистить локальное хранилище не должна ломать сохранение.
     }
+    void AdminDraftStore?.remove(ADMIN_DRAFT_KEY).catch(() => {});
+  }
+
+  function restoreAdminDraftImages(draft) {
+    if (!draft?.clientDraftKey || !AdminDraftStore?.load) return;
+    const key = draft.clientDraftKey;
+    void AdminDraftStore.load(ADMIN_DRAFT_KEY).then((images) => {
+      if (!Array.isArray(images) || state.adminDraft?.clientDraftKey !== key) return;
+      state.adminDraft.images = images;
+      render();
+    }).catch(() => {
+      // При недоступном IndexedDB остаётся резервная копия из localStorage.
+    });
   }
 
   function applyTelegramTheme() {
@@ -304,6 +321,7 @@
   function createBlankAdminProduct() {
     return {
       id: `admin-${Date.now().toString(36)}`,
+      clientDraftKey: createAdminDraftKey(),
       name: '',
       sellerSku: '',
       wholesalePrice: null,
@@ -328,6 +346,14 @@
     };
   }
 
+  function createAdminDraftKey() {
+    if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
+      const random = Math.floor(Math.random() * 16);
+      return (character === 'x' ? random : (random & 0x3) | 0x8).toString(16);
+    });
+  }
+
   function cloneAdminProduct(product) {
     return Core.createAdminCatalog([product])[0];
   }
@@ -335,6 +361,7 @@
   function startAdminDraft(product = null) {
     const restored = !product ? readAdminDraft() : null;
     state.adminDraft = product ? cloneAdminProduct(product) : restored?.draft || createBlankAdminProduct();
+    if (!state.adminDraft.clientDraftKey) state.adminDraft.clientDraftKey = createAdminDraftKey();
     state.adminStep = restored?.step || 1;
     state.adminDirty = Boolean(restored);
     state.adminErrors = {};
@@ -343,6 +370,7 @@
     state.adminSizeEmptyRows = {};
     persistAdminDraft();
     navigate('seller-product-edit', { productId: state.adminDraft.id });
+    if (restored) restoreAdminDraftImages(restored.draft);
   }
 
   function getAdminCategories() {
@@ -1743,6 +1771,7 @@
     const source = state.adminDraft;
     if (!source) return;
     const option = Core.createAdminProductVariant(source, `admin-${Date.now().toString(36)}`);
+    option.clientDraftKey = createAdminDraftKey();
     startAdminDraft(option);
     showToast('Заполни новый вариант товара');
   }
@@ -2152,16 +2181,16 @@
       let saved = state.adminDraft.id && /^\d+$/.test(String(state.adminDraft.id))
         ? await apiClient.updateAdminProduct({ ...state.adminDraft, adminStatus: 'draft' })
         : await apiClient.createAdminProduct({ ...state.adminDraft, adminStatus: 'draft' });
-      const imagesToUpload = state.adminDraft.images
-        .map((image, index) => ({ image, objectPath: state.adminDraft.imagePaths?.[index] || null }))
-        .filter(({ image }) => String(image).startsWith('data:'));
       state.adminDraft = { ...state.adminDraft, id: saved.id, updatedAt: saved.updatedAt, imagePaths: saved.imagePaths || state.adminDraft.imagePaths || [] };
       persistAdminDraft();
-      if (imagesToUpload.length) {
+      const hasUnconfirmedImages = state.adminDraft.images.some((image, index) => (
+        String(image).startsWith('data:') && !state.adminDraft.imagePaths?.[index]
+      ));
+      if (hasUnconfirmedImages) {
         const imagePaths = [...(state.adminDraft.imagePaths || [])];
         for (let index = 0; index < state.adminDraft.images.length; index += 1) {
           const image = state.adminDraft.images[index];
-          if (String(image).startsWith('data:')) {
+          if (String(image).startsWith('data:') && !imagePaths[index]) {
             imagePaths[index] = await apiClient.uploadAdminImage(saved.id, image);
             state.adminDraft.imagePaths = imagePaths;
             persistAdminDraft();

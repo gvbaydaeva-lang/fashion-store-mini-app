@@ -105,6 +105,7 @@
       ...product,
       id: String(product.id),
       groupId: String(product.group_id ?? product.groupId ?? product.id),
+      clientDraftKey: product.admin_draft_key ?? product.clientDraftKey ?? '',
       oldPrice: product.old_price ?? product.oldPrice ?? null,
       sellerSku: product.seller_sku ?? product.sellerSku ?? '',
       wholesalePrice: product.wholesale_price ?? product.wholesalePrice ?? null,
@@ -183,6 +184,9 @@
       is_new: product?.badge === 'Новинка',
       status: product?.adminStatus === 'published' ? 'published' : product?.adminStatus === 'archived' ? 'archived' : 'draft',
       group_id: product?.groupId && /^\d+$/.test(String(product.groupId)) ? Number(product.groupId) : null,
+      admin_draft_key: String(product?.clientDraftKey || '').trim() || null,
+      source_product_id: product?.sourceProductId && /^\d+$/.test(String(product.sourceProductId))
+        ? Number(product.sourceProductId) : null,
       variants: Array.isArray(product?.variants) ? product.variants.map((variant) => ({
         ...(variant.id == null ? {} : { id: variant.id }),
         color_id: variant.colorId,

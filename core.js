@@ -326,6 +326,7 @@
       ...copy,
       id,
       groupId: product.groupId || product.id,
+      sourceProductId: product.id,
       images: [...copy.images],
       imagePaths: [...copy.imagePaths],
       colors: [],

@@ -49,6 +49,13 @@ test('normalizeProduct принимает публичные и camelCase URL и
   assert.deepEqual(product.images, ['https://cdn.example/public.webp', 'https://cdn.example/public-2.webp']);
 });
 
+test('normalizeProduct восстанавливает ключ серверного черновика для повторного сохранения', () => {
+  const product = API.normalizeProduct({
+    id: 12, admin_draft_key: '123e4567-e89b-42d3-a456-426614174000',
+  });
+  assert.equal(product.clientDraftKey, '123e4567-e89b-42d3-a456-426614174000');
+});
+
 test('административный запрос передаёт сырой initData и возвращает код ошибки', async () => {
   const calls = [];
   const client = API.createApiClient({
@@ -181,6 +188,7 @@ test('сохранение товара переводит поля и вари�
 
   await client.createAdminProduct({
     name: 'Платье', price: 5000, oldPrice: 6000, sellerSku: 'DR-1',
+    clientDraftKey: '123e4567-e89b-42d3-a456-426614174000',
     adminStatus: 'draft', images: ['data:image/png;base64,local'],
     colors: [{ id: 'black', name: 'Чёрный, графитовый' }],
     variants: [{ colorId: 'black', size: 'S', stock: 2, enabled: true }],
@@ -190,6 +198,7 @@ test('сохранение товара переводит поля и вари�
   assert.equal(body.product.seller_sku, 'DR-1');
   assert.deepEqual(body.product.variants, [{ color_id: 'black', color_name: 'Чёрный, графитовый', color_hex: null, size: 'S', stock: 2, is_enabled: true }]);
   assert.deepEqual(body.product.images, []);
+  assert.equal(body.product.admin_draft_key, '123e4567-e89b-42d3-a456-426614174000');
 });
 
 test('фотография загружается по разовой ссылке и возвращает путь Storage', async () => {
@@ -260,7 +269,7 @@ test('пустые необязательные цены отправляютс�
 
   await client.createAdminProduct({
     name: '', category: '', price: '', oldPrice: '', wholesalePrice: '',
-    adminStatus: 'draft', variants: [], images: [],
+    clientDraftKey: '123e4567-e89b-42d3-a456-426614174000', adminStatus: 'draft', variants: [], images: [],
   });
 
   assert.equal(body.product.price, 0);
@@ -269,6 +278,7 @@ test('пустые необязательные цены отправляютс�
   assert.equal(body.product.seller_sku, null);
   assert.equal(body.product.category, 'all');
   assert.equal(body.product.name, 'Без названия');
+  assert.equal(body.product.admin_draft_key, '123e4567-e89b-42d3-a456-426614174000');
 });
 
 test('удаление варианта передаёт отдельное серверное действие', async () => {
@@ -316,6 +326,7 @@ test('обновление товара передаёт снимок вариа
 
   await client.updateAdminProduct({
     id: 12,
+    clientDraftKey: '123e4567-e89b-42d3-a456-426614174000',
     updatedAt: '2026-09-02T09:00:00.000Z',
     name: 'Платье',
     imagePaths: ['12/photo.png'],
@@ -324,6 +335,7 @@ test('обновление товара передаёт снимок вариа
 
   assert.equal(body.action, 'update');
   assert.equal(body.updatedAt, '2026-09-02T09:00:00.000Z');
+  assert.equal(body.product.admin_draft_key, '123e4567-e89b-42d3-a456-426614174000');
   assert.deepEqual(body.product.images, ['12/photo.png']);
   assert.deepEqual(body.product.variants, [{
     id: 34, color_id: 'black', color_name: 'Чёрный', color_hex: null,

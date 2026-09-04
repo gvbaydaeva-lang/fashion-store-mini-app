@@ -114,7 +114,8 @@ test('Mini App запрещает автоматическое увеличен�
 test('страница запрашивает новую версию стилей и редактора после мобильной правки', () => {
   assert.match(indexSource, /data\.js\?v=20260903-profitable-purchases-1/);
   assert.match(indexSource, /styles\.css\?v=20260903-demo-payment-1/);
-  assert.match(indexSource, /app\.js\?v=20260903-demo-payment-1/);
+  assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
+  assert.match(indexSource, /app\.js\?v=20260904-admin-save-1/);
 });
 
 test('заказ не показывает битую картинку, если у позиции нет сохранённого изображения', () => {
@@ -759,6 +760,18 @@ test('сохранение товара блокирует повторный su
   assert.ok(saveSource, 'не найден обработчик сохранения товара');
   assert.match(saveSource[0], /if \(state\.isSubmitting\) return;/);
   assert.match(saveSource[0], /state\.isSubmitting = true;/);
+});
+
+test('повторное сохранение не загружает повторно фотографию с подтверждённым Storage path', () => {
+  const saveSource = appSource.match(/async function saveAdminProduct\(status\) \{[\s\S]*?\n  \}/)?.[0] || '';
+  assert.match(saveSource, /String\(image\)\.startsWith\('data:'\) && !state\.adminDraft\.imagePaths\?\.\[index\]/);
+  assert.match(saveSource, /String\(image\)\.startsWith\('data:'\) && !imagePaths\[index\]/);
+});
+
+test('черновик сохраняет фото в IndexedDB и использует localStorage как резерв', () => {
+  assert.match(appSource, /FashionStoreAdminDraftStore/);
+  assert.match(appSource, /AdminDraftStore\?\.save\(ADMIN_DRAFT_KEY, state\.adminDraft\.images\)/);
+  assert.match(appSource, /function restoreAdminDraftImages/);
 });
 
 test('редактор показывает удаление только сохранённого варианта с подтверждением', () => {

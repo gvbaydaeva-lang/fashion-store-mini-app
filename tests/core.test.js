@@ -169,6 +169,7 @@ test('новый цветовой вариант сохраняет текст �
   assert.equal(variant.description, 'Описание');
   assert.deepEqual(variant.images, ['12/photo.webp']);
   assert.deepEqual(variant.imagePaths, ['12/photo.webp']);
+  assert.equal(variant.sourceProductId, '12');
   assert.equal(variant.adminStatus, 'draft');
 });
 
