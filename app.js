@@ -292,6 +292,15 @@
     }));
   }
 
+  function getCatalogCategories() {
+    const categories = new Map([['all', { id: 'all', title: 'Все' }]]);
+    getCatalogProducts().forEach((product) => {
+      const category = Core.createAdminCategory(product.category);
+      if (category.id && category.id !== 'all') categories.set(category.id, category);
+    });
+    return [...categories.values()];
+  }
+
   function getProduct(productId) {
     return getCatalogProducts().find((product) => product.id === productId) || null;
   }
@@ -633,15 +642,12 @@
       Core.filterProducts(catalogProducts, state.filters),
       state.sortId,
     );
-    const categories = Data.CATEGORIES.map((category) => `
-      <button class="chip ${state.filters.category === category.id ? 'is-active' : ''}" type="button" data-action="set-category" data-category="${category.id}">${escapeHtml(category.title)}</button>
-    `).join('');
-
     return `
       ${pageHeader('Каталог', `${products.length} товаров`)}
-      <div class="chip-strip" aria-label="Категории">${categories}</div>
-      <div class="toolbar">
-        <button class="toolbar-button" type="button" data-action="sort">Сортировка <span aria-hidden="true">${icon('chevron-down')}</span></button>
+      <div class="catalog-controls" aria-label="Управление каталогом">
+        <button class="catalog-control ${state.filters.category === 'all' ? 'is-active' : ''}" type="button" data-action="reset-category" aria-pressed="${state.filters.category === 'all'}">Все</button>
+        <button class="catalog-control" type="button" data-action="sort">Сортировка <span aria-hidden="true">${icon('chevron-down')}</span></button>
+        <button class="catalog-control ${state.filters.category !== 'all' ? 'is-active' : ''}" type="button" data-action="filter-categories" aria-pressed="${state.filters.category !== 'all'}">Фильтр <span aria-hidden="true">${icon('chevron-down')}</span></button>
       </div>
       ${products.length
         ? `<div class="product-grid">${products.map(productCard).join('')}</div>`
@@ -659,6 +665,14 @@
       <div class="sheet__header"><p class="eyebrow">Каталог</p><h2>Сортировка</h2></div>
       <div class="sort-list">${options.map((option) => `<button type="button" data-action="set-sort" data-sort="${option.id}" aria-pressed="${state.sortId === option.id}"><span>${option.title}</span>${state.sortId === option.id ? `<b>${icon('check')}</b>` : ''}</button>`).join('')}</div>
     `, { title: 'Сортировка каталога' });
+  }
+
+  function openCategoryFilter() {
+    const categories = getCatalogCategories();
+    openSheet(`
+      <div class="sheet__header"><p class="eyebrow">Каталог</p><h2>Выберите категорию</h2></div>
+      <div class="sort-list">${categories.map((category) => `<button type="button" data-action="set-category" data-category="${escapeHtml(category.id)}" aria-pressed="${state.filters.category === category.id}"><span>${escapeHtml(category.title)}</span>${state.filters.category === category.id ? `<b>${icon('check')}</b>` : ''}</button>`).join('')}</div>
+    `, { title: 'Фильтр по категории' });
   }
 
   function renderProduct(productId) {
@@ -2351,9 +2365,15 @@
     },
     'set-category': (control) => {
       state.filters.category = control.dataset.category;
+      closeSheet();
+      render();
+    },
+    'reset-category': () => {
+      state.filters.category = 'all';
       render();
     },
     sort: openSort,
+    'filter-categories': openCategoryFilter,
     'set-sort': (control) => {
       state.sortId = ['price-asc', 'price-desc'].includes(control.dataset.sort) ? control.dataset.sort : 'default';
       closeSheet();

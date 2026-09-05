@@ -41,6 +41,7 @@ function createElement() {
     addEventListener() {},
     querySelector() { return null; },
     querySelectorAll() { return []; },
+    replaceChildren() { this.children = []; this.innerHTML = ''; },
     removeAttribute() {},
     setAttribute() {},
     scrollTo() {},
@@ -97,7 +98,13 @@ function loadApp(initialStorage = {}, api = null) {
     Set,
   }, { filename: 'app.js' });
   window.FashionStoreApp.init();
-  return { app: window.FashionStoreApp, screen: elements.get('#screen'), storage, document };
+  return {
+    app: window.FashionStoreApp,
+    screen: elements.get('#screen'),
+    modal: elements.get('#modal-root'),
+    storage,
+    document,
+  };
 }
 
 test('админ-панель не меняет ширину при изменении visualViewport от фокуса', () => {
@@ -113,13 +120,13 @@ test('Mini App запрещает автоматическое увеличен�
   assert.match(indexSource, /user-scalable=no/);
 });
 
-test('страница запрашивает свежие версии buyer-данных и редактора', () => {
+test('страница запрашивает свежие версии buyer-данных, каталога и редактора', () => {
   assert.match(indexSource, /data\.js\?v=20260905-buyer-catalog-info-1/);
-  assert.match(indexSource, /styles\.css\?v=20260905-admin-group-preview-1/);
+  assert.match(indexSource, /styles\.css\?v=20260905-buyer-catalog-controls-1/);
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
   assert.match(indexSource, /api\.js\?v=20260904-admin-save-2/);
   assert.match(indexSource, /core\.js\?v=20260905-buyer-catalog-sort-1/);
-  assert.match(indexSource, /app\.js\?v=20260905-buyer-catalog-sort-1/);
+  assert.match(indexSource, /app\.js\?v=20260905-buyer-catalog-controls-1/);
 });
 
 test('кнопка добавления товара всегда начинает пустую карточку, не восстанавливая прошлый черновик', () => {
@@ -404,20 +411,32 @@ test('вкладка информации показывает условия п
   assert.match(screen.innerHTML, /data-action="open-seller-demo"[^>]*>Войти в админ<\/button>/);
 });
 
-test('покупательский каталог оставляет только категории в фильтрах и возвращает сортировку', async () => {
-  const { app, screen } = loadApp({}, {
+test('каталог показывает все, сортировку и фильтр в одной строке, а фильтр выбирает категорию', async () => {
+  const { app, screen, modal, document } = loadApp({}, {
     createApiClient() {
       return {
-        getCatalog: async () => [{
-          id: 'catalog-dress',
-          name: 'Платье',
-          price: 4990,
-          category: 'all',
-          images: ['https://cdn.example/dress.webp'],
-          colors: [{ id: 'black', name: 'Чёрный', hex: '#242424' }],
-          variants: [{ colorId: 'black', size: 'S', stock: 2, enabled: true }],
-          adminStatus: 'published',
-        }],
+        getCatalog: async () => [
+          {
+            id: 'catalog-dress',
+            name: 'Платье',
+            price: 4990,
+            category: 'Платья',
+            images: ['https://cdn.example/dress.webp'],
+            colors: [{ id: 'black', name: 'Чёрный', hex: '#242424' }],
+            variants: [{ colorId: 'black', size: 'S', stock: 2, enabled: true }],
+            adminStatus: 'published',
+          },
+          {
+            id: 'catalog-bag',
+            name: 'Сумка',
+            price: 5990,
+            category: 'Сумки',
+            images: ['https://cdn.example/bag.webp'],
+            colors: [{ id: 'brown', name: 'Коричневый', hex: '#714d35' }],
+            variants: [{ colorId: 'brown', size: 'One size', stock: 2, enabled: true }],
+            adminStatus: 'published',
+          },
+        ],
       };
     },
   });
@@ -426,12 +445,29 @@ test('покупательский каталог оставляет тольк�
 
   app.navigate('catalog');
 
-  assert.match(screen.innerHTML, /aria-label="Категории"/);
-  assert.match(screen.innerHTML, /data-action="sort"/);
-  assert.match(appSource, /По умолчанию/);
-  assert.match(appSource, /Сначала дешевле/);
-  assert.match(appSource, /Сначала дороже/);
-  assert.doesNotMatch(screen.innerHTML, /data-action="filters"|Только новинки|Сбросить фильтры/);
+  assert.match(screen.innerHTML, /catalog-controls[\s\S]*data-action="reset-category"[\s\S]*>Все<[\s\S]*data-action="sort"[\s\S]*>Сортировка\s*<[\s\S]*data-action="filter-categories"[\s\S]*>Фильтр\s*</);
+
+  const filterControl = {
+    dataset: { action: 'filter-categories' },
+    closest() { return this; },
+    matches() { return false; },
+  };
+  document.dispatch('click', { target: filterControl });
+
+  assert.match(modal.innerHTML, /Выберите категорию/);
+  assert.match(modal.innerHTML, /Платья/);
+  assert.match(modal.innerHTML, /Сумки/);
+
+  const categoryControl = {
+    dataset: { action: 'set-category', category: 'Сумки' },
+    closest() { return this; },
+    matches() { return false; },
+  };
+  document.dispatch('click', { target: categoryControl });
+
+  assert.equal(modal.innerHTML, '');
+  assert.match(screen.innerHTML, /Сумка/);
+  assert.doesNotMatch(screen.innerHTML, /Платье/);
 });
 
 test('информация бережно предупреждает, что возврат и обмен не предусмотрены', () => {
