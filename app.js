@@ -1230,6 +1230,37 @@
       </div>`;
   }
 
+  function adminGroupColorName(product) {
+    return product.colors.map((color) => color.name).filter(Boolean).join(', ') || 'Цвет не указан';
+  }
+
+  function renderAdminProductGroup(product) {
+    const groupMembers = getAdminProductGroupMembers(product.groupId || product.id);
+    if (groupMembers.length < 2) {
+      return `
+        <section class="admin-form-section admin-group-card card">
+          <div class="admin-form-heading"><div><p class="eyebrow">Склейка</p><h2>Карточка не объединена</h2><p>Эта цветовая карточка показывается покупателю сама по себе.</p></div></div>
+        </section>`;
+    }
+    const cards = groupMembers.map((member) => {
+      const isCurrent = String(member.id) === String(product.id);
+      const image = member.images[0]
+        ? `<img src="${escapeHtml(member.images[0])}" alt="${escapeHtml(member.name || 'Товар')}, ${escapeHtml(adminGroupColorName(member))}">`
+        : `<span class="admin-group-product__placeholder" aria-hidden="true">${icon('image')}</span>`;
+      return `
+        <button class="admin-group-product${isCurrent ? ' is-current' : ''}" type="button" data-action="open-admin-group-product" data-product-id="${escapeHtml(member.id)}" ${isCurrent ? 'aria-current="true"' : ''}>
+          <span class="admin-group-product__image">${image}</span>
+          <strong>${escapeHtml(adminGroupColorName(member))}</strong>
+          <small>${isCurrent ? 'Открыта сейчас' : 'Открыть карточку'}</small>
+        </button>`;
+    }).join('');
+    return `
+      <section class="admin-form-section admin-group-card card">
+        <div class="admin-form-heading"><div><p class="eyebrow">Склейка</p><h2>Склейка · ${groupMembers.length} карточки</h2><p>Каждая карточка хранит свои фото, цену, размеры и остатки.</p></div></div>
+        <div class="admin-group-strip" aria-label="Карточки в этой склейке">${cards}</div>
+      </section>`;
+  }
+
   function renderAdminEditor() {
     const product = state.adminDraft || createBlankAdminProduct();
     const photos = product.images.map((image, index) => `
@@ -1297,6 +1328,7 @@
           <label><span>Описание товара</span><textarea name="description" rows="4" maxlength="500" placeholder="Крой, длина и главные детали">${escapeHtml(product.description)}</textarea></label>
           ${adminFieldError('description')}
         </section>
+        ${renderAdminProductGroup(product)}
         <div class="admin-editor-actions admin-editor-actions--final" aria-busy="${state.isSubmitting}">
           <button class="secondary-button" type="button" data-action="${product.adminStatus === 'published' ? 'save-admin-changes' : 'save-admin-draft'}" ${state.isSubmitting ? 'disabled' : ''}>${state.isSubmitting ? 'Сохраняем…' : 'Сохранить'}</button>
           ${product.adminStatus === 'published' ? '<span></span>' : `<button class="primary-button" type="button" data-action="publish-admin-product" ${state.isSubmitting ? 'disabled' : ''}>${state.isSubmitting ? 'Сохраняем…' : 'Опубликовать'}</button>`}
@@ -1982,6 +2014,16 @@
     state.adminDirty = true;
   }
 
+  function openAdminGroupProduct(productId) {
+    const product = getAdminProduct(productId);
+    if (!product || String(product.id) === String(state.adminDraft?.id)) return;
+    if (state.adminDirty) {
+      showToast('Сначала сохрани текущие изменения, чтобы открыть другую карточку склейки.');
+      return;
+    }
+    startAdminDraft(product);
+  }
+
   function toggleAdminSelectionMode() {
     state.adminSelectionMode = !state.adminSelectionMode;
     state.adminSelectedProductIds = [];
@@ -2452,6 +2494,7 @@
     },
     'admin-product-menu': (control) => openAdminProductMenu(control.dataset.productId),
     'duplicate-admin-product': (control) => duplicateProduct(control.dataset.productId),
+    'open-admin-group-product': (control) => openAdminGroupProduct(control.dataset.productId),
     'toggle-admin-selection-mode': toggleAdminSelectionMode,
     'toggle-admin-product-selection': (control) => toggleAdminProductSelection(control.dataset.productId),
     'combine-admin-products': () => void updateAdminProductGroups('combine'),

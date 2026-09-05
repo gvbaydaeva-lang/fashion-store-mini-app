@@ -60,11 +60,13 @@ function loadApp(initialStorage = {}, api = null) {
     ['fashion-store-offer-seen-v1', 'seen'],
     ...Object.entries(initialStorage),
   ]);
+  const eventHandlers = new Map();
   const document = {
     documentElement: createElement(),
     querySelector(selector) { return elements.get(selector) || null; },
     querySelectorAll() { return []; },
-    addEventListener() {},
+    addEventListener(type, handler) { eventHandlers.set(type, handler); },
+    dispatch(type, event) { eventHandlers.get(type)?.(event); },
   };
   const window = {
     FashionStoreData: Data,
@@ -95,7 +97,7 @@ function loadApp(initialStorage = {}, api = null) {
     Set,
   }, { filename: 'app.js' });
   window.FashionStoreApp.init();
-  return { app: window.FashionStoreApp, screen: elements.get('#screen'), storage };
+  return { app: window.FashionStoreApp, screen: elements.get('#screen'), storage, document };
 }
 
 test('админ-панель не меняет ширину при изменении visualViewport от фокуса', () => {
@@ -113,10 +115,10 @@ test('Mini App запрещает автоматическое увеличен�
 
 test('страница запрашивает новые версии стилей и редактора после правки склеек', () => {
   assert.match(indexSource, /data\.js\?v=20260903-profitable-purchases-1/);
-  assert.match(indexSource, /styles\.css\?v=20260904-admin-grouping-1/);
+  assert.match(indexSource, /styles\.css\?v=20260905-admin-group-preview-1/);
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
   assert.match(indexSource, /api\.js\?v=20260904-admin-save-2/);
-  assert.match(indexSource, /app\.js\?v=20260904-admin-selection-scroll-1/);
+  assert.match(indexSource, /app\.js\?v=20260905-admin-group-preview-1/);
 });
 
 test('кнопка добавления товара всегда начинает пустую карточку, не восстанавливая прошлый черновик', () => {
@@ -498,6 +500,44 @@ test('административные экраны рендерятся из р
   assert.doesNotMatch(screen.innerHTML, /name="composition"/);
   assert.doesNotMatch(screen.innerHTML, /name="fit"/);
   assert.doesNotMatch(screen.innerHTML, /name="care"/);
+});
+
+test('редактор показывает состав склейки горизонтальной лентой и открывает её карточки', async () => {
+  const products = [
+    { id: '101', groupId: '101', name: 'Платье миди', colors: [{ id: 'milk', name: 'Молочный' }], images: ['milk.jpg'], variants: [] },
+    { id: '102', groupId: '101', name: 'Платье миди', colors: [{ id: 'black', name: 'Чёрный' }], images: ['black.jpg'], variants: [] },
+    { id: '103', groupId: '101', name: 'Платье миди', colors: [{ id: 'coffee', name: 'Кофейный' }], images: ['coffee.jpg'], variants: [] },
+    { id: '104', groupId: '104', name: 'Юбка миди', colors: [{ id: 'blue', name: 'Синяя' }], images: ['blue.jpg'], variants: [] },
+  ];
+  const api = { createApiClient: () => ({ getCatalog: async () => [], getAdminProducts: async () => products }) };
+  const { screen, document } = loadApp({}, api);
+  const click = (action, productId) => document.dispatch('click', {
+    target: {
+      closest() {
+        return { dataset: { action, productId }, disabled: false, matches() { return false; } };
+      },
+    },
+  });
+
+  click('open-seller-demo');
+  await new Promise((resolve) => setImmediate(resolve));
+  click('edit-admin-product', '102');
+
+  assert.match(screen.innerHTML, /Склейка · 3 карточки/);
+  assert.match(screen.innerHTML, /admin-group-strip/);
+  assert.match(screen.innerHTML, /Молочный/);
+  assert.match(screen.innerHTML, /Чёрный/);
+  assert.match(screen.innerHTML, /Кофейный/);
+
+  click('open-admin-group-product', '103');
+  assert.match(screen.innerHTML, /Платье миди.*Кофейный/s);
+
+  click('edit-admin-product', '104');
+  assert.match(screen.innerHTML, /Карточка не объединена/);
+});
+
+test('лента склеек остаётся в одну строку и прокручивается по горизонтали', () => {
+  assert.match(stylesSource, /\.admin-group-strip\s*\{[^}]*display:\s*flex[^}]*overflow-x:\s*auto[^}]*flex-wrap:\s*nowrap/);
 });
 
 test('админка содержит защищённую вкладку пользователей и карточку без бонусной статистики', () => {
