@@ -88,6 +88,23 @@
     };
   }
 
+  function getBonusSummary(itemsTotal, bonus) {
+    const total = Math.max(0, Number(itemsTotal) || 0);
+    const status = String(bonus?.status || 'none');
+    const remaining = Math.max(0, Number(bonus?.remainingAmount ?? bonus?.remaining_amount) || 0);
+    const eligible = total >= 5000 && status === 'active' && remaining > 0;
+    const amount = eligible ? Math.min(500, remaining) : 0;
+    let reason = null;
+    if (total < 5000) reason = 'minimum_not_reached';
+    else if (status !== 'active') reason = status || 'none';
+    return { itemsTotal: total, bonusEligible: eligible, bonusAmount: amount, payableTotal: Math.max(0, total - amount), reason };
+  }
+
+  function formatBonusStatus(bonus) {
+    const status = String(bonus?.status || 'none');
+    return { status, label: ({ active: 'Доступен', reserved: 'Зарезервирован', spent: 'Использован', expired: 'Истёк', cancelled: 'Отменён', none: 'Пока нет бонуса' })[status] || 'Пока нет бонуса' };
+  }
+
   function createDemoOrder(
     cart,
     customer,
@@ -394,6 +411,8 @@
     setCartItemQuantity,
     removeCartItem,
     getCartSummary,
+    getBonusSummary,
+    formatBonusStatus,
     createDemoOrder,
     markOrderReady,
     shouldShowFirstOpenOffer,

@@ -136,6 +136,28 @@ test('учёт открытия передаёт только raw initData в us
   });
 });
 
+test('bonus API передаёт raw initData и нормализует ответ', async () => {
+  const bodies = [];
+  const client = API.createApiClient({ initData: 'signed', fetch: async (_url, options) => {
+    bodies.push(JSON.parse(options.body));
+    return { ok: true, async json() { return { ok: true, data: { granted: true, bonus: { amount: '500.00', remaining_amount: '500.00', status: 'active', expires_at: '2026-09-30T20:59:59Z' } } }; } };
+  } });
+  const bonus = await client.claimBonus();
+  assert.equal(bonus.remainingAmount, '500.00');
+  assert.deepEqual(bodies[0], { action: 'claim-bonus', initData: 'signed' });
+});
+
+test('checkout quote отправляет только идентификаторы товаров', async () => {
+  let body;
+  const client = API.createApiClient({ initData: 'signed', fetch: async (_url, options) => {
+    body = JSON.parse(options.body);
+    return { ok: true, async json() { return { ok: true, data: { quote: { items_total: '5000.00', bonus_eligible: true, bonus_amount: '500.00', payable_total: '4500.00' } } }; } };
+  } });
+  const quote = await client.getCheckoutQuote({ deliveryId: 'pickup', items: [{ productId: 1, variantId: 2, quantity: 1, price: 999999 }] });
+  assert.equal(quote.payableTotal, '4500.00');
+  assert.deepEqual(body.items, [{ productId: 1, variantId: 2, quantity: 1 }]);
+});
+
 test('клиент запрашивает список пользователей и карточку владельца через admin-api', async () => {
   const bodies = [];
   const client = API.createApiClient({

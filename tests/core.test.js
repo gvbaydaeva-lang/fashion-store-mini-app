@@ -12,6 +12,8 @@ const {
   setCartItemQuantity,
   removeCartItem,
   getCartSummary,
+  getBonusSummary,
+  formatBonusStatus,
   createDemoOrder,
   markOrderReady,
   shouldShowFirstOpenOffer,
@@ -33,6 +35,16 @@ const {
   serializeAdminDraft,
   parseAdminDraft,
 } = require('../core.js');
+
+test('welcome-бонус доступен только от 5000 и не попадает в корзинный итог', () => {
+  assert.deepEqual(getBonusSummary(4999, { status: 'active', remainingAmount: '500.00' }), {
+    itemsTotal: 4999, bonusEligible: false, bonusAmount: 0, payableTotal: 4999, reason: 'minimum_not_reached',
+  });
+  assert.deepEqual(getBonusSummary(5000, { status: 'active', remainingAmount: '500.00' }), {
+    itemsTotal: 5000, bonusEligible: true, bonusAmount: 500, payableTotal: 4500, reason: null,
+  });
+  assert.equal(formatBonusStatus({ status: 'spent' }).label, 'Использован');
+});
 
 const TEST_PRODUCTS = [
   {

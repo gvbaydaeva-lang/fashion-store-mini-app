@@ -729,6 +729,11 @@ img { display: block; max-width: 100%; }
   font-weight: 800;
   transition: background var(--transition), transform 120ms ease;
 }
+.bonus-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 14px; }
+.bonus-card h2 { margin: 2px 0 4px; font-size: 21px; }
+.bonus-card p { margin: 0; color: var(--muted); font-size: 13px; }
+.bonus-card__amount { color: var(--accent-dark); font-size: 20px; white-space: nowrap; }
+.bonus-line { color: var(--accent-dark); }
 
 .offer-dialog__cta:hover { background: #229ed9; }
 

@@ -299,7 +299,7 @@ test('проверка заказа не позволяет редактиров
 });
 
 test('buyer UI использует понятный текст без лишних демо и технических слов', () => {
-  assert.match(appSource, /Оформить заказ \$\{money\(summary\.total\)\}/);
+  assert.match(appSource, /Оформить заказ \$\{money\(payableTotal\)\}/);
   assert.match(appSource, /Оформить заказ\?/);
   const buyerSource = appSource.match(/function renderPaymentSuccess\(\) \{[\s\S]*?\n  \}\n\n  function orderItems/);
   assert.ok(buyerSource, 'не найден экран успешного оформления');

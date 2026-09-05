@@ -164,6 +164,29 @@
     };
   }
 
+  function normalizeBonus(value) {
+    const bonus = value?.bonus || value || {};
+    return {
+      status: bonus.status || 'none',
+      amount: String(bonus.amount ?? '0.00'),
+      remainingAmount: String(bonus.remainingAmount ?? bonus.remaining_amount ?? '0.00'),
+      expiresAt: bonus.expiresAt ?? bonus.expires_at ?? null,
+      granted: value?.granted === true,
+      reason: value?.reason || null,
+    };
+  }
+
+  function normalizeCheckoutQuote(value) {
+    const quote = value?.quote || value || {};
+    return {
+      itemsTotal: String(quote.itemsTotal ?? quote.items_total ?? '0.00'),
+      bonusEligible: quote.bonusEligible === true || quote.bonus_eligible === true,
+      bonusAmount: String(quote.bonusAmount ?? quote.bonus_amount ?? '0.00'),
+      payableTotal: String(quote.payableTotal ?? quote.payable_total ?? quote.itemsTotal ?? '0.00'),
+      reason: quote.reason || null,
+    };
+  }
+
   function serializeProduct(product) {
     const category = String(product?.category ?? '').trim();
     const name = String(product?.name ?? '').trim();
@@ -336,6 +359,21 @@
       async trackOpen() {
         return userRequest('track-open');
       },
+      async claimBonus() {
+        try { return normalizeBonus(await userRequest('claim-bonus')); }
+        catch (error) { throw new FashionStoreApiError('Не удалось загрузить бонус. Попробуйте ещё раз', error?.status || 0, error?.code || 'BONUS_UNAVAILABLE'); }
+      },
+      async getBonus() {
+        try { return normalizeBonus(await userRequest('get-bonus')); }
+        catch (error) { throw new FashionStoreApiError('Не удалось загрузить бонус. Попробуйте ещё раз', error?.status || 0, error?.code || 'BONUS_UNAVAILABLE'); }
+      },
+      async getCheckoutQuote(payload = {}) {
+        const data = await orderRequest('quote', {
+          deliveryId: payload.deliveryId || 'pickup',
+          items: (payload.items || []).map((item) => ({ productId: item.productId, variantId: item.variantId, quantity: item.quantity })),
+        });
+        return normalizeCheckoutQuote(data.quote || data);
+      },
       async createOrder(order) {
         const data = await orderRequest('create', {
           idempotencyKey: order.idempotencyKey,
@@ -347,6 +385,7 @@
             quantity: item.quantity,
             imagePath: item.imagePath,
           })),
+          bonus: order.bonus || undefined,
         });
         return normalizeOrder(data.order);
       },
