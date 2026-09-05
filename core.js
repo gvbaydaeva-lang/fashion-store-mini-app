@@ -147,6 +147,27 @@
     };
   }
 
+  function mergeAdminDraftSave(draft, saved) {
+    const currentDraft = draft || {};
+    const savedProduct = saved || {};
+    const draftImages = Array.isArray(currentDraft.images) ? currentDraft.images : [];
+    const draftImagePaths = Array.isArray(currentDraft.imagePaths) ? currentDraft.imagePaths : [];
+    const hasPendingImage = draftImages.some((image, index) => (
+      String(image).startsWith('data:') && !draftImagePaths[index]
+    ));
+    const merged = { ...currentDraft, ...savedProduct };
+
+    // Сервер возвращает только уже сохранённые пути и поэтому не хранит пустые
+    // позиции новых фото. Пока идёт загрузка, сохраняем исходное соответствие
+    // «превью ↔ путь», иначе новое главное фото может ошибочно занять путь
+    // следующего старого изображения.
+    if (hasPendingImage) {
+      merged.images = draftImages;
+      merged.imagePaths = draftImagePaths;
+    }
+    return merged;
+  }
+
   function createAdminCatalog(products) {
     return products.map((product) => ({
       ...cloneAdminProduct(product),
@@ -379,6 +400,7 @@
     buildMainMiniAppUrl,
     buildTelegramShareUrl,
     createAdminCatalog,
+    mergeAdminDraftSave,
     getPublishedProducts,
     filterAdminProducts,
     buildProductVariants,

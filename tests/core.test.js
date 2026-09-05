@@ -29,6 +29,7 @@ const {
   createAdminProductVariant,
   getAdminProductStatus,
   popScreenHistory,
+  mergeAdminDraftSave,
   serializeAdminDraft,
   parseAdminDraft,
 } = require('../core.js');
@@ -174,6 +175,27 @@ test('новый цветовой вариант не переносит фот�
   assert.deepEqual(variant.imagePaths, []);
   assert.equal(variant.sourceProductId, '12');
   assert.equal(variant.adminStatus, 'draft');
+});
+
+test('сохранение черновика сохраняет пустое место нового главного фото до его загрузки', () => {
+  const draft = {
+    id: '12',
+    name: 'Платье',
+    images: ['data:image/webp;base64,new-main', 'https://storage.example/12/old.webp'],
+    imagePaths: [null, '12/old.webp'],
+  };
+  const firstServerSave = {
+    id: '12',
+    updatedAt: '2026-09-05T10:00:00.000Z',
+    images: ['https://storage.example/12/old.webp'],
+    imagePaths: ['12/old.webp'],
+  };
+
+  assert.deepEqual(mergeAdminDraftSave(draft, firstServerSave), {
+    ...draft,
+    id: '12',
+    updatedAt: '2026-09-05T10:00:00.000Z',
+  });
 });
 
 test('buyer-выбор цвета и размера исключает disabled и нулевые варианты', () => {

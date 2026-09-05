@@ -86,6 +86,7 @@
     adminOnlyNew: false,
     adminSelectionMode: false,
     adminSelectedProductIds: [],
+    adminListReturnContext: null,
     adminDraft: null,
     adminColorEmptyRows: 0,
     adminSizeEmptyRows: {},
@@ -392,6 +393,7 @@
     // только при явно запрошенном продолжении локального черновика, иначе
     // прошлый черновик превращается в незаметное редактирование старого товара.
     const restored = restoreLocalDraft && !product ? readAdminDraft() : null;
+    captureAdminListReturnContext();
     state.adminDraft = product ? cloneAdminProduct(product) : restored?.draft || createBlankAdminProduct();
     if (!state.adminDraft.clientDraftKey) state.adminDraft.clientDraftKey = createAdminDraftKey();
     state.adminStep = restored?.step || 1;
@@ -403,6 +405,22 @@
     persistAdminDraft();
     navigate('seller-product-edit', { productId: state.adminDraft.id });
     if (restored) restoreAdminDraftImages(restored.draft);
+  }
+
+  function captureAdminListReturnContext() {
+    state.adminListReturnContext = state.screen === 'seller-products'
+      ? { scrollTop: screenElement.scrollTop }
+      : null;
+  }
+
+  function returnToAdminProductList() {
+    const scrollTop = state.adminListReturnContext?.scrollTop || 0;
+    state.history = [];
+    state.screen = 'seller-products';
+    state.params = {};
+    render();
+    screenElement.scrollTop = scrollTop;
+    state.adminListReturnContext = null;
   }
 
   function getAdminCategories() {
@@ -2227,7 +2245,7 @@
       let saved = state.adminDraft.id && /^\d+$/.test(String(state.adminDraft.id))
         ? await apiClient.updateAdminProduct({ ...state.adminDraft, adminStatus: 'draft' })
         : await apiClient.createAdminProduct({ ...state.adminDraft, adminStatus: 'draft' });
-      state.adminDraft = { ...state.adminDraft, id: saved.id, updatedAt: saved.updatedAt, imagePaths: saved.imagePaths || state.adminDraft.imagePaths || [] };
+      state.adminDraft = Core.mergeAdminDraftSave(state.adminDraft, saved);
       serverDraftSaved = true;
       persistAdminDraft();
       const hasUnconfirmedImages = state.adminDraft.images.some((image, index) => (
@@ -2253,7 +2271,7 @@
           adminStatus: 'draft',
         });
       }
-      state.adminDraft = { ...state.adminDraft, ...saved, id: saved.id, updatedAt: saved.updatedAt };
+      state.adminDraft = Core.mergeAdminDraftSave(state.adminDraft, saved);
       persistAdminDraft();
       const normalizedSaved = normalizeAdminProductCategory(state.adminDraft);
       state.adminProducts = state.adminProducts.some(({ id }) => id === normalizedSaved.id)
@@ -2294,11 +2312,8 @@
       state.adminErrors = {};
       state.adminSaveError = '';
       state.adminStep = 1;
-      state.history = [];
-      state.screen = 'seller-products';
-      state.params = {};
       state.isSubmitting = false;
-      render();
+      returnToAdminProductList();
       showToast(status === 'published' ? 'Товар опубликован' : 'Черновик сохранён');
     } catch (error) {
       state.isSubmitting = false;
@@ -2309,13 +2324,7 @@
             productId: /^\d+$/.test(String(state.adminDraft.id)) ? state.adminDraft.id : undefined,
             draftKey: state.adminDraft.clientDraftKey,
           });
-          state.adminDraft = {
-            ...state.adminDraft,
-            ...recovered,
-            id: recovered.id,
-            updatedAt: recovered.updatedAt,
-            imagePaths: recovered.imagePaths || state.adminDraft.imagePaths || [],
-          };
+          state.adminDraft = Core.mergeAdminDraftSave(state.adminDraft, recovered);
           state.adminProducts = state.adminProducts.some(({ id }) => id === recovered.id)
             ? state.adminProducts.map((item) => item.id === recovered.id ? normalizeAdminProductCategory(recovered) : item)
             : [normalizeAdminProductCategory(recovered), ...state.adminProducts];
