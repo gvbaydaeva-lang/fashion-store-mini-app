@@ -4,7 +4,6 @@ const assert = require('node:assert/strict');
 
 const {
   filterProducts,
-  sortProducts,
   getAvailableOptions,
   flattenCatalogProductGroups,
   getSelectedProductOption,
@@ -68,30 +67,11 @@ test('ссылка Main Mini App открывает приложение, а н�
   );
 });
 
-test('фильтр оставляет товары нужной категории и доступного размера', () => {
-  const result = filterProducts(TEST_PRODUCTS, {
-    category: 'dresses',
-    sizes: ['M'],
-    colors: [],
-    maxPrice: null,
-    onlyNew: false,
-  });
+test('каталог оставляет товары выбранной категории', () => {
+  const result = filterProducts(TEST_PRODUCTS, { category: 'dresses' });
 
   assert.ok(result.length > 0);
   assert.ok(result.every((product) => product.category === 'dresses'));
-  assert.ok(result.every((product) => (
-    product.variants.some((variant) => variant.size === 'M' && variant.stock > 0)
-  )));
-});
-
-test('сортировка по цене не изменяет исходный массив', () => {
-  const original = TEST_PRODUCTS.map(({ id }) => id);
-  const sorted = sortProducts(TEST_PRODUCTS, 'price-asc');
-
-  assert.deepEqual(TEST_PRODUCTS.map(({ id }) => id), original);
-  assert.ok(sorted.every((product, index) => (
-    index === 0 || sorted[index - 1].price <= product.price
-  )));
 });
 
 test('варианты возвращают размеры и остатки выбранного цвета', () => {
@@ -171,28 +151,6 @@ test('новый цветовой вариант не переносит фот�
   assert.deepEqual(variant.imagePaths, []);
   assert.equal(variant.sourceProductId, '12');
   assert.equal(variant.adminStatus, 'draft');
-});
-
-test('buyer-фильтры учитывают только включённые варианты с положительным остатком', () => {
-  const products = [{
-    id: 'mixed', category: 'dresses',
-    colors: [{ id: 'black', name: 'Чёрный' }, { id: 'blue', name: 'Голубой' }],
-    variants: [
-      { colorId: 'black', size: 'S', stock: 4, enabled: false },
-      { colorId: 'blue', size: 'M', stock: 0, enabled: true },
-      { colorId: 'blue', size: 'L', stock: 2, enabled: true },
-    ],
-  }];
-
-  assert.deepEqual(filterProducts(products, {
-    category: 'all', sizes: ['S'], colors: [], maxPrice: null, onlyNew: false,
-  }), []);
-  assert.deepEqual(filterProducts(products, {
-    category: 'all', sizes: [], colors: ['black'], maxPrice: null, onlyNew: false,
-  }), []);
-  assert.deepEqual(filterProducts(products, {
-    category: 'all', sizes: ['L'], colors: ['blue'], maxPrice: null, onlyNew: false,
-  }).map(({ id }) => id), ['mixed']);
 });
 
 test('buyer-выбор цвета и размера исключает disabled и нулевые варианты', () => {

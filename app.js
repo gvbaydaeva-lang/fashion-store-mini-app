@@ -34,10 +34,6 @@
   ]);
   const DEFAULT_FILTERS = {
     category: 'all',
-    sizes: [],
-    colors: [],
-    maxPrice: null,
-    onlyNew: false,
   };
   const ADMIN_COLORS = [
     { id: 'black', name: 'Чёрный', hex: '#242424' },
@@ -54,8 +50,6 @@
     history: [],
     params: {},
     filters: { ...DEFAULT_FILTERS },
-    draftFilters: { ...DEFAULT_FILTERS },
-    sortId: 'default',
     selectedColorId: null,
     selectedSize: null,
     cart: [],
@@ -621,20 +615,6 @@
       <button class="share-button" type="button" data-action="share-bot">${icon('share')}<span>Поделиться с другом</span></button>`;
   }
 
-  function activeFilterChips() {
-    const chips = [];
-    if (state.filters.sizes.length) chips.push(`Размер: ${state.filters.sizes.join(', ')}`);
-    if (state.filters.colors.length) {
-      const names = state.filters.colors.map((id) => (
-        getCatalogProducts().flatMap(({ colors }) => colors).find((color) => color.id === id)?.name || id
-      ));
-      chips.push(`Цвет: ${names.join(', ')}`);
-    }
-    if (state.filters.maxPrice != null) chips.push(`До ${money(state.filters.maxPrice)}`);
-    if (state.filters.onlyNew) chips.push('Новинки');
-    return chips.map((chip) => `<span class="filter-chip">${escapeHtml(chip)}</span>`).join('');
-  }
-
   function renderCatalog() {
     const catalogProducts = getCatalogProducts();
     if (state.catalogStatus === 'loading' && !catalogProducts.length) {
@@ -648,10 +628,7 @@
         ${pageHeader('Каталог')}
         <section class="empty-state card"><span aria-hidden="true">${icon('grid')}</span><h2>Ассортимент скоро появится</h2><p>Следите за обновлениями — новые модели будут здесь.</p><button class="primary-button" type="button" data-action="navigate" data-screen="store">Условия предзаказа</button></section>`;
     }
-    const products = Core.sortProducts(
-      Core.filterProducts(catalogProducts, state.filters),
-      state.sortId,
-    );
+    const products = Core.filterProducts(catalogProducts, state.filters);
     const categories = Data.CATEGORIES.map((category) => `
       <button class="chip ${state.filters.category === category.id ? 'is-active' : ''}" type="button" data-action="set-category" data-category="${category.id}">${escapeHtml(category.title)}</button>
     `).join('');
@@ -659,14 +636,9 @@
     return `
       ${pageHeader('Каталог', `${products.length} товаров`)}
       <div class="chip-strip" aria-label="Категории">${categories}</div>
-      <div class="toolbar">
-        <button class="toolbar-button" type="button" data-action="filters">Фильтры <span aria-hidden="true">${icon('chevron-down')}</span></button>
-        <button class="toolbar-button" type="button" data-action="sort">Сортировка <span aria-hidden="true">${icon('chevron-down')}</span></button>
-      </div>
-      ${activeFilterChips() ? `<div class="active-filters">${activeFilterChips()}<button type="button" data-action="reset-filters">Сбросить</button></div>` : ''}
       ${products.length
         ? `<div class="product-grid">${products.map(productCard).join('')}</div>`
-        : `<section class="empty-state card"><span aria-hidden="true">${icon('grid')}</span><h2>Таких товаров пока нет</h2><p>Попробуйте изменить размер, цвет или цену.</p><button class="primary-button" type="button" data-action="reset-filters">Сбросить фильтры</button></section>`}
+        : `<section class="empty-state card"><span aria-hidden="true">${icon('grid')}</span><h2>Таких товаров пока нет</h2><p>Выберите другую категорию или загляните позже.</p></section>`}
     `;
   }
 
@@ -818,6 +790,7 @@
         <article class="information-item card"><span class="information-item__icon" aria-hidden="true">₽</span><div><h3>Выгодные цены</h3><p>${escapeHtml(information.prices)}</p></div></article>
         <article class="information-item card"><span class="information-item__icon" aria-hidden="true">♡</span><div><h3>Развиваемся вместе</h3><p>${escapeHtml(information.future)}</p></div></article>
         <article class="information-item card"><span class="information-item__icon" aria-hidden="true">✦</span><div><h3>Больше пользы впереди</h3><p>${escapeHtml(information.benefits)}</p></div></article>
+        <article class="information-item card"><span class="information-item__icon" aria-hidden="true">↔</span><div><h3>Возврат и обмен</h3><p>${escapeHtml(information.returns)}</p></div></article>
       </section>
       <button class="secondary-button full-width" type="button" data-action="open-seller-demo">Войти в админ</button>`;
   }
@@ -1527,63 +1500,6 @@
     showToast('Товар удалён');
     if (CHECKOUT_SCREENS.has(state.screen) && !state.cart.length) navigate('cart');
     else render();
-  }
-
-  function renderFilterSheet() {
-    const catalogProducts = getCatalogProducts();
-    const sizes = ['XS', 'S', 'M', 'L', 'XL'];
-    const uniqueColors = [...new Map(
-      catalogProducts.flatMap((product) => product.variants
-        .filter((variant) => variant.enabled !== false && Number(variant.stock) > 0)
-        .map((variant) => product.colors.find((color) => color.id === variant.colorId))
-        .filter(Boolean)).map((color) => [color.id, color]),
-    ).values()];
-    const results = Core.filterProducts(catalogProducts, state.draftFilters).length;
-    openSheet(`
-      <div class="sheet__header"><p class="eyebrow">Каталог</p><h2>Фильтры</h2></div>
-      <fieldset><legend>Размер</legend><div class="choice-grid choice-grid--compact">${sizes.map((size) => `<button class="chip ${state.draftFilters.sizes.includes(size) ? 'is-active' : ''}" type="button" data-action="toggle-filter-size" data-size="${size}">${size}</button>`).join('')}</div></fieldset>
-      <fieldset><legend>Цвет</legend><div class="choice-grid choice-grid--colors">${uniqueColors.map((color) => `<button class="color-button ${state.draftFilters.colors.includes(color.id) ? 'is-active' : ''}" type="button" data-action="toggle-filter-color" data-color-id="${color.id}"><span style="--swatch:${color.hex}" aria-hidden="true"></span>${escapeHtml(color.name)}</button>`).join('')}</div></fieldset>
-      <fieldset><legend>Цена</legend><div class="choice-grid choice-grid--compact">${[6000, 8000, 12000].map((price) => `<button class="chip ${state.draftFilters.maxPrice === price ? 'is-active' : ''}" type="button" data-action="set-max-price" data-price="${price}">До ${money(price)}</button>`).join('')}</div></fieldset>
-      <label class="toggle-row"><input type="checkbox" data-action="toggle-new" ${state.draftFilters.onlyNew ? 'checked' : ''}><span>Только новинки</span></label>
-      <div class="sheet__actions"><button class="secondary-button" type="button" data-action="reset-draft-filters">Сбросить</button><button class="primary-button" type="button" data-action="apply-filters">Показать ${results}</button></div>
-    `, { title: 'Фильтры каталога' });
-  }
-
-  function openFilters() {
-    state.draftFilters = {
-      ...state.filters,
-      sizes: [...state.filters.sizes],
-      colors: [...state.filters.colors],
-    };
-    renderFilterSheet();
-  }
-
-  function toggleDraftFilter(key, value) {
-    const values = state.draftFilters[key];
-    state.draftFilters[key] = values.includes(value)
-      ? values.filter((item) => item !== value)
-      : [...values, value];
-    renderFilterSheet();
-  }
-
-  function openSort() {
-    const options = [
-      { id: 'default', title: 'По умолчанию' },
-      { id: 'price-asc', title: 'Сначала дешевле' },
-      { id: 'price-desc', title: 'Сначала дороже' },
-    ];
-    openSheet(`
-      <div class="sheet__header"><p class="eyebrow">Каталог</p><h2>Сортировка</h2></div>
-      <div class="sort-list">${options.map((option) => `<button type="button" data-action="set-sort" data-sort="${option.id}" aria-pressed="${state.sortId === option.id}"><span>${option.title}</span>${state.sortId === option.id ? `<b>${icon('check')}</b>` : ''}</button>`).join('')}</div>
-    `, { title: 'Сортировка каталога' });
-  }
-
-  function openRules() {
-    openSheet(`
-      <div class="sheet__header"><p class="eyebrow">Важно</p><h2>Оплата и возврат</h2></div>
-      <p>Порядок оплаты, получения и возврата магазин подтверждает перед оформлением.</p>
-      <button class="primary-button" type="button" data-action="close-sheet">Понятно</button>
-    `, { title: 'Условия магазина' });
   }
 
   function startCheckout() {
@@ -2414,43 +2330,8 @@
       state.filters = { ...DEFAULT_FILTERS, category: control.dataset.category };
       navigate('catalog', {}, { root: true });
     },
-    'open-new': () => {
-      state.filters = { ...DEFAULT_FILTERS, onlyNew: true };
-      navigate('catalog', {}, { root: true });
-    },
     'set-category': (control) => {
       state.filters.category = control.dataset.category;
-      render();
-    },
-    filters: openFilters,
-    sort: openSort,
-    'reset-filters': () => {
-      state.filters = { ...DEFAULT_FILTERS };
-      render();
-    },
-    'toggle-filter-size': (control) => toggleDraftFilter('sizes', control.dataset.size),
-    'toggle-filter-color': (control) => toggleDraftFilter('colors', control.dataset.colorId),
-    'set-max-price': (control) => {
-      const price = Number(control.dataset.price);
-      state.draftFilters.maxPrice = state.draftFilters.maxPrice === price ? null : price;
-      renderFilterSheet();
-    },
-    'toggle-new': (control) => {
-      state.draftFilters.onlyNew = control.checked;
-      renderFilterSheet();
-    },
-    'reset-draft-filters': () => {
-      state.draftFilters = { ...DEFAULT_FILTERS, category: state.filters.category };
-      renderFilterSheet();
-    },
-    'apply-filters': () => {
-      state.filters = { ...state.draftFilters, sizes: [...state.draftFilters.sizes], colors: [...state.draftFilters.colors] };
-      closeSheet();
-      render();
-    },
-    'set-sort': (control) => {
-      state.sortId = control.dataset.sort;
-      closeSheet();
       render();
     },
     'select-color': (control) => selectColor(control.dataset.colorId),
@@ -2475,7 +2356,6 @@
     'confirm-demo-payment': submitDemoPayment,
     'open-order': (control) => void openBuyerOrder(control.dataset.orderId),
     'demo-contact': () => showToast('Контакт магазина: ' + Data.STORE.support),
-    'store-rules': openRules,
     'enter-seller': enterSellerMode,
     'open-seller-demo': openSellerDemo,
     'exit-seller': exitSellerMode,

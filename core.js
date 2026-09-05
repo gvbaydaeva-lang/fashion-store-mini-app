@@ -6,28 +6,9 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function createCore() {
   function filterProducts(products, filters) {
     return products.filter((product) => {
-      const availableVariants = (product.variants || []).filter((variant) => (
-        variant.enabled !== false && Number(variant.stock) > 0
-      ));
       const matchesCategory = filters.category === 'all' || product.category === filters.category;
-      const matchesSize = !filters.sizes.length || filters.sizes.some((size) => (
-        availableVariants.some((variant) => variant.size === size)
-      ));
-      const matchesColor = !filters.colors.length || filters.colors.some((colorId) => (
-        availableVariants.some((variant) => variant.colorId === colorId)
-      ));
-      const matchesPrice = filters.maxPrice == null || product.price <= filters.maxPrice;
-      const matchesNew = !filters.onlyNew || product.badge === 'Новинка';
-
-      return matchesCategory && matchesSize && matchesColor && matchesPrice && matchesNew;
+      return matchesCategory;
     });
-  }
-
-  function sortProducts(products, sortId) {
-    const result = [...products];
-    if (sortId === 'price-asc') result.sort((left, right) => left.price - right.price);
-    if (sortId === 'price-desc') result.sort((left, right) => right.price - left.price);
-    return result;
   }
 
   function getAvailableOptions(product, colorId) {
@@ -375,7 +356,6 @@
 
   return {
     filterProducts,
-    sortProducts,
     getAvailableOptions,
     isVariantAvailable,
     hasAvailableVariant,

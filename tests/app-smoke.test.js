@@ -113,12 +113,12 @@ test('Mini App запрещает автоматическое увеличен�
   assert.match(indexSource, /user-scalable=no/);
 });
 
-test('страница запрашивает новые версии стилей и редактора после правки склеек', () => {
-  assert.match(indexSource, /data\.js\?v=20260903-profitable-purchases-1/);
+test('страница запрашивает свежие версии buyer-данных и редактора', () => {
+  assert.match(indexSource, /data\.js\?v=20260905-buyer-catalog-info-1/);
   assert.match(indexSource, /styles\.css\?v=20260905-admin-group-preview-1/);
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
   assert.match(indexSource, /api\.js\?v=20260904-admin-save-2/);
-  assert.match(indexSource, /app\.js\?v=20260905-admin-group-preview-1/);
+  assert.match(indexSource, /app\.js\?v=20260905-buyer-catalog-info-1/);
 });
 
 test('кнопка добавления товара всегда начинает пустую карточку, не восстанавливая прошлый черновик', () => {
@@ -401,6 +401,42 @@ test('вкладка информации показывает условия п
   assert.doesNotMatch(screen.innerHTML, /Трендовая одежда для стильных образов/);
   assert.doesNotMatch(screen.innerHTML, /Адрес|Часы работы|Поддержка|Связаться|Оплата и возврат|Режим продавца/);
   assert.match(screen.innerHTML, /data-action="open-seller-demo"[^>]*>Войти в админ<\/button>/);
+});
+
+test('покупательский каталог оставляет только выбор категории', async () => {
+  const { app, screen } = loadApp({}, {
+    createApiClient() {
+      return {
+        getCatalog: async () => [{
+          id: 'catalog-dress',
+          name: 'Платье',
+          price: 4990,
+          category: 'all',
+          images: ['https://cdn.example/dress.webp'],
+          colors: [{ id: 'black', name: 'Чёрный', hex: '#242424' }],
+          variants: [{ colorId: 'black', size: 'S', stock: 2, enabled: true }],
+          adminStatus: 'published',
+        }],
+      };
+    },
+  });
+
+  await app.loadRemoteCatalog();
+
+  app.navigate('catalog');
+
+  assert.match(screen.innerHTML, /aria-label="Категории"/);
+  assert.doesNotMatch(screen.innerHTML, /Фильтры|Сортировка|Только новинки|Сбросить фильтры/);
+});
+
+test('информация бережно предупреждает, что возврат и обмен не предусмотрены', () => {
+  const { app, screen } = loadApp();
+
+  app.navigate('store');
+
+  assert.match(screen.innerHTML, /Возврат и обмен/);
+  assert.match(screen.innerHTML, /товары выкупаются специально для вас/i);
+  assert.match(screen.innerHTML, /возврат и обмен[^<]*не предусмотрены/i);
 });
 
 test('приложение загружает покупательский каталог через API-клиент', async () => {
