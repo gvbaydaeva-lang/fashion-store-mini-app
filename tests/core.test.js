@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 
 const {
   filterProducts,
+  sortProducts,
   getAvailableOptions,
   flattenCatalogProductGroups,
   getSelectedProductOption,
@@ -72,6 +73,28 @@ test('каталог оставляет товары выбранной кате
 
   assert.ok(result.length > 0);
   assert.ok(result.every((product) => product.category === 'dresses'));
+});
+
+test('сортировка применяется после отбора товаров выбранной категории', () => {
+  const products = [
+    { id: 'dress-expensive', category: 'dresses', price: 8900 },
+    { id: 'jacket', category: 'jackets', price: 1200 },
+    { id: 'dress-cheap', category: 'dresses', price: 4900 },
+  ];
+  const filtered = filterProducts(products, { category: 'dresses' });
+
+  assert.deepEqual(
+    sortProducts(filtered, 'price-asc').map(({ id }) => id),
+    ['dress-cheap', 'dress-expensive'],
+  );
+  assert.deepEqual(
+    sortProducts(filtered, 'price-desc').map(({ id }) => id),
+    ['dress-expensive', 'dress-cheap'],
+  );
+  assert.deepEqual(
+    sortProducts(filtered, 'default').map(({ id }) => id),
+    ['dress-expensive', 'dress-cheap'],
+  );
 });
 
 test('варианты возвращают размеры и остатки выбранного цвета', () => {

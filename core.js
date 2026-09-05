@@ -11,6 +11,13 @@
     });
   }
 
+  function sortProducts(products, sortId) {
+    const result = [...products];
+    if (sortId === 'price-asc') result.sort((left, right) => left.price - right.price);
+    if (sortId === 'price-desc') result.sort((left, right) => right.price - left.price);
+    return result;
+  }
+
   function getAvailableOptions(product, colorId) {
     return (product?.variants || []).filter((variant) => (
       variant.colorId === colorId && isVariantAvailable(variant)
@@ -356,6 +363,7 @@
 
   return {
     filterProducts,
+    sortProducts,
     getAvailableOptions,
     isVariantAvailable,
     hasAvailableVariant,

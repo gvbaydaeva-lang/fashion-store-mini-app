@@ -118,7 +118,8 @@ test('страница запрашивает свежие версии buyer-д
   assert.match(indexSource, /styles\.css\?v=20260905-admin-group-preview-1/);
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
   assert.match(indexSource, /api\.js\?v=20260904-admin-save-2/);
-  assert.match(indexSource, /app\.js\?v=20260905-buyer-catalog-info-1/);
+  assert.match(indexSource, /core\.js\?v=20260905-buyer-catalog-sort-1/);
+  assert.match(indexSource, /app\.js\?v=20260905-buyer-catalog-sort-1/);
 });
 
 test('кнопка добавления товара всегда начинает пустую карточку, не восстанавливая прошлый черновик', () => {
@@ -403,7 +404,7 @@ test('вкладка информации показывает условия п
   assert.match(screen.innerHTML, /data-action="open-seller-demo"[^>]*>Войти в админ<\/button>/);
 });
 
-test('покупательский каталог оставляет только выбор категории', async () => {
+test('покупательский каталог оставляет только категории в фильтрах и возвращает сортировку', async () => {
   const { app, screen } = loadApp({}, {
     createApiClient() {
       return {
@@ -426,7 +427,11 @@ test('покупательский каталог оставляет тольк�
   app.navigate('catalog');
 
   assert.match(screen.innerHTML, /aria-label="Категории"/);
-  assert.doesNotMatch(screen.innerHTML, /Фильтры|Сортировка|Только новинки|Сбросить фильтры/);
+  assert.match(screen.innerHTML, /data-action="sort"/);
+  assert.match(appSource, /По умолчанию/);
+  assert.match(appSource, /Сначала дешевле/);
+  assert.match(appSource, /Сначала дороже/);
+  assert.doesNotMatch(screen.innerHTML, /data-action="filters"|Только новинки|Сбросить фильтры/);
 });
 
 test('информация бережно предупреждает, что возврат и обмен не предусмотрены', () => {
