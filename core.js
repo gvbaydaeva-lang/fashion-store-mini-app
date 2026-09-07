@@ -113,9 +113,9 @@
     return order.status === 'paid' ? { ...order, status: 'ready' } : { ...order };
   }
 
-  function buildMainMiniAppUrl(username) {
+  function buildBotUrl(username) {
     const normalizedUsername = String(username || '').trim().replace(/^@/, '');
-    return `https://t.me/${normalizedUsername}?startapp`;
+    return `https://t.me/${normalizedUsername}`;
   }
 
   function buildTelegramShareUrl(botUrl, text) {
@@ -392,7 +392,7 @@
     getCartSummary,
     createDemoOrder,
     markOrderReady,
-    buildMainMiniAppUrl,
+    buildBotUrl,
     buildTelegramShareUrl,
     createAdminCatalog,
     mergeAdminDraftSave,

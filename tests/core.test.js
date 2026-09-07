@@ -14,7 +14,7 @@ const {
   getCartSummary,
   createDemoOrder,
   markOrderReady,
-  buildMainMiniAppUrl,
+  buildBotUrl,
   buildTelegramShareUrl,
   createAdminCatalog,
   getPublishedProducts,
@@ -56,10 +56,10 @@ test('ссылка для шаринга передаёт Telegram адрес б
   );
 });
 
-test('ссылка Main Mini App открывает приложение, а не профиль бота', () => {
+test('ссылка на бота открывает его профиль, а не Mini App напрямую', () => {
   assert.equal(
-    buildMainMiniAppUrl('fashion_katalog_bot'),
-    'https://t.me/fashion_katalog_bot?startapp',
+    buildBotUrl('fashion_katalog_bot'),
+    'https://t.me/fashion_katalog_bot',
   );
 });
 

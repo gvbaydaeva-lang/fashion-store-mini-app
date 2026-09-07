@@ -22,7 +22,7 @@
   const ADMIN_PRODUCTS_KEY = 'fashion-store-admin-products-v1';
   const ADMIN_DRAFT_KEY = 'fashion-store-admin-draft-v1';
   const PREORDER_RESET_KEY = 'fashion-store-preorder-reset-v1';
-  const MAIN_APP_URL = Core.buildMainMiniAppUrl('fashion_katalog_bot');
+  const BOT_URL = Core.buildBotUrl('fashion_katalog_bot');
   const SHARE_TEXT = 'Посмотри «Выгодные покупки» в Telegram 🛍';
   const ROOT_SCREENS = new Set(['home', 'catalog', 'cart', 'orders', 'store']);
   const CHECKOUT_SCREENS = new Set([
@@ -514,7 +514,7 @@
   }
 
   function shareBot() {
-    const shareUrl = Core.buildTelegramShareUrl(MAIN_APP_URL, SHARE_TEXT);
+    const shareUrl = Core.buildTelegramShareUrl(BOT_URL, SHARE_TEXT);
     if (tg?.openTelegramLink) tg.openTelegramLink(shareUrl);
     else window.location.assign(shareUrl);
   }
