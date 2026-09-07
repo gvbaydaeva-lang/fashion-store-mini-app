@@ -13,6 +13,10 @@ const appSource = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
 const stylesSource = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
 const indexSource = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 
+test('клиентское приложение не содержит отменённый бонусный сценарий', () => {
+  assert.doesNotMatch(appSource, /500 ₽|welcome500|claim-bonus|open-offer-bot|Welcome-бонус|bonus-card|offer-dialog/);
+});
+
 function createClassList() {
   const values = new Set();
   return {

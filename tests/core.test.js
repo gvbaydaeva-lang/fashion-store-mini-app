@@ -12,11 +12,8 @@ const {
   setCartItemQuantity,
   removeCartItem,
   getCartSummary,
-  getBonusSummary,
-  formatBonusStatus,
   createDemoOrder,
   markOrderReady,
-  shouldShowFirstOpenOffer,
   buildMainMiniAppUrl,
   buildTelegramShareUrl,
   createAdminCatalog,
@@ -36,16 +33,6 @@ const {
   parseAdminDraft,
 } = require('../core.js');
 
-test('welcome-бонус доступен только от 5000 и не попадает в корзинный итог', () => {
-  assert.deepEqual(getBonusSummary(4999, { status: 'active', remainingAmount: '500.00' }), {
-    itemsTotal: 4999, bonusEligible: false, bonusAmount: 0, payableTotal: 4999, reason: 'minimum_not_reached',
-  });
-  assert.deepEqual(getBonusSummary(5000, { status: 'active', remainingAmount: '500.00' }), {
-    itemsTotal: 5000, bonusEligible: true, bonusAmount: 500, payableTotal: 4500, reason: null,
-  });
-  assert.equal(formatBonusStatus({ status: 'spent' }).label, 'Использован');
-});
-
 const TEST_PRODUCTS = [
   {
     id: 'dress-test', category: 'dresses', price: 5990, badge: 'Новинка',
@@ -58,11 +45,6 @@ const TEST_PRODUCTS = [
     variants: [{ colorId: 'black', size: 'S', stock: 1 }],
   },
 ];
-
-test('оффер показывается без маркера и не повторяется после просмотра', () => {
-  assert.equal(shouldShowFirstOpenOffer(null), true);
-  assert.equal(shouldShowFirstOpenOffer('seen'), false);
-});
 
 test('ссылка для шаринга передаёт Telegram адрес бота и текст', () => {
   assert.equal(

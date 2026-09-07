@@ -19,12 +19,10 @@
   const ORDERS_KEY = 'fashion-store-orders-v2';
   const DEMO_ORDERS_KEY = 'fashion-store-demo-orders-v1';
   const ORDER_IDEMPOTENCY_KEY = 'fashion-store-order-idempotency-v1';
-  const OFFER_KEY = 'fashion-store-offer-seen-v1';
   const ADMIN_PRODUCTS_KEY = 'fashion-store-admin-products-v1';
   const ADMIN_DRAFT_KEY = 'fashion-store-admin-draft-v1';
   const PREORDER_RESET_KEY = 'fashion-store-preorder-reset-v1';
   const MAIN_APP_URL = Core.buildMainMiniAppUrl('fashion_katalog_bot');
-  const OFFER_BOT_URL = 'https://t.me/fashion_katalog_bot?start=welcome500';
   const SHARE_TEXT = 'Посмотри «Выгодные покупки» в Telegram 🛍';
   const ROOT_SCREENS = new Set(['home', 'catalog', 'cart', 'orders', 'store']);
   const CHECKOUT_SCREENS = new Set([
@@ -61,9 +59,6 @@
     checkoutIdempotencyKey: null,
     customer: { name: '', phone: '' },
     delivery: null,
-    bonus: { status: 'none', amount: '0.00', remainingAmount: '0.00' },
-    bonusStatus: 'idle',
-    checkoutQuote: null,
     sellerMode: false,
     sellerSection: 'products',
     sellerTab: 'collect',
@@ -518,68 +513,6 @@
     focusBeforeSheet?.focus();
   }
 
-  function showFirstOpenOffer() {
-    let storedValue = null;
-    try {
-      storedValue = window.localStorage.getItem(OFFER_KEY);
-    } catch (_error) {
-      storedValue = null;
-    }
-    if (!Core.shouldShowFirstOpenOffer(storedValue)) return;
-
-    try {
-      window.localStorage.setItem(OFFER_KEY, 'seen');
-    } catch (_error) {
-      // Оффер остаётся доступным, даже если браузер запретил localStorage.
-    }
-
-    focusBeforeSheet = document.activeElement;
-    appShell.inert = true;
-    modalRoot.innerHTML = `
-      <div class="offer-overlay">
-        <section class="offer-dialog" role="dialog" aria-modal="true" aria-labelledby="offer-title" aria-describedby="offer-description">
-          <div class="offer-dialog__emoji" aria-hidden="true">🛍</div>
-          <h2 id="offer-title">Добро пожаловать в «Выгодные покупки» 🛍</h2>
-          <p id="offer-description">Бонус новым пользователям: 500 ₽ на покупку от 5 000 ₽ до 30 сентября 2026 года, 23:59 по Москве. Бонус нельзя вывести.</p>
-          <ul class="offer-dialog__benefits">
-            <li>Выгодные цены на женскую одежду</li>
-            <li>Новинки и ближайшие закупки</li>
-            <li>Новости и акции в Telegram</li>
-          </ul>
-          <button class="offer-dialog__cta" type="button" data-action="open-offer-bot">Получить 500 ₽</button>
-          <button class="offer-dialog__skip" type="button" data-action="close-sheet">Пропустить</button>
-        </section>
-      </div>`;
-    modalRoot.querySelector('.offer-dialog__cta')?.focus();
-  }
-
-  function openOfferBot() {
-    closeSheet();
-    if (tg?.openTelegramLink) tg.openTelegramLink(OFFER_BOT_URL);
-    else window.location.assign(OFFER_BOT_URL);
-  }
-
-  async function claimBonus() {
-    if (!apiClient?.claimBonus || !tg?.initData) { openOfferBot(); return; }
-    state.bonusStatus = 'loading';
-    try {
-      state.bonus = await apiClient.claimBonus();
-      state.bonusStatus = 'ready';
-      showToast(state.bonus.status === 'active' ? 'Бонус 500 ₽ начислен' : 'Бонус пока недоступен');
-      render();
-    } catch (error) {
-      state.bonusStatus = 'error';
-      showToast(error.message || 'Не удалось загрузить бонус. Попробуйте ещё раз');
-    }
-  }
-
-  async function loadBonus() {
-    if (!apiClient?.getBonus || !tg?.initData) return;
-    state.bonusStatus = 'loading';
-    try { state.bonus = await apiClient.getBonus(); state.bonusStatus = 'ready'; render(); }
-    catch (_error) { state.bonusStatus = 'error'; }
-  }
-
   function shareBot() {
     const shareUrl = Core.buildTelegramShareUrl(MAIN_APP_URL, SHARE_TEXT);
     if (tg?.openTelegramLink) tg.openTelegramLink(shareUrl);
@@ -587,7 +520,7 @@
   }
 
   function handleModalKeydown(event) {
-    const dialog = modalRoot.querySelector('.sheet, .offer-dialog');
+    const dialog = modalRoot.querySelector('.sheet');
     if (!dialog) return;
     if (event.key === 'Escape') {
       closeSheet();
@@ -660,10 +593,6 @@
         <h2>${Data.STORE.tagline}</h2>
         <p>${escapeHtml(Data.STORE.description)}</p>
         <button class="secondary-button" type="button" data-action="navigate" data-screen="catalog">Открыть каталог</button>
-      </section>
-      <section class="bonus-card card" aria-label="Welcome-бонус">
-        <div><p class="eyebrow">Welcome-бонус</p><h2>500 ₽ на первую покупку</h2><p>${escapeHtml(Core.formatBonusStatus(state.bonus).label)} · от 5 000 ₽</p></div>
-        ${state.bonus.status === 'active' ? `<strong class="bonus-card__amount">${escapeHtml(state.bonus.remainingAmount)} ₽</strong>` : `<button class="secondary-button" type="button" data-action="claim-bonus">Получить 500 ₽</button>`}
       </section>
       <section class="preorder-summary" aria-label="Условия предзаказа">
         <ul class="preorder-terms preorder-terms--compact">${terms}</ul>
@@ -948,9 +877,7 @@
   function renderCheckoutReview() {
     if (!state.delivery) return renderCheckoutDelivery();
     const summary = Core.getCartSummary(state.cart, state.delivery.price);
-    const quote = state.checkoutQuote || Core.getBonusSummary(summary.subtotal, state.bonus);
-    const bonusAmount = Number(quote.bonusAmount) || 0;
-    const payableTotal = Math.max(0, summary.total - bonusAmount);
+    const payableTotal = summary.total;
     return `
       ${pageHeader('Проверка заказа', 'Шаг 3 из 3')}
       ${checkoutProgress(3)}
@@ -959,7 +886,6 @@
       <section class="review-section card"><h2>Получение</h2><p><strong>${escapeHtml(state.delivery.title)}</strong><br>${escapeHtml(state.delivery.description)}</p></section>
       <section class="summary-card card">
         <div><span>Товары</span><b>${money(summary.subtotal)}</b></div>
-        ${bonusAmount > 0 ? `<div class="bonus-line"><span>Бонусы</span><b>−${money(bonusAmount)}</b></div>` : ''}
         <div><span>Получение</span><b>${summary.deliveryPrice ? money(summary.deliveryPrice) : 'Бесплатно'}</b></div>
         <div class="summary-total"><span>К оплате</span><b>${money(payableTotal)}</b></div>
         <button class="primary-button" type="button" data-action="request-payment">Оформить заказ ${money(payableTotal)}</button>
@@ -1602,17 +1528,6 @@
 
   async function continueToCheckoutReview() {
     if (!state.delivery) return;
-    state.checkoutQuote = null;
-    if (apiClient?.getCheckoutQuote && tg?.initData) {
-      try {
-        state.checkoutQuote = await apiClient.getCheckoutQuote({
-          deliveryId: state.delivery.id,
-          items: state.cart,
-        });
-      } catch (_error) {
-        showToast('Не удалось проверить бонус. Итог пересчитан без скидки');
-      }
-    }
     navigate('checkout-review');
   }
 
@@ -2454,7 +2369,6 @@
     'edit-delivery': () => navigate('checkout-delivery'),
     'request-payment': requestDemoPayment,
     'confirm-demo-payment': submitDemoPayment,
-    'claim-bonus': claimBonus,
     'open-order': (control) => void openBuyerOrder(control.dataset.orderId),
     'demo-contact': () => showToast('Контакт магазина: ' + Data.STORE.support),
     'enter-seller': enterSellerMode,
@@ -2530,7 +2444,6 @@
     'confirm-ready': confirmOrderReady,
     'reload-seller-orders': () => void loadRemoteSellerOrders(),
     'reload-admin-users': () => void loadRemoteAdminUsers(),
-    'open-offer-bot': openOfferBot,
     'share-bot': shareBot,
     'close-sheet': closeSheet,
     'reload-catalog': loadRemoteCatalog,
@@ -2549,11 +2462,7 @@
     tg?.onEvent?.('viewportChanged', applyViewportHeight);
     window.addEventListener('orientationchange', applyViewportLayout);
     render();
-    showFirstOpenOffer();
     if (tg?.initData && apiClient?.trackOpen) void apiClient.trackOpen().catch(() => {});
-    void loadBonus().then(() => {
-      if (tg?.initDataUnsafe?.start_param === 'welcome500' && state.bonus.status === 'none') void claimBonus();
-    });
     void loadRemoteCatalog();
   }
 
