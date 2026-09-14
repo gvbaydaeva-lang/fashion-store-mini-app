@@ -543,9 +543,9 @@ test('похожий товар становится независимым че
   assert.equal(source.variants[0].stock, 4);
 });
 
-test('новый вариант переносит только название, описание, артикул и поставщика', () => {
+test('новый вариант переносит название, описание, поставщика и размеры без остатков', () => {
   const source = {
-    id: '31', groupId: 'dress-group', name: 'Платье', category: 'dresses', sellerSku: 'DR-31',
+    id: '31', groupId: 'dress-group', name: 'Платье', category: 'dresses',
     price: 5990, oldPrice: 6990, wholesalePrice: 2800, supplier: 'Milan Fashion',
     description: 'Платье миди', images: ['dress.jpg'], imagePaths: ['products/31/dress.jpg'],
     colors: [{ id: 'black', name: 'Чёрный' }], sizes: ['42'],
@@ -558,7 +558,7 @@ test('новый вариант переносит только название
   assert.equal(variant.groupId, 'dress-group');
   assert.equal(variant.name, 'Платье');
   assert.equal(variant.description, 'Платье миди');
-  assert.equal(variant.sellerSku, 'DR-31');
+  assert.equal(variant.sellerSku, undefined);
   assert.equal(variant.supplier, 'Milan Fashion');
   assert.equal(variant.price, '');
   assert.equal(variant.wholesalePrice, null);
@@ -566,8 +566,8 @@ test('новый вариант переносит только название
   assert.deepEqual(variant.images, []);
   assert.deepEqual(variant.imagePaths, []);
   assert.deepEqual(variant.colors, []);
-  assert.deepEqual(variant.sizes, []);
-  assert.deepEqual(variant.variants, []);
+  assert.deepEqual(variant.sizes, ['42']);
+  assert.deepEqual(variant.variants, [{ colorId: undefined, size: '42', stock: 0, enabled: true }]);
 });
 
 test('статус товара различает черновик, публикацию и отсутствие остатка', () => {

@@ -128,9 +128,9 @@ test('страница запрашивает свежие версии buyer-д
   assert.match(indexSource, /data\.js\?v=20260905-buyer-catalog-info-1/);
   assert.match(indexSource, /styles\.css\?v=20260905-buyer-catalog-controls-1/);
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
-  assert.match(indexSource, /api\.js\?v=20260904-admin-save-2/);
-  assert.match(indexSource, /core\.js\?v=20260905-seller-photo-save-2/);
-  assert.match(indexSource, /app\.js\?v=20260905-seller-photo-save-2/);
+  assert.match(indexSource, /api\.js\?v=20260914-variant-sizes-1/);
+  assert.match(indexSource, /core\.js\?v=20260914-variant-sizes-1/);
+  assert.match(indexSource, /app\.js\?v=20260914-variant-sizes-1/);
 });
 
 test('кнопка добавления товара всегда начинает пустую карточку, не восстанавливая прошлый черновик', () => {
@@ -942,12 +942,9 @@ test('ошибка сохранения честно различает серв
   assert.doesNotMatch(saveSource, /Данные сохранены в черновик\. Исправь ошибку и повтори\./);
 });
 
-test('повторный артикул подсвечивается в форме, а не маскируется серверной ошибкой', () => {
-  const saveSource = appSource.match(/async function saveAdminProduct\(status\) \{[\s\S]*?\n  \}/)?.[0] || '';
-  assert.match(saveSource, /error\?\.code === 'SELLER_SKU_CONFLICT'/);
-  assert.match(saveSource, /sellerSku: 'Артикул уже используется в другой карточке/);
-  assert.match(saveSource, /Черновик не сохранён: исправь артикул продавца\./);
-  assert.match(appSource, /adminFieldError\('sellerSku'\)/);
+test('админка больше не содержит поле артикула продавца', () => {
+  assert.doesNotMatch(appSource, /Артикул продавца/);
+  assert.doesNotMatch(appSource, /sellerSku/);
 });
 
 test('тайм-аут сохранения сначала восстанавливает результат, а публикация передаёт подтверждённую версию', () => {

@@ -331,7 +331,6 @@
       groupId: product.groupId || product.id,
       sourceProductId: product.id,
       name: String(product.name || ''),
-      sellerSku: String(product.sellerSku || ''),
       supplier: String(product.supplier || ''),
       description: String(product.description || ''),
       category: 'all',
@@ -343,13 +342,14 @@
       images: [],
       imagePaths: [],
       colors: [],
-      sizes: [],
+      sizes: [...new Set((product.sizes || product.variants?.map(({ size }) => size) || []).filter(Boolean))],
       composition: '',
       care: '',
       fit: '',
       model: '',
       measurements: {},
-      variants: [],
+      variants: [...new Set((product.sizes || product.variants?.map(({ size }) => size) || []).filter(Boolean))]
+        .map((size) => ({ colorId: undefined, size, stock: 0, enabled: true })),
       adminStatus: 'draft',
     };
   }

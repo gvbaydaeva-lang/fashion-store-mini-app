@@ -351,7 +351,6 @@
       id: `admin-${Date.now().toString(36)}`,
       clientDraftKey: createAdminDraftKey(),
       name: '',
-      sellerSku: '',
       wholesalePrice: null,
       supplier: '',
       category: 'all',
@@ -992,7 +991,7 @@
           <span class="admin-product-row__image">${image}</span>
           <span class="admin-product-row__content">
             <strong>${escapeHtml(product.name || 'Без названия')}</strong>
-            <small>${product.sellerSku ? `Артикул: ${escapeHtml(product.sellerSku)} · ` : ''}${product.price ? money(product.price) : 'Цена не указана'} · ${product.colors.length} ${product.colors.length === 1 ? 'цвет' : 'цвета'}</small>
+            <small>${product.price ? money(product.price) : 'Цена не указана'} · ${product.colors.length} ${product.colors.length === 1 ? 'цвет' : 'цвета'}</small>
             <span>Остаток: <b>${stock}</b> · изменить в карточке</span>
             <em class="admin-status admin-status--${status.className}">${status.label}</em>
           </span>
@@ -1102,8 +1101,6 @@
         <section class="admin-form-section card">
           <label><span>Название товара</span><input name="name" type="text" maxlength="80" value="${escapeHtml(product.name)}" placeholder="Например, Платье Миди" autocomplete="off"></label>
           ${adminFieldError('name')}
-          <label><span>Артикул продавца</span><input name="sellerSku" type="text" maxlength="40" value="${escapeHtml(product.sellerSku)}" placeholder="Например, DR-204" autocomplete="off"></label>
-          ${adminFieldError('sellerSku')}
           <label><span>Категория</span><select name="category">${categories}</select></label>
         </section>
         ${adminEditorActions('Продолжить')}
@@ -1178,7 +1175,6 @@
           <p class="eyebrow">${escapeHtml(getAdminCategories().find(({ id }) => id === product.category)?.title || 'Без категории')}</p>
           <h2>${escapeHtml(product.name || 'Без названия')}</h2>
           <p class="product-price"><b>${product.price ? money(product.price) : 'Цена не указана'}</b>${product.oldPrice ? `<s>${money(product.oldPrice)}</s>` : ''}</p>
-          ${product.sellerSku ? `<p class="choice-hint">Артикул: ${escapeHtml(product.sellerSku)}</p>` : ''}
           <p>${escapeHtml(product.description || 'Описание пока не добавлено.')}</p>
           <div class="choice-grid choice-grid--colors">${colors}</div>
           <p class="choice-hint">Размеры: ${sizes.length ? sizes.join(', ') : 'не указаны'}</p>
@@ -1256,6 +1252,7 @@
     const renderColorFields = (color, index, isNew = false) => {
       const variants = product.variants.filter(({ colorId }) => colorId === color.id);
       const emptySizeCount = isNew ? 1 : (state.adminSizeEmptyRows[color.id] || 0);
+      const copiedSizes = isNew && !variants.length ? (product.sizes || []) : [];
       const sizeRows = [
         ...variants.map((variant) => `
           <div class="admin-size-row ${variant.enabled === false ? 'is-disabled' : ''}">
@@ -1263,7 +1260,9 @@
             <label><span>Остаток</span><input type="number" min="0" step="1" inputmode="numeric" value="${variant.stock}" data-action="admin-stock" data-color-id="${variant.colorId}" data-size="${variant.size}" ${variant.enabled === false ? 'disabled' : ''} aria-label="Количество ${escapeHtml(color.name)}, размер ${variant.size}"></label>
             <button class="icon-button admin-remove-size-button" type="button" data-action="remove-admin-size" aria-label="Удалить размер ${escapeHtml(variant.size)}">${icon('close')}</button>
           </div>`),
-        ...Array.from({ length: emptySizeCount }, () => `
+        ...copiedSizes.map((size) => `
+          <div class="admin-size-row"><label><span>Размер</span><input data-admin-size-name type="text" maxlength="20" value="${escapeHtml(size)}" placeholder="Например, 42" autocomplete="off"></label><label><span>Остаток</span><input type="number" min="0" step="1" inputmode="numeric" value="0" aria-label="Остаток нового размера"></label><button class="icon-button admin-remove-size-button" type="button" data-action="remove-admin-size" aria-label="Удалить размер ${escapeHtml(size)}">${icon('close')}</button></div>`),
+        ...Array.from({ length: copiedSizes.length ? emptySizeCount : (isNew ? 1 : emptySizeCount) }, () => `
           <div class="admin-size-row"><label><span>Размер</span><input data-admin-size-name type="text" maxlength="20" value="" placeholder="Например, 42" autocomplete="off"></label><label><span>Остаток</span><input type="number" min="0" step="1" inputmode="numeric" value="0" aria-label="Остаток нового размера"></label><button class="icon-button admin-remove-size-button" type="button" data-action="remove-admin-size" aria-label="Удалить размер">${icon('close')}</button></div>`),
       ].join('');
       return `
@@ -1291,7 +1290,6 @@
           </div>
           <div class="admin-editor-grid">
             <label><span>Название товара</span><input name="name" type="text" maxlength="80" value="${escapeHtml(product.name)}" placeholder="Например, Платье Миди" autocomplete="off"></label>
-            <label><span>Артикул продавца</span><input name="sellerSku" type="text" maxlength="40" value="${escapeHtml(product.sellerSku)}" placeholder="Например, DR-204" autocomplete="off"></label>
             <label><span>Категория</span><select name="category"><option value="all" ${product.category === 'all' ? 'selected' : ''}>Выбери категорию</option>${categories}</select></label>
             <label><span>Новая категория</span><input name="categoryNew" type="text" maxlength="60" value="${escapeHtml(product.categoryNew || '')}" placeholder="Можно добавить вручную" autocomplete="off"></label>
             <label><span>Цена, ₽</span><input name="price" type="number" min="1" step="1" inputmode="numeric" value="${product.price || ''}" placeholder="5990"></label>
@@ -1299,7 +1297,7 @@
             <label><span>Оптовая цена, ₽</span><input name="wholesalePrice" type="number" min="1" step="1" inputmode="numeric" value="${product.wholesalePrice || ''}" placeholder="Необязательно"></label>
             <label><span>Поставщик</span><input name="supplier" type="text" maxlength="80" value="${escapeHtml(product.supplier)}" placeholder="Например, Milan Fashion" autocomplete="off"></label>
           </div>
-          ${adminFieldError('name')}${adminFieldError('sellerSku')}${adminFieldError('price')}${adminFieldError('oldPrice')}${adminFieldError('wholesalePrice')}
+          ${adminFieldError('name')}${adminFieldError('price')}${adminFieldError('oldPrice')}${adminFieldError('wholesalePrice')}
           <div class="admin-form-heading admin-form-heading--variants"><div><p class="eyebrow">Варианты товара</p><h2>Цвет и размеры</h2></div><span>${product.variants.length} размеров</span></div>
           ${colorFields || emptyColorBlocks || renderColorFields({ id: '', name: '' }, 0, true)}
           ${adminFieldError('colors')}${adminFieldError('sizes')}${adminFieldError('variants')}
@@ -1597,7 +1595,6 @@
     if (!form || !state.adminDraft) return;
     const formData = new FormData(form);
     state.adminDraft.name = String(formData.get('name') || '').trim();
-    state.adminDraft.sellerSku = String(formData.get('sellerSku') || '').trim();
     const newCategoryTitle = String(formData.get('categoryNew') || '').trim();
     state.adminDraft.categoryNew = newCategoryTitle;
     if (newCategoryTitle) {
@@ -2301,27 +2298,19 @@
           // Результат действительно неизвестен: повтор сохранения использует тот же ключ черновика.
         }
       }
-      const sellerSkuConflict = error?.code === 'SELLER_SKU_CONFLICT';
       const versionConflict = error?.code === 'PRODUCT_VERSION_CONFLICT' || error?.status === 409;
       if (error?.code === 'PUBLICATION_VALIDATION_FAILED' && error?.fieldErrors) {
         state.adminErrors = { ...state.adminErrors, ...error.fieldErrors };
         state.adminStep = 4;
       }
-      if (sellerSkuConflict) {
-        state.adminErrors = { ...state.adminErrors, sellerSku: 'Артикул уже используется в другой карточке. Укажи другой или очисти поле.' };
-      }
-      state.adminSaveError = sellerSkuConflict
-        ? 'Черновик не сохранён: исправь артикул продавца.'
-        : versionConflict
+      state.adminSaveError = versionConflict
           ? 'Карточка изменилась на другом устройстве. Обнови список, чтобы не затереть чужие изменения.'
         : serverDraftSaved
           ? 'Черновик сохранён на сервере. Не удалось завершить загрузку фотографии. Повтори сохранение.'
           : 'Сервер не сохранил черновик. Введённые данные оставлены только на этом устройстве.';
       persistAdminDraft();
       render();
-      showToast(sellerSkuConflict
-        ? 'Артикул уже используется в другой карточке.'
-        : versionConflict
+      showToast(versionConflict
         ? 'Товар изменён на другом устройстве. Обнови список.'
         : `${state.adminSaveError}${error?.requestId ? ` Код обращения: ${error.requestId}.` : ''}`);
     }

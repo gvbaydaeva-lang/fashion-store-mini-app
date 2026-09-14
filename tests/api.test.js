@@ -236,7 +236,7 @@ test('сохранение товара переводит поля и вари�
   });
 
   await client.createAdminProduct({
-    name: 'Платье', price: 5000, oldPrice: 6000, sellerSku: 'DR-1',
+    name: 'Платье', price: 5000, oldPrice: 6000,
     clientDraftKey: '123e4567-e89b-42d3-a456-426614174000',
     adminStatus: 'draft', images: ['data:image/png;base64,local'],
     colors: [{ id: 'black', name: 'Чёрный, графитовый' }],
@@ -244,7 +244,7 @@ test('сохранение товара переводит поля и вари�
   });
 
   assert.equal(body.product.old_price, 6000);
-  assert.equal(body.product.seller_sku, 'DR-1');
+  assert.equal(Object.hasOwn(body.product, 'seller_sku'), false);
   assert.deepEqual(body.product.variants, [{ color_id: 'black', color_name: 'Чёрный, графитовый', color_hex: null, size: 'S', stock: 2, is_enabled: true }]);
   assert.deepEqual(body.product.images, []);
   assert.equal(body.product.admin_draft_key, '123e4567-e89b-42d3-a456-426614174000');
@@ -324,7 +324,7 @@ test('пустые необязательные цены отправляютс�
   assert.equal(body.product.price, 0);
   assert.equal(body.product.old_price, null);
   assert.equal(body.product.wholesale_price, null);
-  assert.equal(body.product.seller_sku, null);
+  assert.equal(Object.hasOwn(body.product, 'seller_sku'), false);
   assert.equal(body.product.category, 'all');
   assert.equal(body.product.name, 'Без названия');
   assert.equal(body.product.admin_draft_key, '123e4567-e89b-42d3-a456-426614174000');
@@ -412,28 +412,6 @@ test('клиент скрывает внутренний текст неожид
       && error.message === 'Не удалось выполнить запрос.'
       && !error.message.includes('Postgres')
       && !error.message.includes('stack.ts'),
-  );
-});
-
-test('клиент сохраняет понятный конфликт повторного артикула', async () => {
-  const client = API.createApiClient({
-    fetch: async () => ({
-      ok: false,
-      status: 409,
-      async json() {
-        return { ok: false, error: {
-          code: 'SELLER_SKU_CONFLICT',
-          message: 'Артикул уже используется в другой карточке. Укажи другой или очисти поле.',
-        } };
-      },
-    }),
-  });
-
-  await assert.rejects(
-    () => client.createAdminProduct({ clientDraftKey: '123e4567-e89b-42d3-a456-426614174000' }),
-    (error) => error.status === 409
-      && error.code === 'SELLER_SKU_CONFLICT'
-      && error.message === 'Артикул уже используется в другой карточке. Укажи другой или очисти поле.',
   );
 });
 

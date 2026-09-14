@@ -24,11 +24,6 @@
     return Number.isFinite(number) ? number : value;
   }
 
-  function optionalText(value) {
-    const text = String(value ?? '').trim();
-    return text ? text : null;
-  }
-
   function requiredNumber(value) {
     const number = optionalNumber(value);
     return number == null || number === '' ? 0 : number;
@@ -108,7 +103,6 @@
       groupId: String(product.group_id ?? product.groupId ?? product.id),
       clientDraftKey: product.admin_draft_key ?? product.clientDraftKey ?? '',
       oldPrice: product.old_price ?? product.oldPrice ?? null,
-      sellerSku: product.seller_sku ?? product.sellerSku ?? '',
       wholesalePrice: product.wholesale_price ?? product.wholesalePrice ?? null,
       adminStatus: product.status ?? product.adminStatus ?? 'published',
       updatedAt: product.updated_at ?? product.updatedAt ?? null,
@@ -174,7 +168,6 @@
       price: requiredNumber(product?.price),
       old_price: optionalNumber(product?.oldPrice),
       badge: product?.badge ?? null,
-      seller_sku: optionalText(product?.sellerSku),
       wholesale_price: optionalNumber(product?.wholesalePrice),
       supplier: product?.supplier ?? '',
       description: product?.description ?? '',
