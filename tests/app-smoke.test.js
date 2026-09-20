@@ -114,14 +114,20 @@ function loadApp(initialStorage = {}, api = null) {
 test('админ-панель не меняет ширину при изменении visualViewport от фокуса', () => {
   assert.doesNotMatch(appSource, /window\.visualViewport\?\.width/);
   assert.doesNotMatch(appSource, /window\.visualViewport\?\.addEventListener\('resize', applyViewportLayout\)/);
-  assert.doesNotMatch(appSource, /tg\?\.onEvent\?\.\('viewportChanged', applyViewportLayout\)/);
+  assert.doesNotMatch(appSource, /onViewportChanged\?\.\(applyViewportLayout\)/);
   assert.doesNotMatch(appSource, /window\.addEventListener\('resize', applyViewportLayout\)/);
-  assert.match(appSource, /tg\?\.onEvent\?\.\('viewportChanged', applyViewportHeight\)/);
+  assert.match(appSource, /platform\?\.onViewportChanged\?\.\(applyViewportHeight\)/);
 });
 
 test('Mini App запрещает автоматическое увеличение страницы в мобильном WebView', () => {
   assert.match(indexSource, /maximum-scale=1/);
   assert.match(indexSource, /user-scalable=no/);
+});
+
+test('точка входа подключает платформенный адаптер до приложения', () => {
+  assert.match(indexSource, /platform\.js\?v=20260914-platform-1/);
+  assert.ok(indexSource.indexOf('platform.js?v=20260914-platform-1') < indexSource.indexOf('app.js?v='));
+  assert.doesNotMatch(appSource, /window\.Telegram\?\.WebApp/);
 });
 
 test('страница запрашивает свежие версии buyer-данных, каталога и редактора', () => {
@@ -403,19 +409,12 @@ test('пустой каталог объясняет, что ассортиме�
   assert.match(screen.innerHTML, /Ассортимент скоро появится/);
 });
 
-test('вкладка информации показывает условия покупок вместо старой страницы магазина', () => {
+test('вкладка информации удалена, а вход в админпанель перенесён в заказы', () => {
   const { app, screen } = loadApp();
 
-  app.navigate('store');
-
-  assert.match(indexSource, /data-screen="store"[\s\S]*?aria-label="Информация"[\s\S]*?<span>Информация<\/span>/);
-  assert.match(screen.innerHTML, /Условия покупок/);
-  assert.match(screen.innerHTML, /Срок доставки — 7–12 дней/);
-  assert.match(screen.innerHTML, /минимальной наценкой/);
-  assert.match(screen.innerHTML, /подарки, розыгрыши/);
-  assert.doesNotMatch(screen.innerHTML, /Трендовая одежда для стильных образов/);
-  assert.doesNotMatch(screen.innerHTML, /Адрес|Часы работы|Поддержка|Связаться|Оплата и возврат|Режим продавца/);
-  assert.match(screen.innerHTML, /data-action="open-seller-demo"[^>]*>Войти в админ<\/button>/);
+  assert.doesNotMatch(indexSource, /data-screen="store"/);
+  app.navigate('orders');
+  assert.match(screen.innerHTML, /data-action="open-seller-demo"[^>]*>Войти в админпанель<\/button>/);
 });
 
 test('каталог показывает все, сортировку и фильтр в одной строке, а фильтр выбирает категорию', async () => {
@@ -637,7 +636,7 @@ test('админка содержит защищённую вкладку пол
 });
 
 test('track-open вызывается только при наличии Telegram initData', () => {
-  assert.match(appSource, /if \(tg\?\.initData && apiClient\?\.trackOpen\)/);
+  assert.match(appSource, /if \(platform\?\.getInitData\?\.\(\) && apiClient\?\.trackOpen\)/);
   assert.match(appSource, /apiClient\.trackOpen\(\)/);
 });
 

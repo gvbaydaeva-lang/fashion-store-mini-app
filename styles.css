@@ -117,6 +117,13 @@ button:active,
 .screen--full { padding-bottom: calc(24px + var(--safe-bottom)); }
 .screen--product { padding-bottom: calc(150px + var(--safe-bottom)); }
 
+html[data-platform="browser"] body { overscroll-behavior: none; }
+
+@media (display-mode: standalone) {
+  html[data-platform="browser"] .app-shell { max-width: none; }
+  html[data-platform="browser"] .bottom-nav { max-width: none; }
+}
+
 .bottom-nav {
   position: fixed;
   z-index: 30;

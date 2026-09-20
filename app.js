@@ -1,4 +1,4 @@
-/* Управляет экранами, событиями и интеграцией Telegram Web App. */
+/* Управляет экранами, событиями и платформенным адаптером каталога. */
 (function createApp(window, document) {
   'use strict';
 
@@ -7,7 +7,7 @@
   const UI = window.FashionStoreUI;
   const API = window.FashionStoreApi;
   const AdminDraftStore = window.FashionStoreAdminDraftStore;
-  const tg = window.Telegram?.WebApp;
+  const platform = window.FashionStorePlatform?.createPlatform?.(window);
   const screenElement = document.querySelector('#screen');
   const appShell = document.querySelector('#app');
   const bottomNav = document.querySelector('#bottom-nav');
@@ -127,7 +127,7 @@
   }
 
   function applyViewportHeight() {
-    const viewportHeight = tg?.viewportHeight || window.visualViewport?.height || window.innerHeight;
+    const viewportHeight = platform?.getViewportHeight?.() || window.visualViewport?.height || window.innerHeight;
     if (viewportHeight) document.documentElement.style.setProperty('--app-height', `${Math.round(viewportHeight)}px`);
   }
 
@@ -147,7 +147,7 @@
   }
 
   function getTelegramFirstName() {
-    return tg?.initDataUnsafe?.user?.first_name || 'Гость';
+    return platform?.getUserName?.() || 'Гость';
   }
 
   function readStored(key, fallback) {
@@ -267,21 +267,11 @@
   }
 
   function applyTelegramTheme() {
-    const params = tg?.themeParams || {};
-    document.documentElement.dataset.theme = tg?.colorScheme === 'dark' ? 'dark' : 'light';
-    if (params.bg_color) document.documentElement.style.setProperty('--tg-bg', params.bg_color);
-    if (params.secondary_bg_color) document.documentElement.style.setProperty('--tg-secondary-bg', params.secondary_bg_color);
-    if (params.text_color) document.documentElement.style.setProperty('--tg-text', params.text_color);
-    if (params.hint_color) document.documentElement.style.setProperty('--tg-hint', params.hint_color);
-    if (params.button_color) document.documentElement.style.setProperty('--accent', params.button_color);
-    if (params.button_text_color) document.documentElement.style.setProperty('--button-text', params.button_text_color);
-    if (params.destructive_text_color) document.documentElement.style.setProperty('--tg-destructive', params.destructive_text_color);
+    platform?.applyTheme?.();
   }
 
   function updateBackButton() {
-    if (!tg?.BackButton) return;
-    if (state.history.length) tg.BackButton.show();
-    else tg.BackButton.hide();
+    platform?.setBackVisibility?.(state.history.length > 0);
   }
 
   function getCatalogProducts() {
@@ -514,8 +504,13 @@
 
   function shareBot() {
     const shareUrl = Core.buildTelegramShareUrl(BOT_URL, SHARE_TEXT);
-    if (tg?.openTelegramLink) tg.openTelegramLink(shareUrl);
-    else window.location.assign(shareUrl);
+    if (!platform?.share) {
+      window.location.assign(shareUrl);
+      return;
+    }
+    void platform?.share?.(shareUrl, SHARE_TEXT).then((shared) => {
+      if (!shared) window.location.assign(shareUrl);
+    }).catch(() => window.location.assign(shareUrl));
   }
 
   function handleModalKeydown(event) {
@@ -768,7 +763,8 @@
     if (!state.orders.length) {
       return `
         ${pageHeader('Заказы')}
-        <section class="empty-state card"><span aria-hidden="true">${icon('receipt')}</span><h2>Заказов пока нет</h2><p>Оформленные заказы появятся здесь.</p><button class="primary-button" type="button" data-action="navigate" data-screen="catalog">Перейти в каталог</button></section>`;
+        <section class="empty-state card"><span aria-hidden="true">${icon('receipt')}</span><h2>Заказов пока нет</h2><p>Оформленные заказы появятся здесь.</p><button class="primary-button" type="button" data-action="navigate" data-screen="catalog">Перейти в каталог</button></section>
+        <button class="secondary-button full-width" type="button" data-action="open-seller-demo">Войти в админпанель</button>`;
     }
     return `
       ${pageHeader('Заказы', `${state.orders.length} ${state.orders.length === 1 ? 'заказ' : 'заказа'}`)}
@@ -779,7 +775,8 @@
           <span class="order-card__top"><strong>Заказ ${escapeHtml(order.id)}</strong><b>${money(order.total)}</b></span>
           <span>${escapeHtml(status.text)}</span><small>${order.items.length} позиций · ${escapeHtml(order.delivery.title)}</small>
         </button>`;
-      }).join('')}</div>`;
+      }).join('')}</div>
+      <button class="secondary-button full-width" type="button" data-action="open-seller-demo">Войти в админпанель</button>`;
   }
 
   function renderStore() {
@@ -799,7 +796,7 @@
         <article class="information-item card"><span class="information-item__icon" aria-hidden="true">✦</span><div><h3>Больше пользы впереди</h3><p>${escapeHtml(information.benefits)}</p></div></article>
         <article class="information-item card"><span class="information-item__icon" aria-hidden="true">↔</span><div><h3>Возврат и обмен</h3><p>${escapeHtml(information.returns)}</p></div></article>
       </section>
-      <button class="secondary-button full-width" type="button" data-action="open-seller-demo">Войти в админ</button>`;
+      <button class="secondary-button full-width" type="button" data-action="open-seller-demo">Войти в админпанель</button>`;
   }
 
   function renderNotFound() {
@@ -2444,14 +2441,14 @@
     applyApprovedDemoReset();
     loadPersistedState();
     applyTelegramTheme();
-    tg?.ready();
-    tg?.expand();
-    tg?.BackButton?.onClick(goBack);
-    tg?.onEvent?.('themeChanged', applyTelegramTheme);
-    tg?.onEvent?.('viewportChanged', applyViewportHeight);
+    platform?.ready?.();
+    platform?.expand?.();
+    platform?.goBack?.(goBack);
+    platform?.onThemeChanged?.(applyTelegramTheme);
+    platform?.onViewportChanged?.(applyViewportHeight);
     window.addEventListener('orientationchange', applyViewportLayout);
     render();
-    if (tg?.initData && apiClient?.trackOpen) void apiClient.trackOpen().catch(() => {});
+    if (platform?.getInitData?.() && apiClient?.trackOpen) void apiClient.trackOpen().catch(() => {});
     void loadRemoteCatalog();
   }
 

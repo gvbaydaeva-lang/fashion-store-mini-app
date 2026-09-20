@@ -1,4 +1,4 @@
-<!-- Точка входа и доступная оболочка Telegram Mini App. -->
+<!-- Точка входа и доступная оболочка каталога для браузера и Telegram Mini App. -->
 <!doctype html>
 <html lang="ru">
   <head>
@@ -39,9 +39,6 @@
         <button class="nav-button" type="button" data-action="navigate" data-screen="orders" aria-label="Заказы">
           <span class="nav-icon" data-icon="receipt" aria-hidden="true"></span><span>Заказы</span>
         </button>
-        <button class="nav-button" type="button" data-action="navigate" data-screen="store" aria-label="Информация">
-          <span class="nav-icon" data-icon="info" aria-hidden="true"></span><span>Информация</span>
-        </button>
       </nav>
     </div>
 
@@ -49,6 +46,7 @@
     <div id="modal-root"></div>
 
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="platform.js?v=20260914-platform-1"></script>
     <script src="data.js?v=20260920-online-purchase-terms-1"></script>
     <script src="core.js?v=20260914-variant-sizes-1"></script>
     <script src="ui.js"></script>
