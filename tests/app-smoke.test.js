@@ -376,17 +376,20 @@ test('новая версия один раз очищает только утв
   assert.equal(storage.get('fashion-store-preorder-reset-v1'), '1');
 });
 
-test('главная использует утверждённый текст и пять условий заказа', () => {
+test('главная использует утверждённый текст и условия онлайн-выкупа', () => {
   const { screen } = loadApp();
 
   assert.match(screen.innerHTML, /🛍 Выгодные покупки/);
   assert.match(screen.innerHTML, /Трендовая одежда для стильных образов без лишних наценок/);
   assert.match(screen.innerHTML, /Выгодные покупки и закупки женской одежды по приятным ценам с доставкой до Элисты/);
-  assert.match(screen.innerHTML, /Полная оплата при оформлении заказа/);
-  assert.match(screen.innerHTML, /Заказ можно оформить только в период действующего закупа/);
-  assert.match(screen.innerHTML, /Срок поступления: 7–10 дней/);
+  assert.match(screen.innerHTML, /Полная 100% предоплата при оформлении заказа/);
+  assert.doesNotMatch(screen.innerHTML, /Заказ можно оформить только в период действующего закупа/);
+  assert.match(screen.innerHTML, /Срок доставки: 7–12 дней/);
   assert.match(screen.innerHTML, /Самовывоз в Элисте/);
   assert.match(screen.innerHTML, /Цены указаны с учётом доставки до Элисты/);
+  assert.match(screen.innerHTML, /Обмена и возврата нет/);
+  assert.match(screen.innerHTML, /Примерки нет/);
+  assert.match(screen.innerHTML, /Только 100% онлайн-выкуп\. Это не офлайн-магазин/);
   assert.doesNotMatch(screen.innerHTML, /Fashion Style|Фэшн стор/);
   assert.doesNotMatch(screen.innerHTML, /<p class="eyebrow">Fashion Store<\/p>/);
   assert.match(screen.innerHTML, /preorder-terms--compact/);
@@ -407,7 +410,7 @@ test('вкладка информации показывает условия п
 
   assert.match(indexSource, /data-screen="store"[\s\S]*?aria-label="Информация"[\s\S]*?<span>Информация<\/span>/);
   assert.match(screen.innerHTML, /Условия покупок/);
-  assert.match(screen.innerHTML, /раз в 7–10 дней/);
+  assert.match(screen.innerHTML, /Срок доставки — 7–12 дней/);
   assert.match(screen.innerHTML, /минимальной наценкой/);
   assert.match(screen.innerHTML, /подарки, розыгрыши/);
   assert.doesNotMatch(screen.innerHTML, /Трендовая одежда для стильных образов/);
