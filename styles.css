@@ -534,6 +534,8 @@ img { display: block; max-width: 100%; }
 .info-list small { color: var(--muted); }
 .store-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
 .seller-entry { display: flex; width: 100%; margin-top: 22px; justify-content: space-between; border-top: 1px solid var(--border); color: var(--muted); font-size: 14px; }
+.admin-entry-link { display: block; min-height: 30px; margin: 10px 0 0 auto; padding: 5px 2px; border: 0; background: transparent; color: var(--muted); font-size: 11px; font-weight: 500; opacity: 0.62; }
+.admin-entry-link:active, .admin-entry-link:focus-visible { color: var(--accent-dark); opacity: 1; }
 
 .checkout-progress {
   display: grid;

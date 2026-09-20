@@ -418,7 +418,7 @@ test('вкладка информации удалена, а вход в адм�
 
   assert.doesNotMatch(indexSource, /data-screen="store"/);
   app.navigate('orders');
-  assert.match(screen.innerHTML, /data-action="open-seller-demo"[^>]*>Войти в админпанель<\/button>/);
+  assert.match(screen.innerHTML, /class="admin-entry-link"[^>]*data-action="open-seller-demo"[^>]*>Вход для владельца<\/button>/);
 });
 
 test('каталог показывает все, сортировку и фильтр в одной строке, а фильтр выбирает категорию', async () => {

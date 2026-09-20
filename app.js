@@ -764,7 +764,7 @@
       return `
         ${pageHeader('Заказы')}
         <section class="empty-state card"><span aria-hidden="true">${icon('receipt')}</span><h2>Заказов пока нет</h2><p>Оформленные заказы появятся здесь.</p><button class="primary-button" type="button" data-action="navigate" data-screen="catalog">Перейти в каталог</button></section>
-        <button class="secondary-button full-width" type="button" data-action="open-seller-demo">Войти в админпанель</button>`;
+        <button class="admin-entry-link" type="button" data-action="open-seller-demo">Вход для владельца</button>`;
     }
     return `
       ${pageHeader('Заказы', `${state.orders.length} ${state.orders.length === 1 ? 'заказ' : 'заказа'}`)}
@@ -776,7 +776,7 @@
           <span>${escapeHtml(status.text)}</span><small>${order.items.length} позиций · ${escapeHtml(order.delivery.title)}</small>
         </button>`;
       }).join('')}</div>
-      <button class="secondary-button full-width" type="button" data-action="open-seller-demo">Войти в админпанель</button>`;
+      <button class="admin-entry-link" type="button" data-action="open-seller-demo">Вход для владельца</button>`;
   }
 
   function renderStore() {
@@ -796,7 +796,7 @@
         <article class="information-item card"><span class="information-item__icon" aria-hidden="true">✦</span><div><h3>Больше пользы впереди</h3><p>${escapeHtml(information.benefits)}</p></div></article>
         <article class="information-item card"><span class="information-item__icon" aria-hidden="true">↔</span><div><h3>Возврат и обмен</h3><p>${escapeHtml(information.returns)}</p></div></article>
       </section>
-      <button class="secondary-button full-width" type="button" data-action="open-seller-demo">Войти в админпанель</button>`;
+      <button class="admin-entry-link" type="button" data-action="open-seller-demo">Вход для владельца</button>`;
   }
 
   function renderNotFound() {
