@@ -22,6 +22,6 @@ test('редактор товара на iPhone не увеличивается 
   assert.match(styles, /@media \(max-width: 430px\)[\s\S]*?\.admin-size-row \{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 0\.72fr\) 44px/);
 });
 
-test('нижние действия не перекрывают поле варианта при открытой клавиатуре', () => {
-  assert.match(styles, /\.admin-editor-form:focus-within \.admin-editor-actions[\s\S]*?visibility:\s*hidden/);
+test('кнопка сохранения остаётся видимой при редактировании поля', () => {
+  assert.doesNotMatch(styles, /\.admin-editor-form:focus-within \.admin-editor-actions[\s\S]*?visibility:\s*hidden/);
 });

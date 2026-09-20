@@ -1111,7 +1111,6 @@ img { display: block; max-width: 100%; }
 .admin-photo-actions .ui-icon { width: 18px; height: 18px; }
 
 .admin-editor-actions { position: fixed; z-index: 24; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); width: 100%; max-width: var(--app-width); margin: 0 auto; padding: 10px 16px calc(10px + var(--safe-bottom)); align-items: center; gap: 9px; border-top: 1px solid var(--border); background: color-mix(in srgb, var(--surface) 96%, transparent); backdrop-filter: blur(18px); }
-.admin-editor-form:focus-within .admin-editor-actions { visibility: hidden; pointer-events: none; }
 .admin-editor-actions .text-button { padding-right: 8px; padding-left: 8px; }
 .admin-editor-actions--final .secondary-button { min-width: 0; padding-right: 8px; padding-left: 8px; }
 .admin-editor-actions button:disabled { opacity: 0.42; cursor: not-allowed; }
