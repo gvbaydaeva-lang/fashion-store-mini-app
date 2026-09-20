@@ -1231,7 +1231,7 @@
     }).join('');
     return `
       <section class="admin-form-section admin-group-card card">
-        <div class="admin-form-heading"><div><p class="eyebrow">Склейка</p><h2>Склейка · ${groupMembers.length} карточки</h2><p>Каждая карточка хранит свои фото, цену, размеры и остатки.</p></div></div>
+        <div class="admin-form-heading"><div><p class="eyebrow">Склейка</p><h2>Склейка · ${groupMembers.length} карточки</h2><p>Общие данные синхронизируются при сохранении; свои — только фото, цвет, размеры и остатки.</p></div></div>
         <div class="admin-group-strip" aria-label="Карточки в этой склейке">${cards}</div>
       </section>`;
   }
@@ -2270,6 +2270,9 @@
       state.adminSaveError = '';
       state.adminStep = 1;
       state.isSubmitting = false;
+      // RPC synchronizes shared fields in the whole group. Refresh the seller
+      // list before returning so opening another colour shows the server truth.
+      await loadRemoteAdminProducts({ preserveScroll: true });
       returnToAdminProductList();
       showToast(status === 'published' ? 'Товар опубликован' : 'Черновик сохранён');
     } catch (error) {

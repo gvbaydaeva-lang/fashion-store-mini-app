@@ -543,7 +543,7 @@ test('похожий товар становится независимым че
   assert.equal(source.variants[0].stock, 4);
 });
 
-test('новый вариант переносит название, описание, поставщика и размеры без остатков', () => {
+test('новый вариант склейки переносит общие поля, но оставляет фото, цвет и размеры самостоятельными', () => {
   const source = {
     id: '31', groupId: 'dress-group', name: 'Платье', category: 'dresses',
     price: 5990, oldPrice: 6990, wholesalePrice: 2800, supplier: 'Milan Fashion',
@@ -560,14 +560,15 @@ test('новый вариант переносит название, описа�
   assert.equal(variant.description, 'Платье миди');
   assert.equal(variant.sellerSku, undefined);
   assert.equal(variant.supplier, 'Milan Fashion');
-  assert.equal(variant.price, '');
-  assert.equal(variant.wholesalePrice, null);
-  assert.equal(variant.category, 'all');
+  assert.equal(variant.category, 'dresses');
+  assert.equal(variant.price, 5990);
+  assert.equal(variant.oldPrice, 6990);
+  assert.equal(variant.wholesalePrice, 2800);
   assert.deepEqual(variant.images, []);
   assert.deepEqual(variant.imagePaths, []);
   assert.deepEqual(variant.colors, []);
-  assert.deepEqual(variant.sizes, ['42']);
-  assert.deepEqual(variant.variants, [{ colorId: undefined, size: '42', stock: 0, enabled: true }]);
+  assert.deepEqual(variant.sizes, []);
+  assert.deepEqual(variant.variants, []);
 });
 
 test('статус товара различает черновик, публикацию и отсутствие остатка', () => {
