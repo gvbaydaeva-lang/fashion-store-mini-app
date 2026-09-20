@@ -131,7 +131,7 @@ test('точка входа подключает платформенный ад
 });
 
 test('страница запрашивает свежие версии buyer-данных, каталога и редактора', () => {
-  assert.match(indexSource, /data\.js\?v=20260920-online-purchase-terms-1/);
+  assert.match(indexSource, /data\.js\?v=20260920-screenshot-purchase-terms-1/);
   assert.match(indexSource, /styles\.css\?v=20260920-four-tab-navigation-1/);
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
   assert.match(indexSource, /api\.js\?v=20260914-variant-sizes-1/);
@@ -392,15 +392,14 @@ test('главная использует утверждённый текст и
 
   assert.match(screen.innerHTML, /🛍 Выгодные покупки/);
   assert.match(screen.innerHTML, /Трендовая одежда для стильных образов без лишних наценок/);
-  assert.match(screen.innerHTML, /Выгодные покупки и закупки женской одежды по приятным ценам с доставкой до Элисты/);
+  assert.match(screen.innerHTML, /Выгодные покупки женской одежды по низким ценам с доставкой до Элисты/);
   assert.match(screen.innerHTML, /Полная 100% предоплата при оформлении заказа/);
   assert.doesNotMatch(screen.innerHTML, /Заказ можно оформить только в период действующего закупа/);
-  assert.match(screen.innerHTML, /Срок доставки: 7–12 дней/);
-  assert.match(screen.innerHTML, /Самовывоз в Элисте/);
-  assert.match(screen.innerHTML, /Цены указаны с учётом доставки до Элисты/);
-  assert.match(screen.innerHTML, /Обмена и возврата нет/);
-  assert.match(screen.innerHTML, /Примерки нет/);
-  assert.match(screen.innerHTML, /Только 100% онлайн-выкуп\. Это не офлайн-магазин/);
+  assert.match(screen.innerHTML, /Срок доставки: 7–14 дней/);
+  assert.match(screen.innerHTML, /В другие города и районы отправка за ваш счёт из Элисты/);
+  assert.match(screen.innerHTML, /Доставка до Элисты бесплатная/);
+  assert.match(screen.innerHTML, /Примерки, обмена и возврата нет/);
+  assert.match(screen.innerHTML, /Только онлайн-выкуп\. Офлайн точки нет/);
   assert.doesNotMatch(screen.innerHTML, /Fashion Style|Фэшн стор/);
   assert.doesNotMatch(screen.innerHTML, /<p class="eyebrow">Fashion Store<\/p>/);
   assert.match(screen.innerHTML, /preorder-terms--compact/);
@@ -488,7 +487,7 @@ test('информация бережно предупреждает, что в�
 
   assert.match(screen.innerHTML, /Возврат и обмен/);
   assert.match(screen.innerHTML, /товары выкупаются специально для вас/i);
-  assert.match(screen.innerHTML, /возврат и обмен[^<]*не предусмотрены/i);
+  assert.match(screen.innerHTML, /Примерки, обмена и возврата нет/i);
 });
 
 test('приложение загружает покупательский каталог через API-клиент', async () => {
