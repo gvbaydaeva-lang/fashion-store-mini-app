@@ -132,11 +132,16 @@ test('точка входа подключает платформенный ад
 
 test('страница запрашивает свежие версии buyer-данных, каталога и редактора', () => {
   assert.match(indexSource, /data\.js\?v=20260920-online-purchase-terms-1/);
-  assert.match(indexSource, /styles\.css\?v=20260905-buyer-catalog-controls-1/);
+  assert.match(indexSource, /styles\.css\?v=20260920-four-tab-navigation-1/);
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
   assert.match(indexSource, /api\.js\?v=20260914-variant-sizes-1/);
   assert.match(indexSource, /core\.js\?v=20260914-variant-sizes-1/);
   assert.match(indexSource, /app\.js\?v=20260914-variant-sizes-1/);
+});
+
+test('нижняя навигация равномерно распределяет четыре раздела', () => {
+  assert.match(stylesSource, /\.bottom-nav\s*\{[\s\S]*?grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\)/);
+  assert.doesNotMatch(indexSource, /data-screen="store"/);
 });
 
 test('кнопка добавления товара всегда начинает пустую карточку, не восстанавливая прошлый черновик', () => {

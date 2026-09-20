@@ -131,7 +131,7 @@ html[data-platform="browser"] body { overscroll-behavior: none; }
   bottom: 0;
   left: 0;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   width: 100%;
   max-width: var(--app-width);
   margin: 0 auto;
