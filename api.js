@@ -2,7 +2,9 @@
 (function createApi(window) {
   'use strict';
 
-  const DEFAULT_BASE_URL = 'https://sskwmffdgzytombtrhut.supabase.co/functions/v1';
+  // Same-origin API keeps the Mini App portable: replace the host in deployment
+  // config later without changing any business logic or endpoint paths.
+  const DEFAULT_BASE_URL = '/api';
 
   class FashionStoreApiError extends Error {
     constructor(message, status = 0, code = '', requestId = '') {
