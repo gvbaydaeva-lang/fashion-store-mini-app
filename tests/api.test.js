@@ -184,7 +184,7 @@ test('клиент не маскирует сетевую ошибку успе�
   );
 });
 
-test('архивирование отправляет productId и возвращает серверный результат', async () => {
+test('архивирование отправляет productId и актуальную версию карточки', async () => {
   const calls = [];
   const client = API.createApiClient({
     baseUrl: 'https://example.supabase.co/functions/v1',
@@ -195,11 +195,11 @@ test('архивирование отправляет productId и возвра�
     },
   });
 
-  const result = await client.archiveAdminProduct(12);
+  const result = await client.archiveAdminProduct(12, '2026-09-30T10:00:00.000Z');
 
   assert.deepEqual(result, { archived: true });
   assert.deepEqual(JSON.parse(calls[0].options.body), {
-    action: 'archive', initData: 'signed-telegram-data', productId: 12,
+    action: 'archive', initData: 'signed-telegram-data', productId: 12, updatedAt: '2026-09-30T10:00:00.000Z',
   });
 });
 

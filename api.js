@@ -392,8 +392,8 @@
         const data = await adminRequest('get-save-result', { productId, draftKey });
         return normalizeProduct(data.product);
       },
-      async archiveAdminProduct(productId) {
-        return adminRequest('archive', { productId });
+      async archiveAdminProduct(productId, updatedAt) {
+        return adminRequest('archive', { productId, updatedAt });
       },
       async deleteAdminProduct(productId) {
         const data = await adminRequest('delete', { productId });
