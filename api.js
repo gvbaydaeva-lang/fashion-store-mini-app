@@ -2,9 +2,9 @@
 (function createApi(window) {
   'use strict';
 
-  // Same-origin API keeps the Mini App portable: replace the host in deployment
-  // config later without changing any business logic or endpoint paths.
-  const DEFAULT_BASE_URL = '/api';
+  // Публичная статическая витрина временно остаётся на проверенном Supabase API.
+  // Beget подключается только через явную deployment-конфигурацию после полного cutover.
+  const DEFAULT_BASE_URL = 'https://sskwmffdgzytombtrhut.supabase.co/functions/v1';
 
   class FashionStoreApiError extends Error {
     constructor(message, status = 0, code = '', requestId = '') {

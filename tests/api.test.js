@@ -4,6 +4,20 @@ const assert = require('node:assert/strict');
 
 const API = require('../api.js');
 
+test('публичная статическая страница без настройки API использует действующий каталог', async () => {
+  const calls = [];
+  const client = API.createApiClient({
+    fetch: async (url) => {
+      calls.push(url);
+      return { ok: true, async json() { return { products: [] }; } };
+    },
+  });
+
+  await client.getCatalog();
+
+  assert.equal(calls[0], 'https://sskwmffdgzytombtrhut.supabase.co/functions/v1/catalog-api');
+});
+
 test('getCatalog отправляет GET и преобразует серверные поля товара', async () => {
   const calls = [];
   const client = API.createApiClient({
