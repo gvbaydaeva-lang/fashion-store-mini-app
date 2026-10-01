@@ -2,8 +2,7 @@
 (function createApi(window) {
   'use strict';
 
-  // Beget обслуживает текущий Mini App-контур; Supabase остаётся legacy fallback
-  // только для явно переданной старой deployment-конфигурации.
+  // Текущий Mini App-контур обслуживается только Beget.
   const DEFAULT_BASE_URL = 'https://31.129.106.183.sslip.io/api';
 
   class FashionStoreApiError extends Error {
@@ -273,6 +272,21 @@
       });
     }
 
+    async function requestWithRetry(url, requestOptions, retryable = false) {
+      const attempts = retryable ? 2 : 1;
+      for (let attempt = 1; attempt <= attempts; attempt += 1) {
+        try {
+          return await requestWithTimeout(url, requestOptions);
+        } catch (error) {
+          const canRetry = retryable
+            && attempt < attempts
+            && (error?.code === 'timeout' || !(error instanceof FashionStoreApiError));
+          if (!canRetry) throw error;
+        }
+      }
+      throw new FashionStoreApiError('Не удалось выполнить запрос.');
+    }
+
     async function getCatalog(filters = {}) {
       const query = new URLSearchParams();
       Object.entries(filters).forEach(([key, value]) => {
@@ -280,17 +294,18 @@
         query.set(key, Array.isArray(value) ? value.join(',') : String(value));
       });
       const suffix = query.toString() ? `?${query.toString()}` : '';
-      const response = await requestWithTimeout(`${baseUrl}/catalog-api${suffix}`, { method: 'GET' });
+      const response = await requestWithRetry(`${baseUrl}/catalog-api${suffix}`, { method: 'GET' }, true);
       const data = await readResponse(response);
       return (Array.isArray(data.products) ? data.products : []).map((product) => normalizeProduct(product, baseUrl));
     }
 
     async function adminRequest(action, payload = {}) {
-      const response = await requestWithTimeout(`${baseUrl}/admin-api`, {
+      const readOnlyAction = ['list', 'list-users', 'get-user', 'get-save-result'].includes(action);
+      const response = await requestWithRetry(`${baseUrl}/admin-api`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, initData: options.initData ?? getInitData(), ...payload }),
-      });
+      }, readOnlyAction);
       return readResponse(response);
     }
 

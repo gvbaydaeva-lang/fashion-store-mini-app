@@ -18,6 +18,35 @@ test('публичная Mini App без настройки API использу
   assert.equal(calls[0], 'https://31.129.106.183.sslip.io/api/catalog-api');
 });
 
+test('каталог повторяет только временный сетевой сбой и затем возвращает данные', async () => {
+  let attempts = 0;
+  const client = API.createApiClient({
+    fetch: async () => {
+      attempts += 1;
+      if (attempts === 1) throw new TypeError('network temporarily unavailable');
+      return { ok: true, async json() { return { products: [] }; } };
+    },
+  });
+
+  await client.getCatalog();
+
+  assert.equal(attempts, 2);
+});
+
+test('изменяющие seller-операции не повторяются автоматически после сетевого сбоя', async () => {
+  let attempts = 0;
+  const client = API.createApiClient({
+    initData: 'signed-telegram-data',
+    fetch: async () => {
+      attempts += 1;
+      throw new TypeError('network temporarily unavailable');
+    },
+  });
+
+  await assert.rejects(() => client.createAdminProduct({ name: 'Новый товар' }));
+  assert.equal(attempts, 1);
+});
+
 test('getCatalog отправляет GET и преобразует серверные поля товара', async () => {
   const calls = [];
   const client = API.createApiClient({
