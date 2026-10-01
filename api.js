@@ -326,6 +326,23 @@
       }
     }
 
+    function groupRequestPayload(products) {
+      if (!Array.isArray(products) || products.length < 2) {
+        throw new FashionStoreApiError('Выбери минимум две карточки.');
+      }
+      const productIds = products.map((product) => Number(product?.id));
+      const productVersions = products.map((product) => ({
+        productId: Number(product?.id),
+        updatedAt: product?.updatedAt ?? product?.updated_at ?? null,
+      }));
+      if (productIds.some((id) => !Number.isSafeInteger(id) || id <= 0)
+        || new Set(productIds).size !== productIds.length
+        || productVersions.some((version) => !version.updatedAt)) {
+        throw new FashionStoreApiError('Карточки изменились. Обнови список перед изменением склейки.', 409, 'PRODUCT_VERSION_CONFLICT');
+      }
+      return { productIds, productVersions };
+    }
+
     return {
       getCatalog,
       async trackOpen() {
@@ -402,23 +419,28 @@
         }
         return data;
       },
-      async combineAdminProducts(productIds) {
-        const data = await adminRequest('combine-groups', { productIds });
+      async combineAdminProducts(products) {
+        const payload = groupRequestPayload(products);
+        const data = await adminRequest('combine-groups', payload);
         if (!Number.isSafeInteger(Number(data?.groupId))) {
           throw new FashionStoreApiError('Сервер не подтвердил объединение карточек.', 500, 'INVALID_GROUP_RESPONSE');
         }
         return data;
       },
-      async ungroupAdminProducts(productIds) {
-        const data = await adminRequest('ungroup-products', { productIds });
-        if (!Array.isArray(data?.productIds) || data.productIds.length !== productIds.length) {
+      async ungroupAdminProducts(products) {
+        const payload = groupRequestPayload(products);
+        const data = await adminRequest('ungroup-products', payload);
+        if (!Array.isArray(data?.productIds) || data.productIds.length !== payload.productIds.length) {
           throw new FashionStoreApiError('Сервер не подтвердил разъединение карточек.', 500, 'INVALID_GROUP_RESPONSE');
         }
         return data;
       },
-      async updateAdminStock(productId, variantId, stock, isEnabled) {
-        const data = await adminRequest('update-stock', { productId, variantId, stock, isEnabled });
-        return data.variant || data;
+      async updateAdminStock(productId, variantId, stock, isEnabled, updatedAt) {
+        const data = await adminRequest('update-stock', { productId, variantId, stock, isEnabled, updatedAt });
+        const variant = data.variant || data;
+        return data.product?.updated_at || data.product?.updatedAt
+          ? { ...variant, productUpdatedAt: data.product.updated_at ?? data.product.updatedAt }
+          : variant;
       },
       async getAdminUploadUrl(productId, file) {
         const extension = String(file?.name || '').split('.').pop().toLowerCase();

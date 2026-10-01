@@ -1805,11 +1805,12 @@
     const variant = getAdminVariant(control.dataset.colorId, control.dataset.size);
     if (!apiClient || !/^\d+$/.test(String(productId)) || !variant?.id) return;
     try {
-      const saved = await apiClient.updateAdminStock(productId, variant.id, variant.stock, variant.enabled !== false);
+      const saved = await apiClient.updateAdminStock(productId, variant.id, variant.stock, variant.enabled !== false, state.adminDraft?.updatedAt);
       variant.stock = Number(saved.stock);
       variant.enabled = saved.is_enabled ?? saved.isEnabled ?? variant.enabled;
+      if (saved.productUpdatedAt) state.adminDraft.updatedAt = saved.productUpdatedAt;
       state.adminProducts = state.adminProducts.map((product) => product.id === String(productId)
-        ? { ...product, variants: product.variants.map((item) => item.id === variant.id ? { ...item, ...variant } : item) }
+        ? { ...product, ...(saved.productUpdatedAt ? { updatedAt: saved.productUpdatedAt } : {}), variants: product.variants.map((item) => item.id === variant.id ? { ...item, ...variant } : item) }
         : product);
       persistAdminDraft();
       await loadRemoteCatalog();
@@ -1967,7 +1968,6 @@
   async function updateAdminProductGroups(action) {
     if (!apiClient) return;
     const groupActions = getAdminGroupActions();
-    const productIds = groupActions.selected.map((product) => Number(product.id));
     if (action === 'combine' && !groupActions.canCombine) {
       showToast('Выбери минимум две карточки из разных склеек');
       return;
@@ -1977,8 +1977,8 @@
       return;
     }
     try {
-      if (action === 'combine') await apiClient.combineAdminProducts(productIds);
-      else await apiClient.ungroupAdminProducts(productIds);
+      if (action === 'combine') await apiClient.combineAdminProducts(groupActions.selected);
+      else await apiClient.ungroupAdminProducts(groupActions.selected);
       // После действия остаёмся возле тех же карточек: продавец видит результат,
       // а не возвращается к верхней части списка.
       await loadRemoteAdminProducts({ preserveScroll: true });

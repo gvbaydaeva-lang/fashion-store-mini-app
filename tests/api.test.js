@@ -213,11 +213,27 @@ test('склейки отправляют выбранные карточки ч
     },
   });
 
-  assert.deepEqual(await client.combineAdminProducts([12, 34]), { groupId: 12, productIds: [12, 34] });
-  assert.deepEqual(await client.ungroupAdminProducts([12, 34]), { productIds: [12, 34] });
+  const products = [
+    { id: 12, updatedAt: '2026-10-01T10:00:00.000Z' },
+    { id: 34, updatedAt: '2026-10-01T10:01:00.000Z' },
+  ];
+  assert.deepEqual(await client.combineAdminProducts(products), { groupId: 12, productIds: [12, 34] });
+  assert.deepEqual(await client.ungroupAdminProducts(products), { productIds: [12, 34] });
   assert.deepEqual(bodies, [
-    { action: 'combine-groups', initData: 'signed-telegram-data', productIds: [12, 34] },
-    { action: 'ungroup-products', initData: 'signed-telegram-data', productIds: [12, 34] },
+    {
+      action: 'combine-groups', initData: 'signed-telegram-data', productIds: [12, 34],
+      productVersions: [
+        { productId: 12, updatedAt: '2026-10-01T10:00:00.000Z' },
+        { productId: 34, updatedAt: '2026-10-01T10:01:00.000Z' },
+      ],
+    },
+    {
+      action: 'ungroup-products', initData: 'signed-telegram-data', productIds: [12, 34],
+      productVersions: [
+        { productId: 12, updatedAt: '2026-10-01T10:00:00.000Z' },
+        { productId: 34, updatedAt: '2026-10-01T10:01:00.000Z' },
+      ],
+    },
   ]);
 });
 
@@ -231,12 +247,12 @@ test('изменение остатка отправляет variantId, stock и
     },
   });
 
-  const result = await client.updateAdminStock(12, 34, 4, false);
+  const result = await client.updateAdminStock(12, 34, 4, false, '2026-10-01T10:00:00.000Z');
 
   assert.deepEqual(result, { stock: 4, isEnabled: false });
   assert.deepEqual(JSON.parse(calls[0].body), {
     action: 'update-stock', initData: 'signed-telegram-data',
-    productId: 12, variantId: 34, stock: 4, isEnabled: false,
+    productId: 12, variantId: 34, stock: 4, isEnabled: false, updatedAt: '2026-10-01T10:00:00.000Z',
   });
 });
 
