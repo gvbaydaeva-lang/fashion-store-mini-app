@@ -52,6 +52,21 @@ test('getCatalog отправляет GET и преобразует сервер
   assert.deepEqual(products[0].images, ['https://cdn.example/image.webp']);
 });
 
+test('клиент привязывает относительную подписанную ссылку фото к origin Beget API', async () => {
+  const client = API.createApiClient({
+    baseUrl: 'https://beget.example/api',
+    fetch: async () => ({
+      ok: true,
+      async json() {
+        return { products: [{ id: 7, product_images: [{ signed_url: '/media/7/photo.png?expires=1060000&signature=test', sort_order: 0 }] }] };
+      },
+    }),
+  });
+
+  const products = await client.getCatalog();
+  assert.deepEqual(products[0].images, ['https://beget.example/media/7/photo.png?expires=1060000&signature=test']);
+});
+
 test('normalizeProduct принимает публичные и camelCase URL изображений', () => {
   const product = API.normalizeProduct({
     id: 7,
@@ -68,6 +83,14 @@ test('normalizeProduct восстанавливает ключ серверно�
     id: 12, admin_draft_key: '123e4567-e89b-42d3-a456-426614174000',
   });
   assert.equal(product.clientDraftKey, '123e4567-e89b-42d3-a456-426614174000');
+});
+
+test('normalizeOrder использует временную ссылку на фото из ответа Beget', () => {
+  const order = API.normalizeOrder({
+    id: 'order-1',
+    order_items: [{ product_id: 21, variant_id: 34, quantity: 1, unit_price: 2500, image_path: '21/photo.jpg', image_url: '/media/21/photo.jpg?expires=1060000&signature=test-signature' }],
+  }, 'https://beget.example/api');
+  assert.equal(order.items[0].image, 'https://beget.example/media/21/photo.jpg?expires=1060000&signature=test-signature');
 });
 
 test('клиент передаёт версию для публикации и восстанавливает сохранение по ключу черновика', async () => {
@@ -314,6 +337,24 @@ test('фотография загружается по разовой ссылк
   assert.equal(calls[1].url, 'https://storage.example/upload/photo');
   assert.equal(calls[1].options.method, 'PUT');
   assert.equal(calls[1].options.headers['Content-Type'], 'image/png');
+});
+
+test('клиент привязывает относительную ссылку загрузки к origin Beget API', async () => {
+  const calls = [];
+  const client = API.createApiClient({
+    baseUrl: 'https://beget.example/api',
+    initData: 'signed-telegram-data',
+    fetch: async (url) => {
+      calls.push(url);
+      if (url === 'https://beget.example/api/admin-api') {
+        return { ok: true, async json() { return { ok: true, data: { objectPath: '12/photo.png', upload: { signedUrl: '/api/upload/token' } } }; } };
+      }
+      return { ok: true, async json() { return {}; } };
+    },
+  });
+
+  await client.uploadAdminImage(12, 'data:image/png;base64,AA==');
+  assert.equal(calls[1], 'https://beget.example/api/upload/token');
 });
 
 test('ошибка Storage возвращается понятным русским сообщением и не маскируется успехом', async () => {

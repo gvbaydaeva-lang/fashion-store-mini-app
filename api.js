@@ -20,6 +20,12 @@
     return String(value || DEFAULT_BASE_URL).replace(/\/+$/, '');
   }
 
+  function resolveApiUrl(value, baseUrl) {
+    if (!value || !baseUrl) return value;
+    try { return new URL(value, baseUrl).toString(); }
+    catch { return value; }
+  }
+
   function optionalNumber(value) {
     if (value == null || String(value).trim() === '') return null;
     const number = Number(value);
@@ -61,7 +67,7 @@
     return new Blob([bytes], { type: mimeType });
   }
 
-  function normalizeProduct(product) {
+  function normalizeProduct(product, baseUrl = '') {
     const variants = Array.isArray(product?.product_variants)
       ? product.product_variants.map((variant) => ({
         ...(variant.id == null ? {} : { id: variant.id }),
@@ -76,7 +82,10 @@
         .sort((left, right) => (left.sort_order || 0) - (right.sort_order || 0))
       : [];
     const images = imageRecords.length
-      ? imageRecords.map((image) => image.signed_url || image.signedUrl || image.public_url || image.publicUrl || image.image_url || image.imageUrl || image.url || image.object_path).filter(Boolean)
+      ? imageRecords.map((image) => {
+        const url = image.signed_url || image.signedUrl || image.public_url || image.publicUrl || image.image_url || image.imageUrl || image.url;
+        return url ? resolveApiUrl(url, baseUrl) : image.object_path;
+      }).filter(Boolean)
       : Array.isArray(product?.images) ? product.images : [];
     const imagePaths = imageRecords.length
       ? imageRecords.map((image) => image.object_path).filter(Boolean)
@@ -116,7 +125,7 @@
     };
   }
 
-  function normalizeOrder(order) {
+  function normalizeOrder(order, baseUrl = '') {
     const items = Array.isArray(order?.order_items)
       ? order.order_items.map((item) => ({
         productId: String(item.product_id),
@@ -126,7 +135,7 @@
         size: item.size,
         quantity: Number(item.quantity) || 0,
         price: Number(item.unit_price) || 0,
-        image: item.image_path || '',
+        image: resolveApiUrl(item.image_url || item.imageUrl || '', baseUrl) || item.image_path || '',
       }))
       : Array.isArray(order?.items) ? order.items : [];
     return {
@@ -273,7 +282,7 @@
       const suffix = query.toString() ? `?${query.toString()}` : '';
       const response = await requestWithTimeout(`${baseUrl}/catalog-api${suffix}`, { method: 'GET' });
       const data = await readResponse(response);
-      return (Array.isArray(data.products) ? data.products : []).map(normalizeProduct);
+      return (Array.isArray(data.products) ? data.products : []).map((product) => normalizeProduct(product, baseUrl));
     }
 
     async function adminRequest(action, payload = {}) {
@@ -310,7 +319,7 @@
         const objectPath = data?.objectPath;
         const signedUrl = data?.upload?.signedUrl;
         if (!objectPath || !signedUrl) throw new FashionStoreApiError('Сервер не подготовил загрузку фотографии.');
-        const response = await requestWithTimeout(signedUrl, {
+        const response = await requestWithTimeout(resolveApiUrl(signedUrl, baseUrl), {
           method: 'PUT',
           headers: { 'Content-Type': mimeType },
           body: dataImageToBlob(image),
@@ -360,27 +369,27 @@
             imagePath: item.imagePath,
           })),
         });
-        return normalizeOrder(data.order);
+        return normalizeOrder(data.order, baseUrl);
       },
       async getBuyerOrder(orderId) {
         const data = await orderRequest('get-order', { orderId });
-        return normalizeOrder(data.order);
+        return normalizeOrder(data.order, baseUrl);
       },
       async listSellerOrders() {
         const data = await orderRequest('list-orders');
-        return (Array.isArray(data.orders) ? data.orders : []).map(normalizeOrder);
+        return (Array.isArray(data.orders) ? data.orders : []).map((order) => normalizeOrder(order, baseUrl));
       },
       async getSellerOrder(orderId) {
         const data = await orderRequest('get-seller-order', { orderId });
-        return normalizeOrder(data.order);
+        return normalizeOrder(data.order, baseUrl);
       },
       async markOrderReady(orderId) {
         const data = await orderRequest('mark-ready', { orderId });
-        return normalizeOrder(data.order);
+        return normalizeOrder(data.order, baseUrl);
       },
       async getAdminProducts(filters) {
         const data = await adminRequest('list', { filters });
-        return (Array.isArray(data.products) ? data.products : []).map(normalizeProduct);
+        return (Array.isArray(data.products) ? data.products : []).map((product) => normalizeProduct(product, baseUrl));
       },
       async listAdminUsers(filters = {}) {
         const data = await adminRequest('list-users', filters);
@@ -395,19 +404,19 @@
       },
       async createAdminProduct(product) {
         const data = await adminRequest('create', { product: serializeProduct(product) });
-        return normalizeProduct(data.product);
+        return normalizeProduct(data.product, baseUrl);
       },
       async updateAdminProduct(product) {
         const data = await adminRequest('update', { productId: product?.id, updatedAt: product?.updatedAt, product: serializeProduct(product) });
-        return normalizeProduct(data.product);
+        return normalizeProduct(data.product, baseUrl);
       },
       async publishAdminProduct(product) {
         const data = await adminRequest('publish', { productId: product?.id ?? product, updatedAt: product?.updatedAt });
-        return normalizeProduct(data.product);
+        return normalizeProduct(data.product, baseUrl);
       },
       async getAdminSaveResult({ productId, draftKey } = {}) {
         const data = await adminRequest('get-save-result', { productId, draftKey });
-        return normalizeProduct(data.product);
+        return normalizeProduct(data.product, baseUrl);
       },
       async archiveAdminProduct(productId, updatedAt) {
         return adminRequest('archive', { productId, updatedAt });
