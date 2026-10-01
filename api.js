@@ -2,9 +2,9 @@
 (function createApi(window) {
   'use strict';
 
-  // Публичная статическая витрина временно остаётся на проверенном Supabase API.
-  // Beget подключается только через явную deployment-конфигурацию после полного cutover.
-  const DEFAULT_BASE_URL = 'https://sskwmffdgzytombtrhut.supabase.co/functions/v1';
+  // Beget обслуживает текущий Mini App-контур; Supabase остаётся legacy fallback
+  // только для явно переданной старой deployment-конфигурации.
+  const DEFAULT_BASE_URL = 'https://31.129.106.183.sslip.io/api';
 
   class FashionStoreApiError extends Error {
     constructor(message, status = 0, code = '', requestId = '') {

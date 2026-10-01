@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 
 const API = require('../api.js');
 
-test('публичная статическая страница без настройки API использует действующий каталог', async () => {
+test('публичная Mini App без настройки API использует Beget каталог', async () => {
   const calls = [];
   const client = API.createApiClient({
     fetch: async (url) => {
@@ -15,7 +15,7 @@ test('публичная статическая страница без наст
 
   await client.getCatalog();
 
-  assert.equal(calls[0], 'https://sskwmffdgzytombtrhut.supabase.co/functions/v1/catalog-api');
+  assert.equal(calls[0], 'https://31.129.106.183.sslip.io/api/catalog-api');
 });
 
 test('getCatalog отправляет GET и преобразует серверные поля товара', async () => {
