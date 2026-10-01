@@ -3,7 +3,7 @@
   'use strict';
 
   // Текущий Mini App-контур обслуживается только Beget.
-  const DEFAULT_BASE_URL = 'https://31.129.106.183.sslip.io/api';
+  const DEFAULT_BASE_URL = 'https://api.womanshop08.ru/api';
 
   class FashionStoreApiError extends Error {
     constructor(message, status = 0, code = '', requestId = '') {

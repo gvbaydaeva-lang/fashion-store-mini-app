@@ -15,7 +15,7 @@ test('публичная Mini App без настройки API использу
 
   await client.getCatalog();
 
-  assert.equal(calls[0], 'https://31.129.106.183.sslip.io/api/catalog-api');
+  assert.equal(calls[0], 'https://api.womanshop08.ru/api/catalog-api');
 });
 
 test('каталог повторяет только временный сетевой сбой и затем возвращает данные', async () => {
