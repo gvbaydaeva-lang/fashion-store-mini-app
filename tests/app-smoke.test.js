@@ -136,7 +136,7 @@ test('страница запрашивает свежие версии buyer-д
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
   assert.match(indexSource, /api\.js\?v=20261001-beget-api-3/);
   assert.match(indexSource, /core\.js\?v=20260920-group-shared-fields-1/);
-  assert.match(indexSource, /app\.js\?v=20260920-group-shared-fields-1/);
+  assert.match(indexSource, /app\.js\?v=20261002-admin-list-preserve-1/);
 });
 
 test('нижняя навигация равномерно распределяет четыре раздела', () => {
@@ -891,6 +891,55 @@ test('ошибка buyer-refresh сохраняет последний корр�
   assert.equal(await app.loadRemoteCatalog(), false);
   app.navigate('catalog');
   assert.match(screen.innerHTML, /Стабильное платье/);
+});
+
+test('ошибка обновления seller-списка не стирает уже загруженные товары', async () => {
+  let shouldFail = false;
+  const product = {
+    id: 'stable-admin-product', name: 'Стабильный костюм', category: 'Костюмы', price: 4990,
+    images: [], colors: [], variants: [], adminStatus: 'published', supplier: 'Поставщик',
+  };
+  const { document, screen } = loadApp({}, {
+    createApiClient() {
+      return {
+        getCatalog: async () => [],
+        getAdminProducts: async () => {
+          if (shouldFail) throw new Error('Сбой сети');
+          return [product];
+        },
+      };
+    },
+  });
+  const openSeller = () => document.dispatch('click', {
+    target: {
+      closest() { return { dataset: { action: 'open-seller-demo' }, disabled: false, matches() { return false; } }; },
+    },
+  });
+
+  openSeller();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.match(screen.innerHTML, /Стабильный костюм/);
+
+  shouldFail = true;
+  openSeller();
+  await new Promise((resolve) => setImmediate(resolve));
+  // После публикации редактор возвращает продавца к списку тем же способом.
+  document.dispatch('click', {
+    target: {
+      closest() { return { dataset: { action: 'set-seller-section', section: 'products' }, disabled: false, matches() { return false; } }; },
+    },
+  });
+  assert.match(screen.innerHTML, /Стабильный костюм/);
+  assert.match(screen.innerHTML, /Сбой сети/);
+
+  shouldFail = false;
+  document.dispatch('click', {
+    target: {
+      closest() { return { dataset: { action: 'reload-admin-products' }, disabled: false, matches() { return false; } }; },
+    },
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.doesNotMatch(screen.innerHTML, /Сбой сети/);
 });
 
 test('buyer-рендер не показывает черновик после обновления каталога', async () => {

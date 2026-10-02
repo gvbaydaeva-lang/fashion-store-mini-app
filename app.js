@@ -1028,6 +1028,7 @@
           <button class="primary-button admin-add-button" type="button" data-action="add-admin-product">${icon('plus')}<span>Добавить товар</span></button>
         </div>
       </section>
+      ${state.sellerAuthError ? `<section class="notice-card" role="alert"><span aria-hidden="true">${icon('info')}</span><p>${escapeHtml(state.sellerAuthError)}</p><button class="text-button" type="button" data-action="reload-admin-products">Повторить</button></section>` : ''}
       <label class="admin-search">
         <span aria-hidden="true">${icon('search')}</span>
         <span class="sr-only">Поиск по названию</span>
@@ -2115,18 +2116,23 @@
       state.adminProducts = Core.createAdminCatalog(products);
       rebuildAdminCategories();
       state.sellerAuthStatus = 'ready';
+      state.sellerAuthError = '';
       state.screen = 'seller-products';
       state.history = [];
       render({ preserveScroll: options.preserveScroll });
       return true;
     } catch (error) {
-      state.sellerAuthStatus = 'error';
       state.sellerAuthError = error?.status === 403
         ? 'У тебя нет доступа к панели продавца.'
         : error?.status === 401
           ? 'Не удалось подтвердить Telegram-сеанс. Открой Mini App заново.'
           : error?.message || 'Не удалось загрузить товары.';
-      state.adminProducts = [];
+      // После публикации список уже может быть на экране. Сетевая ошибка при
+      // его обновлении не означает, что товары удалены, поэтому не затираем
+      // последний подтверждённый сервером список ложным пустым состоянием.
+      const hasLoadedProducts = state.adminProducts.length > 0;
+      state.sellerAuthStatus = hasLoadedProducts ? 'ready' : 'error';
+      if (!hasLoadedProducts) state.adminProducts = [];
       render({ preserveScroll: options.preserveScroll });
       return false;
     }
@@ -2432,6 +2438,7 @@
     'request-ready': requestOrderReady,
     'confirm-ready': confirmOrderReady,
     'reload-seller-orders': () => void loadRemoteSellerOrders(),
+    'reload-admin-products': () => void loadRemoteAdminProducts({ preserveScroll: true }),
     'reload-admin-users': () => void loadRemoteAdminUsers(),
     'share-bot': shareBot,
     'close-sheet': closeSheet,
