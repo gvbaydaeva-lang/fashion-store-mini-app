@@ -81,6 +81,20 @@ test('getCatalog отправляет GET и преобразует сервер
   assert.deepEqual(products[0].images, ['https://cdn.example/image.webp']);
 });
 
+test('getCatalog запрещает браузеру использовать устаревший JSON со signed URL', async () => {
+  let requestOptions;
+  const client = API.createApiClient({
+    fetch: async (_url, options) => {
+      requestOptions = options;
+      return { ok: true, async json() { return { products: [] }; } };
+    },
+  });
+
+  await client.getCatalog();
+
+  assert.equal(requestOptions.cache, 'no-store');
+});
+
 test('клиент привязывает относительную подписанную ссылку фото к origin Beget API', async () => {
   const client = API.createApiClient({
     baseUrl: 'https://beget.example/api',

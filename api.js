@@ -295,7 +295,7 @@
         query.set(key, Array.isArray(value) ? value.join(',') : String(value));
       });
       const suffix = query.toString() ? `?${query.toString()}` : '';
-      const response = await requestWithRetry(`${baseUrl}/catalog-api${suffix}`, { method: 'GET' }, true);
+      const response = await requestWithRetry(`${baseUrl}/catalog-api${suffix}`, { method: 'GET', cache: 'no-store' }, true);
       const data = await readResponse(response);
       return (Array.isArray(data.products) ? data.products : []).map((product) => normalizeProduct(product, baseUrl));
     }
