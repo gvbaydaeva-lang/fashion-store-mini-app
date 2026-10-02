@@ -9,6 +9,7 @@ const {
   flattenCatalogProductGroups,
   getSelectedProductOption,
   addCartItem,
+  reconcileCart,
   setCartItemQuantity,
   removeCartItem,
   getCartSummary,
@@ -152,6 +153,47 @@ test('одинаковый вариант объединяется и огран
 test('вариант с нулевым остатком не попадает в корзину', () => {
   const item = { key: 'dress-air:blue:L', productId: 'dress-air', price: 5990, quantity: 1 };
   assert.deepEqual(addCartItem([], item, 0), []);
+});
+
+test('корзина удаляет старый товар и обновляет актуальные позиции каталога', () => {
+  const cart = [
+    {
+      key: 'deleted:red:S', productId: 'deleted', variantId: 'deleted-red-s',
+      name: 'Давно удалённая вещь', colorId: 'red', colorName: 'Красный', size: 'S',
+      price: 100, image: 'deleted.webp', quantity: 1,
+    },
+    {
+      key: 'shirt:red:S', productId: 'shirt', variantId: 'shirt-red-s',
+      name: 'Старое название', colorId: 'red', colorName: 'Старый красный', size: 'S',
+      price: 1, image: 'old-shirt.webp', quantity: 1,
+    },
+    {
+      key: 'shirt:black:M', productId: 'shirt', variantId: 'shirt-black-m',
+      name: 'Старое название', colorId: 'black', colorName: 'Старый чёрный', size: 'M',
+      price: 1, image: 'old-shirt.webp', quantity: 4,
+    },
+  ];
+  const catalog = [{
+    id: 'shirt', name: 'Футболка', price: 2500, images: ['shirt.webp'],
+    colors: [{ id: 'red', name: 'Красный' }, { id: 'black', name: 'Чёрный' }],
+    variants: [
+      { id: 'shirt-red-s', colorId: 'red', size: 'S', stock: 1, enabled: true },
+      { id: 'shirt-black-m', colorId: 'black', size: 'M', stock: 2, enabled: true },
+    ],
+  }];
+
+  assert.deepEqual(reconcileCart(cart, catalog), [
+    {
+      key: 'shirt:red:S', productId: 'shirt', variantId: 'shirt-red-s',
+      name: 'Футболка', colorId: 'red', colorName: 'Красный', size: 'S',
+      price: 2500, image: 'shirt.webp', quantity: 1,
+    },
+    {
+      key: 'shirt:black:M', productId: 'shirt', variantId: 'shirt-black-m',
+      name: 'Футболка', colorId: 'black', colorName: 'Чёрный', size: 'M',
+      price: 2500, image: 'shirt.webp', quantity: 2,
+    },
+  ]);
 });
 
 test('неполный товар разрешён для серверного черновика', () => {

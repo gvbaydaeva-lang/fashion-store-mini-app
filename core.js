@@ -66,6 +66,35 @@
     ));
   }
 
+  function reconcileCart(cart, products) {
+    const catalog = new Map((Array.isArray(products) ? products : []).map((product) => [String(product.id), product]));
+    return (Array.isArray(cart) ? cart : []).flatMap((item) => {
+      const product = catalog.get(String(item?.productId));
+      if (!product) return [];
+      const variant = (product.variants || []).find((candidate) => (
+        String(candidate.id) === String(item.variantId)
+          || (candidate.colorId === item.colorId && candidate.size === item.size)
+      ));
+      if (!isVariantAvailable(variant)) return [];
+      const color = (product.colors || []).find(({ id }) => id === variant.colorId);
+      if (!color) return [];
+      const size = variant.size;
+      return [{
+        ...item,
+        key: `${product.id}:${color.id}:${size}`,
+        productId: product.id,
+        variantId: variant.id,
+        name: product.name,
+        image: product.images?.[0],
+        colorId: color.id,
+        colorName: color.name,
+        size,
+        price: product.price,
+        quantity: Math.min(Math.max(Number(item.quantity) || 1, 1), Number(variant.stock)),
+      }];
+    });
+  }
+
   function setCartItemQuantity(cart, key, quantity, stock) {
     if (quantity <= 0 || stock <= 0) return cart.filter((item) => item.key !== key);
     return cart.map((item) => (
@@ -390,6 +419,7 @@
     flattenCatalogProductGroups,
     getSelectedProductOption,
     addCartItem,
+    reconcileCart,
     setCartItemQuantity,
     removeCartItem,
     getCartSummary,

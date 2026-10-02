@@ -135,8 +135,8 @@ test('страница запрашивает свежие версии buyer-д
   assert.match(indexSource, /styles\.css\?v=20260920-save-button-visible-1/);
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
   assert.match(indexSource, /api\.js\?v=20261002-save-timeout-1/);
-  assert.match(indexSource, /core\.js\?v=20261002-published-save-1/);
-  assert.match(indexSource, /app\.js\?v=20261002-editor-single-write-1/);
+  assert.match(indexSource, /core\.js\?v=20261003-cart-reconcile-1/);
+  assert.match(indexSource, /app\.js\?v=20261003-cart-reconcile-1/);
 });
 
 test('нижняя навигация равномерно распределяет четыре раздела', () => {
@@ -168,6 +168,40 @@ test('корзина и заказ используют актуальное п�
   assert.match(appSource, /function getProductImage\(item\)/);
   assert.match(appSource, /getProduct\(item\?\.productId\)\?\.images\?\.\[0\]/);
   assert.match(appSource, /src="\$\{escapeHtml\(getProductImage\(item\)\)\}"/);
+});
+
+test('после обновления каталога корзина показывает только актуальные товары и количества', async () => {
+  const staleCart = [
+    { key: 'deleted:red:S', productId: 'deleted', variantId: 'deleted-red-s', name: 'Удалённый товар', colorId: 'red', colorName: 'Красный', size: 'S', price: 100, quantity: 1 },
+    { key: 'shirt:red:S', productId: 'shirt', variantId: 'shirt-red-s', name: 'Старое имя', colorId: 'red', colorName: 'Красный', size: 'S', price: 1, quantity: 1 },
+    { key: 'shirt:black:M', productId: 'shirt', variantId: 'shirt-black-m', name: 'Старое имя', colorId: 'black', colorName: 'Чёрный', size: 'M', price: 1, quantity: 2 },
+  ];
+  const { app, screen } = loadApp({
+    'fashion-store-preorder-reset-v1': '1',
+    'fashion-store-cart-v1': JSON.stringify(staleCart),
+  }, {
+    createApiClient() {
+      return { getCatalog: async () => [{
+        id: 'shirt', name: 'Футболка', price: 2500, images: ['shirt.webp'],
+        colors: [{ id: 'red', name: 'Красный' }, { id: 'black', name: 'Чёрный' }],
+        variants: [
+          { id: 'shirt-red-s', colorId: 'red', size: 'S', stock: 1, enabled: true },
+          { id: 'shirt-black-m', colorId: 'black', size: 'M', stock: 2, enabled: true },
+        ],
+        adminStatus: 'published',
+      }] };
+    },
+  });
+
+  await app.loadRemoteCatalog();
+  app.navigate('cart');
+
+  assert.doesNotMatch(screen.innerHTML, /Удалённый товар/);
+  assert.match(screen.innerHTML, /Футболка/g);
+  assert.match(screen.innerHTML, /Красный/);
+  assert.match(screen.innerHTML, /Чёрный/);
+  assert.match(screen.innerHTML, />1<\/span>/);
+  assert.match(screen.innerHTML, />2<\/span>/);
 });
 
 test('карточка товара содержит горизонтальную галерею всех фотографий', () => {

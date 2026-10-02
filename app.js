@@ -2151,6 +2151,8 @@
     try {
       const products = await apiClient.getCatalog(state.filters);
       state.catalogProducts = Core.createAdminCatalog(products);
+      state.cart = Core.reconcileCart(state.cart, state.catalogProducts);
+      saveState();
       await preloadCatalogImages(state.catalogProducts);
       state.catalogStatus = 'ready';
       render({ preserveScroll: options.preserveScroll });
