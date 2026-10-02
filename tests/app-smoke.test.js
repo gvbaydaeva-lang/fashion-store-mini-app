@@ -136,7 +136,7 @@ test('страница запрашивает свежие версии buyer-д
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
   assert.match(indexSource, /api\.js\?v=20261002-save-timeout-1/);
   assert.match(indexSource, /core\.js\?v=20261002-published-save-1/);
-  assert.match(indexSource, /app\.js\?v=20261002-published-save-1/);
+  assert.match(indexSource, /app\.js\?v=20261002-editor-single-write-1/);
 });
 
 test('нижняя навигация равномерно распределяет четыре раздела', () => {
@@ -846,12 +846,12 @@ test('после публикации продавцом каталоги обн
   assert.ok(backgroundRefresh > successToast, 'обновление каталогов должно продолжаться после подтверждения');
 });
 
-test('после изменения остатка продавцом запускается повторная загрузка buyer-каталога', () => {
-  const stockSource = appSource.match(/async function persistAdminVariantStock\(control\) \{[\s\S]*?\n  \}\n\n  function readImageFile/);
+test('сохранение опубликованной карточки обновляет витрину без отдельной записи остатка', () => {
+  const saveSource = appSource.match(/async function saveAdminProduct\(status\) \{[\s\S]*?\n  \}\n\n  const actions/);
 
-  assert.ok(stockSource, 'не найден обработчик сохранения остатка');
-  assert.match(stockSource[0], /await apiClient\.updateAdminStock/);
-  assert.match(stockSource[0], /await loadRemoteCatalog\(\)/);
+  assert.ok(saveSource, 'не найден полный обработчик сохранения товара');
+  assert.match(saveSource[0], /finalProduct\.adminStatus === 'published' \? refreshPublishedProductLists\(\) : refreshAdminProductList\(\)/);
+  assert.doesNotMatch(appSource, /persistAdminVariantStock/);
 });
 
 test('меню товара не содержит архив и предпросмотр, а список поддерживает безопасные склейки', () => {
@@ -978,6 +978,13 @@ test('сохранение товара блокирует повторный su
   assert.match(saveSource[0], /state\.isSubmitting = true;/);
 });
 
+test('изменение остатка в редакторе не запускает вторую запись до кнопки сохранения', () => {
+  const stockChangeHandler = appSource.match(/document\.addEventListener\('change', \(event\) => \{[\s\S]*?\n  \}\);/);
+
+  assert.ok(stockChangeHandler, 'не найден обработчик изменения полей');
+  assert.doesNotMatch(stockChangeHandler[0], /persistAdminVariantStock\(control\)/);
+});
+
 test('повторное сохранение не загружает повторно фотографию с подтверждённым Storage path', () => {
   const saveSource = appSource.match(/async function saveAdminProduct\(status\) \{[\s\S]*?\n  \}/)?.[0] || '';
   assert.match(saveSource, /String\(image\)\.startsWith\('data:'\) && !state\.adminDraft\.imagePaths\?\.\[index\]/);
@@ -999,13 +1006,13 @@ test('сохранение возвращает к прежней позиции
   assert.match(saveSource[0], /returnToAdminProductList\(\)/);
 });
 
-test('подтверждённый черновик возвращает к списку до фонового обновления продавца', () => {
+test('подтверждённое сохранение возвращает к списку до фонового обновления', () => {
   const saveSource = appSource.match(/async function saveAdminProduct\(status\) \{[\s\S]*?\n  \}\n\n  const actions/)?.[0] || '';
   const draftSuccess = saveSource.slice(saveSource.lastIndexOf('if (shouldPublish)'));
 
   assert.match(
     draftSuccess,
-    /returnToAdminProductList\(\);\s*showToast\(finalProduct\.adminStatus === 'published' \? 'Изменения сохранены' : 'Черновик сохранён'\);\s*void refreshAdminProductList\(\);/,
+    /returnToAdminProductList\(\);\s*showToast\(finalProduct\.adminStatus === 'published' \? 'Изменения сохранены' : 'Черновик сохранён'\);\s*void \(finalProduct\.adminStatus === 'published' \? refreshPublishedProductLists\(\) : refreshAdminProductList\(\)\);/,
   );
   assert.doesNotMatch(draftSuccess, /await loadRemoteAdminProducts\(/);
 });

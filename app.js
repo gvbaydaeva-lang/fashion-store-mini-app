@@ -1801,26 +1801,6 @@
     persistAdminDraft();
   }
 
-  async function persistAdminVariantStock(control) {
-    const productId = state.adminDraft?.id;
-    const variant = getAdminVariant(control.dataset.colorId, control.dataset.size);
-    if (!apiClient || !/^\d+$/.test(String(productId)) || !variant?.id) return;
-    try {
-      const saved = await apiClient.updateAdminStock(productId, variant.id, variant.stock, variant.enabled !== false, state.adminDraft?.updatedAt);
-      variant.stock = Number(saved.stock);
-      variant.enabled = saved.is_enabled ?? saved.isEnabled ?? variant.enabled;
-      if (saved.productUpdatedAt) state.adminDraft.updatedAt = saved.productUpdatedAt;
-      state.adminProducts = state.adminProducts.map((product) => product.id === String(productId)
-        ? { ...product, ...(saved.productUpdatedAt ? { updatedAt: saved.productUpdatedAt } : {}), variants: product.variants.map((item) => item.id === variant.id ? { ...item, ...variant } : item) }
-        : product);
-      persistAdminDraft();
-      await loadRemoteCatalog();
-    } catch (error) {
-      persistAdminDraft();
-      showToast(error?.message || 'Не удалось сохранить остаток.');
-    }
-  }
-
   function readImageFile(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -2292,7 +2272,7 @@
       }
       returnToAdminProductList();
       showToast(finalProduct.adminStatus === 'published' ? 'Изменения сохранены' : 'Черновик сохранён');
-      void refreshAdminProductList();
+      void (finalProduct.adminStatus === 'published' ? refreshPublishedProductLists() : refreshAdminProductList());
     } catch (error) {
       state.isSubmitting = false;
       const versionConflict = error?.code === 'PRODUCT_VERSION_CONFLICT';
@@ -2501,7 +2481,6 @@
     if (control?.dataset.action === 'toggle-new') actions['toggle-new'](control);
     if (control?.dataset.action === 'set-admin-category') actions['set-admin-category'](control);
     if (control?.dataset.action === 'set-admin-supplier') actions['set-admin-supplier'](control);
-    if (control?.dataset.action === 'admin-stock') void persistAdminVariantStock(control);
     if (control?.dataset.action === 'toggle-admin-product-selection') actions['toggle-admin-product-selection'](control);
     if (control?.dataset.action === 'admin-photo-input') {
       handleAdminPhotos(control.files || []);
