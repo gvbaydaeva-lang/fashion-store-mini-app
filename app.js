@@ -2194,6 +2194,15 @@
     })));
   }
 
+  function refreshPublishedProductLists() {
+    // Публикация уже подтверждена ответом API. Обновление витрины и списка
+    // продавца не должно удерживать человека на кнопке «Опубликовать».
+    void (async () => {
+      await loadRemoteCatalog({ preserveScroll: true });
+      await loadRemoteAdminProducts({ preserveScroll: true });
+    })();
+  }
+
   async function saveAdminProduct(status) {
     if (state.isSubmitting) return;
     const form = document.querySelector('#admin-product-form');
@@ -2260,15 +2269,6 @@
         ? state.adminProducts.map((item) => item.id === normalizedProduct.id ? normalizedProduct : item)
         : [normalizedProduct, ...state.adminProducts];
       rebuildAdminCategories();
-      if (status === 'published' && !await loadRemoteCatalog()) {
-        state.adminDraft = { ...state.adminDraft, ...finalProduct, id: finalProduct.id, updatedAt: finalProduct.updatedAt };
-        state.isSubmitting = false;
-        state.adminSaveError = 'Товар опубликован на сервере, но каталог покупателя пока не подтвердил обновление. Обнови список и проверь интернет.';
-        persistAdminDraft();
-        render();
-        showToast('Публикация требует проверки каталога.');
-        return;
-      }
       state.adminDraft = null;
       clearAdminDraft();
       state.adminDirty = false;
@@ -2276,14 +2276,25 @@
       state.adminSaveError = '';
       state.adminStep = 1;
       state.isSubmitting = false;
-      // RPC synchronizes shared fields in the whole group. Refresh the seller
-      // list before returning so opening another colour shows the server truth.
+      if (status === 'published') {
+        returnToAdminProductList();
+        showToast('Товар опубликован');
+        void refreshPublishedProductLists();
+        return;
+      }
+      // Сценарий сохранения черновика сохраняет прежнее поведение: список
+      // продавца обновляется до возврата из редактора.
       await loadRemoteAdminProducts({ preserveScroll: true });
       returnToAdminProductList();
-      showToast(status === 'published' ? 'Товар опубликован' : 'Черновик сохранён');
+      showToast('Черновик сохранён');
     } catch (error) {
       state.isSubmitting = false;
-      const mayNeedRecovery = error?.code === 'timeout' || error?.status === 408;
+      const versionConflict = error?.code === 'PRODUCT_VERSION_CONFLICT' || error?.status === 409;
+      const validationError = error?.code === 'PUBLICATION_VALIDATION_FAILED';
+      // Ответ мог потеряться уже после того, как сервер записал черновик или
+      // сменил его статус. Сначала читаем подтверждённое состояние, а не
+      // сообщаем о потере данных только по ошибке сети на клиенте.
+      const mayNeedRecovery = !versionConflict && !validationError;
       if (mayNeedRecovery && apiClient?.getAdminSaveResult && state.adminDraft?.clientDraftKey) {
         try {
           const recovered = await apiClient.getAdminSaveResult({
@@ -2297,6 +2308,18 @@
           state.adminSaveError = 'Черновик сохранён на сервере. Ответ задержался, поэтому фото и публикация не были повторены автоматически.';
           persistAdminDraft();
           rebuildAdminCategories();
+          if (status === 'published' && recovered.adminStatus === 'published') {
+            state.adminDraft = null;
+            clearAdminDraft();
+            state.adminDirty = false;
+            state.adminErrors = {};
+            state.adminSaveError = '';
+            state.adminStep = 1;
+            returnToAdminProductList();
+            showToast('Товар опубликован');
+            void refreshPublishedProductLists();
+            return;
+          }
           render();
           showToast('Сервер подтвердил черновик.');
           return;
@@ -2304,7 +2327,6 @@
           // Результат действительно неизвестен: повтор сохранения использует тот же ключ черновика.
         }
       }
-      const versionConflict = error?.code === 'PRODUCT_VERSION_CONFLICT' || error?.status === 409;
       if (error?.code === 'PUBLICATION_VALIDATION_FAILED' && error?.fieldErrors) {
         state.adminErrors = { ...state.adminErrors, ...error.fieldErrors };
         state.adminStep = 4;

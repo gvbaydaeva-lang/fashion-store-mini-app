@@ -136,7 +136,7 @@ test('страница запрашивает свежие версии buyer-д
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
   assert.match(indexSource, /api\.js\?v=20261001-beget-api-3/);
   assert.match(indexSource, /core\.js\?v=20260920-group-shared-fields-1/);
-  assert.match(indexSource, /app\.js\?v=20261002-admin-list-preserve-1/);
+  assert.match(indexSource, /app\.js\?v=20261002-publish-confirm-1/);
 });
 
 test('нижняя навигация равномерно распределяет четыре раздела', () => {
@@ -826,12 +826,16 @@ test('checkout показывает правильное количество т
   assert.match(screen.innerHTML, /data-action="cart-remove" data-key="dress:black:S"/);
 });
 
-test('после публикации продавцом покупательский каталог обновляется до уведомления', () => {
+test('после публикации продавцом каталоги обновляются в фоне после уведомления', () => {
   const saveSource = appSource.match(/async function saveAdminProduct\(status\) \{[\s\S]*?\n  \}\n\n  const actions/);
 
   assert.ok(saveSource, 'не найден полный обработчик сохранения товара');
-  assert.match(saveSource[0], /status === 'published'[\s\S]*?await loadRemoteCatalog\(\)/);
-  assert.match(saveSource[0], /await loadRemoteCatalog\(\)[\s\S]*?showToast\(status === 'published'/);
+  const returnToList = saveSource[0].indexOf('returnToAdminProductList();');
+  const successToast = saveSource[0].indexOf("showToast('Товар опубликован');");
+  const backgroundRefresh = saveSource[0].indexOf('void refreshPublishedProductLists();');
+  assert.ok(returnToList >= 0, 'после подтверждённой публикации должен открываться список товаров');
+  assert.ok(successToast > returnToList, 'публикация должна подтвердиться после возврата к списку');
+  assert.ok(backgroundRefresh > successToast, 'обновление каталогов должно продолжаться после подтверждения');
 });
 
 test('после изменения остатка продавцом запускается повторная загрузка buyer-каталога', () => {
@@ -1007,7 +1011,7 @@ test('тайм-аут сохранения сначала восстанавли
   assert.match(saveSource, /getAdminSaveResult/);
   assert.match(saveSource, /Черновик сохранён на сервере\. Ответ задержался/);
   assert.match(saveSource, /publishAdminProduct\(saved\)/);
-  assert.match(saveSource, /каталог покупателя пока не подтвердил обновление/);
+  assert.match(saveSource, /refreshPublishedProductLists/);
 });
 
 test('черновик сохраняет фото в IndexedDB и использует localStorage как резерв', () => {
