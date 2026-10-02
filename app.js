@@ -2203,6 +2203,13 @@
     })();
   }
 
+  function refreshAdminProductList() {
+    // После подтверждённого сохранения достаточно обновить список в фоне:
+    // карточка уже добавлена в локальное состояние и не должна удерживать
+    // продавца в редакторе из-за медленного чтения списка.
+    void loadRemoteAdminProducts({ preserveScroll: true });
+  }
+
   async function saveAdminProduct(status) {
     if (state.isSubmitting) return;
     const form = document.querySelector('#admin-product-form');
@@ -2282,11 +2289,9 @@
         void refreshPublishedProductLists();
         return;
       }
-      // Сценарий сохранения черновика сохраняет прежнее поведение: список
-      // продавца обновляется до возврата из редактора.
-      await loadRemoteAdminProducts({ preserveScroll: true });
       returnToAdminProductList();
       showToast('Черновик сохранён');
+      void refreshAdminProductList();
     } catch (error) {
       state.isSubmitting = false;
       const versionConflict = error?.code === 'PRODUCT_VERSION_CONFLICT' || error?.status === 409;
@@ -2335,7 +2340,7 @@
           ? 'Карточка изменилась на другом устройстве. Обнови список, чтобы не затереть чужие изменения.'
         : serverDraftSaved
           ? 'Черновик сохранён на сервере. Не удалось завершить загрузку фотографии. Повтори сохранение.'
-          : 'Сервер не сохранил черновик. Введённые данные оставлены только на этом устройстве.';
+          : 'Связь прервалась до подтверждения результата. Данные оставлены на этом устройстве; повтори сохранение.';
       persistAdminDraft();
       render();
       showToast(versionConflict

@@ -238,12 +238,13 @@
     const baseUrl = normalizeBaseUrl(options.baseUrl || window.FashionStoreConfig?.apiBaseUrl);
     const getInitData = options.getInitData || (() => window.Telegram?.WebApp?.initData || '');
     const timeoutMs = Number.isFinite(Number(options.timeoutMs)) ? Number(options.timeoutMs) : 15000;
+    const writeTimeoutMs = Number.isFinite(Number(options.writeTimeoutMs)) ? Number(options.writeTimeoutMs) : 45000;
 
     if (typeof requestFetch !== 'function') {
       throw new FashionStoreApiError('В браузере недоступен сетевой клиент.');
     }
 
-    function requestWithTimeout(url, requestOptions) {
+    function requestWithTimeout(url, requestOptions, requestTimeoutMs = timeoutMs) {
       const controller = typeof AbortController === 'function' ? new AbortController() : null;
       const optionsWithSignal = controller ? { ...requestOptions, signal: controller.signal } : requestOptions;
 
@@ -259,7 +260,7 @@
         timer = setTimeout(() => {
           controller?.abort();
           finish(reject, new FashionStoreApiError('Сервер не ответил вовремя. Проверь интернет и повтори.', 408, 'timeout'));
-        }, timeoutMs);
+        }, requestTimeoutMs);
 
         requestFetch(url, optionsWithSignal)
           .then((response) => finish(resolve, response))
@@ -272,11 +273,11 @@
       });
     }
 
-    async function requestWithRetry(url, requestOptions, retryable = false) {
+    async function requestWithRetry(url, requestOptions, retryable = false, requestTimeoutMs = timeoutMs) {
       const attempts = retryable ? 2 : 1;
       for (let attempt = 1; attempt <= attempts; attempt += 1) {
         try {
-          return await requestWithTimeout(url, requestOptions);
+          return await requestWithTimeout(url, requestOptions, requestTimeoutMs);
         } catch (error) {
           const canRetry = retryable
             && attempt < attempts
@@ -305,7 +306,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, initData: options.initData ?? getInitData(), ...payload }),
-      }, readOnlyAction);
+      }, readOnlyAction, readOnlyAction ? timeoutMs : writeTimeoutMs);
       return readResponse(response);
     }
 
@@ -338,7 +339,7 @@
           method: 'PUT',
           headers: { 'Content-Type': mimeType },
           body: dataImageToBlob(image),
-        });
+        }, writeTimeoutMs);
         if (!response.ok) throw new FashionStoreApiError('', response.status || 0, 'PHOTO_UPLOAD_FAILED');
         return objectPath;
       } catch (error) {

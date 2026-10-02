@@ -556,6 +556,52 @@ test('админский запрос завершается понятной о
   assert.equal(aborted, true);
 });
 
+test('сохранение товара ждёт writeTimeoutMs, если сервер отвечает позже лимита чтения', async () => {
+  const client = API.createApiClient({
+    timeoutMs: 10,
+    writeTimeoutMs: 40,
+    initData: 'raw-telegram-init-data',
+    fetch: async (_url, options) => new Promise((resolve, reject) => {
+      const timer = setTimeout(() => resolve({
+        ok: true,
+        async json() {
+          return {
+            ok: true,
+            data: {
+              product: {
+                id: 55,
+                category: 'all',
+                name: 'Костюм',
+                status: 'draft',
+                product_variants: [],
+                product_images: [],
+              },
+            },
+          };
+        },
+      }), 20);
+      options.signal.addEventListener('abort', () => {
+        clearTimeout(timer);
+        const error = new Error('aborted');
+        error.name = 'AbortError';
+        reject(error);
+      }, { once: true });
+    }),
+  });
+
+  const product = await client.createAdminProduct({
+    clientDraftKey: '123e4567-e89b-42d3-a456-426614174000',
+    name: 'Костюм',
+    category: 'all',
+    price: 2500,
+    variants: [],
+    images: [],
+  });
+
+  assert.equal(product.id, '55');
+  assert.equal(product.name, 'Костюм');
+});
+
 test('создание заказа отправляет позиции и idempotency key, но не клиентские total/status', async () => {
   let body;
   const client = API.createApiClient({

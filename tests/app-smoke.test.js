@@ -134,9 +134,9 @@ test('страница запрашивает свежие версии buyer-д
   assert.match(indexSource, /data\.js\?v=20260930-loading-fix-1/);
   assert.match(indexSource, /styles\.css\?v=20260920-save-button-visible-1/);
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
-  assert.match(indexSource, /api\.js\?v=20261001-beget-api-3/);
+  assert.match(indexSource, /api\.js\?v=20261002-save-timeout-1/);
   assert.match(indexSource, /core\.js\?v=20260920-group-shared-fields-1/);
-  assert.match(indexSource, /app\.js\?v=20261002-publish-confirm-1/);
+  assert.match(indexSource, /app\.js\?v=20261002-save-timeout-1/);
 });
 
 test('нижняя навигация равномерно распределяет четыре раздела', () => {
@@ -991,12 +991,29 @@ test('сохранение возвращает к прежней позиции
   assert.match(saveSource[0], /returnToAdminProductList\(\)/);
 });
 
+test('подтверждённый черновик возвращает к списку до фонового обновления продавца', () => {
+  const saveSource = appSource.match(/async function saveAdminProduct\(status\) \{[\s\S]*?\n  \}\n\n  const actions/)?.[0] || '';
+  const draftSuccess = saveSource.slice(saveSource.lastIndexOf("if (status === 'published')"));
+
+  assert.match(
+    draftSuccess,
+    /returnToAdminProductList\(\);\s*showToast\('Черновик сохранён'\);\s*void refreshAdminProductList\(\);/,
+  );
+  assert.doesNotMatch(draftSuccess, /await loadRemoteAdminProducts\(/);
+});
+
+test('неизвестный результат сохранения не объявляется несохранённым сервером', () => {
+  const saveSource = appSource.match(/async function saveAdminProduct\(status\) \{[\s\S]*?\n  \}/)?.[0] || '';
+  assert.doesNotMatch(saveSource, /Сервер не сохранил черновик/);
+  assert.match(saveSource, /Связь прервалась до подтверждения результата/);
+});
+
 test('ошибка сохранения честно различает серверный черновик и локальный резерв', () => {
   const saveSource = appSource.match(/async function saveAdminProduct\(status\) \{[\s\S]*?\n  \}/)?.[0] || '';
   assert.match(saveSource, /state\.adminSaveError = '';/);
   assert.match(saveSource, /let serverDraftSaved = false;/);
   assert.match(saveSource, /serverDraftSaved = true;/);
-  assert.match(saveSource, /Сервер не сохранил черновик\. Введённые данные оставлены только на этом устройстве\./);
+  assert.doesNotMatch(saveSource, /Сервер не сохранил черновик/);
   assert.match(saveSource, /Черновик сохранён на сервере\. Не удалось завершить загрузку фотографии\. Повтори сохранение\./);
   assert.doesNotMatch(saveSource, /Данные сохранены в черновик\. Исправь ошибку и повтори\./);
 });
