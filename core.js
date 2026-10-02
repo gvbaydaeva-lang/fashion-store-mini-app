@@ -185,6 +185,10 @@
     return hasStock ? 'published' : 'out';
   }
 
+  function shouldPublishAdminProduct(product, requestedStatus) {
+    return requestedStatus === 'published' && product?.adminStatus !== 'published';
+  }
+
   function filterAdminProducts(products, query = '', status = 'all', filters = {}) {
     const normalizedQuery = String(query).trim().toLocaleLowerCase('ru-RU');
     return products.filter((product) => {
@@ -405,6 +409,7 @@
     duplicateAdminProduct,
     createAdminProductVariant,
     getAdminProductStatus,
+    shouldPublishAdminProduct,
     popScreenHistory,
     serializeAdminDraft,
     parseAdminDraft,

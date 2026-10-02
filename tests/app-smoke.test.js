@@ -135,8 +135,8 @@ test('страница запрашивает свежие версии buyer-д
   assert.match(indexSource, /styles\.css\?v=20260920-save-button-visible-1/);
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
   assert.match(indexSource, /api\.js\?v=20261002-save-timeout-1/);
-  assert.match(indexSource, /core\.js\?v=20260920-group-shared-fields-1/);
-  assert.match(indexSource, /app\.js\?v=20261002-save-timeout-1/);
+  assert.match(indexSource, /core\.js\?v=20261002-published-save-1/);
+  assert.match(indexSource, /app\.js\?v=20261002-published-save-1/);
 });
 
 test('нижняя навигация равномерно распределяет четыре раздела', () => {
@@ -194,10 +194,18 @@ test('новый цветовой вариант не требует предв�
 });
 
 test('сохранение draft не запускает обязательную проверку публикации', () => {
-  assert.match(appSource, /if \(status === 'published'\) \{[\s\S]*?validateAdminProduct/);
+  assert.match(appSource, /const shouldPublish = Core\.shouldPublishAdminProduct\(state\.adminDraft, status\);/);
+  assert.match(appSource, /if \(shouldPublish\) \{[\s\S]*?validateAdminProduct/);
   assert.match(appSource, /adminStatus: 'draft'/);
   assert.match(appSource, /Черновик сохранён\. Исправь ошибки перед публикацией/);
   assert.match(appSource, /for \(let index = 0; index < state\.adminDraft\.images\.length; index \+= 1\)/);
+});
+
+test('редактирование опубликованной карточки не принимает PRODUCT_NOT_DRAFT за конфликт версий', () => {
+  const saveSource = appSource.match(/async function saveAdminProduct\(status\) \{[\s\S]*?\n  \}\n\n  const actions/)?.[0] || '';
+  assert.match(saveSource, /Core\.shouldPublishAdminProduct\(state\.adminDraft, status\)/);
+  assert.match(saveSource, /error\?\.code === 'PRODUCT_VERSION_CONFLICT'/);
+  assert.doesNotMatch(saveSource, /error\?\.status === 409/);
 });
 
 test('фокус полей админки принудительно сбрасывает горизонтальный scroll offset', () => {
@@ -993,11 +1001,11 @@ test('сохранение возвращает к прежней позиции
 
 test('подтверждённый черновик возвращает к списку до фонового обновления продавца', () => {
   const saveSource = appSource.match(/async function saveAdminProduct\(status\) \{[\s\S]*?\n  \}\n\n  const actions/)?.[0] || '';
-  const draftSuccess = saveSource.slice(saveSource.lastIndexOf("if (status === 'published')"));
+  const draftSuccess = saveSource.slice(saveSource.lastIndexOf('if (shouldPublish)'));
 
   assert.match(
     draftSuccess,
-    /returnToAdminProductList\(\);\s*showToast\('Черновик сохранён'\);\s*void refreshAdminProductList\(\);/,
+    /returnToAdminProductList\(\);\s*showToast\(finalProduct\.adminStatus === 'published' \? 'Изменения сохранены' : 'Черновик сохранён'\);\s*void refreshAdminProductList\(\);/,
   );
   assert.doesNotMatch(draftSuccess, /await loadRemoteAdminProducts\(/);
 });

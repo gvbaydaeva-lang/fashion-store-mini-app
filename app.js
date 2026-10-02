@@ -1308,7 +1308,7 @@
         </section>
         ${renderAdminProductGroup(product)}
         <div class="admin-editor-actions admin-editor-actions--final" aria-busy="${state.isSubmitting}">
-          <button class="secondary-button" type="button" data-action="${product.adminStatus === 'published' ? 'save-admin-changes' : 'save-admin-draft'}" ${state.isSubmitting ? 'disabled' : ''}>${state.isSubmitting ? 'Сохраняем…' : 'Сохранить'}</button>
+          <button class="secondary-button" type="button" data-action="${product.adminStatus === 'published' ? 'save-admin-changes' : 'save-admin-draft'}" ${state.isSubmitting ? 'disabled' : ''}>${state.isSubmitting ? 'Сохраняем…' : product.adminStatus === 'published' ? 'Сохранить изменения' : 'Сохранить'}</button>
           ${product.adminStatus === 'published' ? '<span></span>' : `<button class="primary-button" type="button" data-action="publish-admin-product" ${state.isSubmitting ? 'disabled' : ''}>${state.isSubmitting ? 'Сохраняем…' : 'Опубликовать'}</button>`}
         </div>
         ${/^\d+$/.test(String(product.id)) ? '<button class="danger-button full-width admin-delete-product-button" type="button" data-action="delete-admin-product">Удалить этот вариант</button>' : ''}
@@ -2219,6 +2219,7 @@
     state.adminSaveError = '';
     state.isSubmitting = true;
     render();
+    const shouldPublish = Core.shouldPublishAdminProduct(state.adminDraft, status);
     let serverDraftSaved = false;
     try {
       let saved = state.adminDraft.id && /^\d+$/.test(String(state.adminDraft.id))
@@ -2257,7 +2258,7 @@
         ? state.adminProducts.map((item) => item.id === normalizedSaved.id ? normalizedSaved : item)
         : [normalizedSaved, ...state.adminProducts];
       rebuildAdminCategories();
-      if (status === 'published') {
+      if (shouldPublish) {
         state.adminErrors = Core.validateAdminProduct(state.adminDraft, 'publish');
         if (Object.keys(state.adminErrors).length) {
           state.adminStep = 4;
@@ -2268,7 +2269,7 @@
           return;
         }
       }
-      const finalProduct = status === 'published'
+      const finalProduct = shouldPublish
         ? await apiClient.publishAdminProduct(saved)
         : saved;
       const normalizedProduct = normalizeAdminProductCategory(finalProduct);
@@ -2283,18 +2284,18 @@
       state.adminSaveError = '';
       state.adminStep = 1;
       state.isSubmitting = false;
-      if (status === 'published') {
+      if (shouldPublish) {
         returnToAdminProductList();
         showToast('Товар опубликован');
         void refreshPublishedProductLists();
         return;
       }
       returnToAdminProductList();
-      showToast('Черновик сохранён');
+      showToast(finalProduct.adminStatus === 'published' ? 'Изменения сохранены' : 'Черновик сохранён');
       void refreshAdminProductList();
     } catch (error) {
       state.isSubmitting = false;
-      const versionConflict = error?.code === 'PRODUCT_VERSION_CONFLICT' || error?.status === 409;
+      const versionConflict = error?.code === 'PRODUCT_VERSION_CONFLICT';
       const validationError = error?.code === 'PUBLICATION_VALIDATION_FAILED';
       // Ответ мог потеряться уже после того, как сервер записал черновик или
       // сменил его статус. Сначала читаем подтверждённое состояние, а не
@@ -2313,7 +2314,7 @@
           state.adminSaveError = 'Черновик сохранён на сервере. Ответ задержался, поэтому фото и публикация не были повторены автоматически.';
           persistAdminDraft();
           rebuildAdminCategories();
-          if (status === 'published' && recovered.adminStatus === 'published') {
+          if (shouldPublish && recovered.adminStatus === 'published') {
             state.adminDraft = null;
             clearAdminDraft();
             state.adminDirty = false;

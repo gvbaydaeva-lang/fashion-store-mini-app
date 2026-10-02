@@ -27,11 +27,18 @@ const {
   duplicateAdminProduct,
   createAdminProductVariant,
   getAdminProductStatus,
+  shouldPublishAdminProduct,
   popScreenHistory,
   mergeAdminDraftSave,
   serializeAdminDraft,
   parseAdminDraft,
 } = require('../core.js');
+
+test('сохранение опубликованной карточки не запускает повторную публикацию', () => {
+  assert.equal(shouldPublishAdminProduct({ adminStatus: 'published' }, 'published'), false);
+  assert.equal(shouldPublishAdminProduct({ adminStatus: 'draft' }, 'published'), true);
+  assert.equal(shouldPublishAdminProduct({ adminStatus: 'draft' }, 'draft'), false);
+});
 
 const TEST_PRODUCTS = [
   {
