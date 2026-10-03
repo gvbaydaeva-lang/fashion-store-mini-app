@@ -33,6 +33,22 @@ test('каталог повторяет только временный сете
   assert.equal(attempts, 2);
 });
 
+test('каталог переживает два последовательных временных сбоя мобильной сети', async () => {
+  let attempts = 0;
+  const client = API.createApiClient({
+    retryDelayMs: 0,
+    fetch: async () => {
+      attempts += 1;
+      if (attempts < 3) throw new TypeError('mobile network temporarily unavailable');
+      return { ok: true, async json() { return { products: [] }; } };
+    },
+  });
+
+  await client.getCatalog();
+
+  assert.equal(attempts, 3);
+});
+
 test('изменяющие seller-операции не повторяются автоматически после сетевого сбоя', async () => {
   let attempts = 0;
   const client = API.createApiClient({

@@ -239,6 +239,7 @@
     const getInitData = options.getInitData || (() => window.Telegram?.WebApp?.initData || '');
     const timeoutMs = Number.isFinite(Number(options.timeoutMs)) ? Number(options.timeoutMs) : 15000;
     const writeTimeoutMs = Number.isFinite(Number(options.writeTimeoutMs)) ? Number(options.writeTimeoutMs) : 45000;
+    const retryDelayMs = Number.isFinite(Number(options.retryDelayMs)) ? Number(options.retryDelayMs) : 250;
 
     if (typeof requestFetch !== 'function') {
       throw new FashionStoreApiError('В браузере недоступен сетевой клиент.');
@@ -274,7 +275,7 @@
     }
 
     async function requestWithRetry(url, requestOptions, retryable = false, requestTimeoutMs = timeoutMs) {
-      const attempts = retryable ? 2 : 1;
+      const attempts = retryable ? 3 : 1;
       for (let attempt = 1; attempt <= attempts; attempt += 1) {
         try {
           return await requestWithTimeout(url, requestOptions, requestTimeoutMs);
@@ -283,6 +284,7 @@
             && attempt < attempts
             && (error?.code === 'timeout' || !(error instanceof FashionStoreApiError));
           if (!canRetry) throw error;
+          if (retryDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
         }
       }
       throw new FashionStoreApiError('Не удалось выполнить запрос.');

@@ -134,7 +134,7 @@ test('страница запрашивает свежие версии buyer-д
   assert.match(indexSource, /data\.js\?v=20260930-loading-fix-1/);
   assert.match(indexSource, /styles\.css\?v=20260920-save-button-visible-1/);
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
-  assert.match(indexSource, /api\.js\?v=20261002-save-timeout-1/);
+  assert.match(indexSource, /api\.js\?v=20261003-mobile-retry-1/);
   assert.match(indexSource, /core\.js\?v=20261003-cart-reconcile-1/);
   assert.match(indexSource, /app\.js\?v=20261003-mobile-startup-1/);
 });
