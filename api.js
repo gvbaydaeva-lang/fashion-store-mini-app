@@ -246,14 +246,22 @@
     }
 
     const includeWriteRequestId = options.includeWriteRequestId === true;
+    const mobileDiagnostics = options.mobileDiagnostics === true;
+    const onDiagnostic = typeof options.onDiagnostic === 'function' ? options.onDiagnostic : null;
     // Telegram iOS/Android отправляет seller-JSON как простой запрос, чтобы
     // не выполнять отдельный CORS preflight к API на другом домене.
     const mobileSellerTransport = options.mobileSellerTransport === true;
 
     function createRequestId() {
+      if (typeof options.createRequestId === 'function') return options.createRequestId();
       const randomUuid = window.crypto?.randomUUID?.bind(window.crypto);
       if (typeof randomUuid === 'function') return randomUuid();
       return `save-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+    }
+
+    function emitDiagnostic(event, details = {}) {
+      if (!mobileDiagnostics || !onDiagnostic) return;
+      onDiagnostic({ event, ...details, startedAt: details.startedAt || Date.now(), finishedAt: details.finishedAt || null, elapsedMs: details.elapsedMs ?? null, httpStatus: details.httpStatus ?? null, errorCode: details.errorCode || null });
     }
 
     function requestWithTimeout(url, requestOptions, requestTimeoutMs = timeoutMs) {
@@ -285,12 +293,17 @@
       });
     }
 
-    async function requestWithRetry(url, requestOptions, retryable = false, requestTimeoutMs = timeoutMs) {
+    async function requestWithRetry(url, requestOptions, retryable = false, requestTimeoutMs = timeoutMs, diagnostic = null) {
       const attempts = retryable ? 3 : 1;
       for (let attempt = 1; attempt <= attempts; attempt += 1) {
+        const startedAt = Date.now();
+        if (diagnostic) emitDiagnostic('request-start', { ...diagnostic, attempt, startedAt, outcome: 'started' });
         try {
-          return await requestWithTimeout(url, requestOptions, requestTimeoutMs);
+          const response = await requestWithTimeout(url, requestOptions, requestTimeoutMs);
+          if (diagnostic) emitDiagnostic('request-end', { ...diagnostic, attempt, startedAt, finishedAt: Date.now(), elapsedMs: Date.now() - startedAt, outcome: 'received', httpStatus: response.status || 200 });
+          return response;
         } catch (error) {
+          if (diagnostic) emitDiagnostic('request-error', { ...diagnostic, attempt, startedAt, finishedAt: Date.now(), elapsedMs: Date.now() - startedAt, outcome: 'error', httpStatus: error?.status || null, errorCode: error?.code || 'network-error' });
           const canRetry = retryable
             && attempt < attempts
             && (error?.code === 'timeout' || !(error instanceof FashionStoreApiError));
@@ -307,21 +320,27 @@
         if (value == null || value === '' || (Array.isArray(value) && !value.length)) return;
         query.set(key, Array.isArray(value) ? value.join(',') : String(value));
       });
+      const requestId = mobileDiagnostics ? createRequestId() : '';
+      if (requestId) {
+        query.set('mobileDiagnostic', '1');
+        query.set('requestId', requestId);
+      }
       const suffix = query.toString() ? `?${query.toString()}` : '';
-      const response = await requestWithRetry(`${baseUrl}/catalog-api${suffix}`, { method: 'GET', cache: 'no-store' }, true);
+      const response = await requestWithRetry(`${baseUrl}/catalog-api${suffix}`, { method: 'GET', cache: 'no-store' }, true, timeoutMs, requestId ? { operation: 'catalog-read', requestId } : null);
       const data = await readResponse(response);
       return (Array.isArray(data.products) ? data.products : []).map((product) => normalizeProduct(product, baseUrl));
     }
 
     async function adminRequest(action, payload = {}) {
       const readOnlyAction = ['list', 'list-users', 'get-user', 'get-save-result'].includes(action);
-      const requestId = !readOnlyAction && includeWriteRequestId ? createRequestId() : '';
+      const diagnosticRead = readOnlyAction && mobileDiagnostics;
+      const requestId = diagnosticRead || (!readOnlyAction && includeWriteRequestId) ? createRequestId() : '';
       try {
         const response = await requestWithRetry(`${baseUrl}/admin-api`, {
           method: 'POST',
           headers: { 'Content-Type': mobileSellerTransport ? 'text/plain;charset=UTF-8' : 'application/json' },
-          body: JSON.stringify({ action, initData: options.initData ?? getInitData(), ...payload, ...(requestId ? { requestId } : {}) }),
-        }, readOnlyAction, readOnlyAction ? timeoutMs : writeTimeoutMs);
+          body: JSON.stringify({ action, initData: options.initData ?? getInitData(), ...payload, ...(diagnosticRead ? { mobileDiagnostic: true } : {}), ...(requestId ? { requestId } : {}) }),
+        }, readOnlyAction, readOnlyAction ? timeoutMs : writeTimeoutMs, diagnosticRead ? { operation: action === 'list' ? 'admin-list-read' : `admin-${action}-read`, requestId } : null);
         return await readResponse(response);
       } catch (error) {
         if (requestId && !error?.requestId) error.requestId = requestId;

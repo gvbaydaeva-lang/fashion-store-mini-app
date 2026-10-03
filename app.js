@@ -24,6 +24,7 @@
   const PREORDER_RESET_KEY = 'fashion-store-preorder-reset-v1';
   const BOT_URL = Core.buildBotUrl('fashion_katalog_bot');
   const SHARE_TEXT = 'Посмотри «Выгодные покупки» в Telegram 🛍';
+  const MOBILE_DIAGNOSTIC_APP_VERSION = '20261003-mobile-diagnostics-1';
   const ROOT_SCREENS = new Set(['home', 'catalog', 'cart', 'orders', 'store']);
   const MOBILE_RESUME_RENDER_SCREENS = new Set([
     'home', 'catalog', 'product', 'cart', 'orders', 'store', 'payment-success', 'order-detail',
@@ -107,11 +108,38 @@
   let toastTimer = null;
   let focusBeforeSheet = null;
   let apiClient = null;
+  const mobileTelegram = Boolean(platform?.isMobileTelegram?.());
+  const mobileDiagnosticPageInstanceId = window.crypto?.randomUUID?.() || `page-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  let mobileDiagnosticSequence = 0;
+
+  function recordMobileDiagnostic(event, details = {}) {
+    if (!mobileTelegram) return;
+    const payload = {
+      appVersion: MOBILE_DIAGNOSTIC_APP_VERSION,
+      pageInstanceId: mobileDiagnosticPageInstanceId,
+      lifecycleSequence: ++mobileDiagnosticSequence,
+      platform: 'telegram-mobile',
+      screen: state.screen,
+      operation: details.operation || 'lifecycle',
+      requestId: details.requestId || null,
+      attempt: details.attempt || null,
+      startedAt: details.startedAt || Date.now(),
+      finishedAt: details.finishedAt || null,
+      elapsedMs: details.elapsedMs ?? null,
+      outcome: details.outcome || event,
+      httpStatus: details.httpStatus ?? null,
+      errorCode: details.errorCode || null,
+      event,
+    };
+    window.console?.info?.('MOBILE_DIAGNOSTIC', JSON.stringify(payload));
+  }
 
   try {
     apiClient = API?.createApiClient?.({
-      includeWriteRequestId: Boolean(platform?.isMobileTelegram?.()),
-      mobileSellerTransport: Boolean(platform?.isMobileTelegram?.()),
+      includeWriteRequestId: mobileTelegram,
+      mobileSellerTransport: mobileTelegram,
+      mobileDiagnostics: mobileTelegram,
+      onDiagnostic: (event) => recordMobileDiagnostic(event.event, event),
     }) || null;
   } catch (_error) {
     apiClient = null;
@@ -2195,6 +2223,11 @@
     }
   }
 
+  function handleMobileVisibilityChange() {
+    recordMobileDiagnostic(document.visibilityState === 'visible' ? 'visibility-visible' : 'visibility-hidden');
+    refreshAfterMobileResume();
+  }
+
   function preloadCatalogImages(products) {
     if (typeof window.Image !== 'function') return Promise.resolve();
     const urls = [...new Set(products.flatMap((product) => product.images || []).filter(Boolean))];
@@ -2500,7 +2533,10 @@
     platform?.onThemeChanged?.(applyTelegramTheme);
     platform?.onViewportChanged?.(applyViewportHeight);
     window.addEventListener('orientationchange', applyViewportLayout);
-    if (platform?.isMobileTelegram?.()) document.addEventListener('visibilitychange', refreshAfterMobileResume);
+    if (mobileTelegram) {
+      document.addEventListener('visibilitychange', handleMobileVisibilityChange);
+      recordMobileDiagnostic('page-load');
+    }
     render();
     if (platform?.getInitData?.() && apiClient?.trackOpen) void apiClient.trackOpen().catch(() => {});
     void loadRemoteCatalog();

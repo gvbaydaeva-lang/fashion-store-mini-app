@@ -179,6 +179,50 @@ test('getCatalog запрещает браузеру использовать у
   assert.equal(requestOptions.cache, 'no-store');
 });
 
+test('мобильная диагностика коррелирует только безопасные read-запросы', async () => {
+  const calls = [];
+  const events = [];
+  const client = API.createApiClient({
+    initData: 'signed-telegram-data',
+    mobileDiagnostics: true,
+    createRequestId: () => 'read-12345678',
+    onDiagnostic: (event) => events.push(event),
+    fetch: async (url, options) => {
+      calls.push({ url, body: options.body && JSON.parse(options.body) });
+      if (options.method === 'GET') return { ok: true, status: 200, async json() { return { products: [] }; } };
+      return { ok: true, status: 200, async json() { return { ok: true, data: { products: [] } }; } };
+    },
+  });
+
+  await client.getCatalog();
+  await client.getAdminProducts();
+
+  assert.equal(calls[0].url, 'https://api.womanshop08.ru/api/catalog-api?mobileDiagnostic=1&requestId=read-12345678');
+  assert.deepEqual(calls[1].body, {
+    action: 'list', initData: 'signed-telegram-data', mobileDiagnostic: true, requestId: 'read-12345678',
+  });
+  assert.deepEqual(events.map((event) => [event.event, event.operation, event.requestId, event.attempt, event.httpStatus]), [
+    ['request-start', 'catalog-read', 'read-12345678', 1, null],
+    ['request-end', 'catalog-read', 'read-12345678', 1, 200],
+    ['request-start', 'admin-list-read', 'read-12345678', 1, null],
+    ['request-end', 'admin-list-read', 'read-12345678', 1, 200],
+  ]);
+});
+
+test('desktop read-запрос не получает mobile diagnostic параметры', async () => {
+  let url = '';
+  const client = API.createApiClient({
+    fetch: async (requestUrl) => {
+      url = requestUrl;
+      return { ok: true, async json() { return { products: [] }; } };
+    },
+  });
+
+  await client.getCatalog();
+
+  assert.equal(url, 'https://api.womanshop08.ru/api/catalog-api');
+});
+
 test('клиент привязывает относительную подписанную ссылку фото к origin Beget API', async () => {
   const client = API.createApiClient({
     baseUrl: 'https://beget.example/api',

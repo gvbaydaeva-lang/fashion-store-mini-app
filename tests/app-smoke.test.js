@@ -66,6 +66,7 @@ function loadApp(initialStorage = {}, api = null, platform = null) {
     ...Object.entries(initialStorage),
   ]);
   const eventHandlers = new Map();
+  const diagnosticLogs = [];
   const document = {
     documentElement: createElement(),
     visibilityState: 'visible',
@@ -92,10 +93,12 @@ function loadApp(initialStorage = {}, api = null, platform = null) {
     addEventListener() {},
     clearTimeout() {},
     setTimeout(callback) { callback(); return 1; },
+    console: { info(...values) { diagnosticLogs.push(values); } },
   };
   vm.runInNewContext(appSource, {
     window,
     document,
+    console: window.console,
     FormData: class FormData {},
     FileReader: class FileReader {},
     HTMLImageElement: window.HTMLImageElement,
@@ -110,6 +113,7 @@ function loadApp(initialStorage = {}, api = null, platform = null) {
     modal: elements.get('#modal-root'),
     storage,
     document,
+    diagnosticLogs,
   };
 }
 
@@ -146,6 +150,33 @@ test('мобильный Telegram заново загружает каталог
 
   await Promise.resolve();
   assert.equal(catalogRequests, 2);
+});
+
+test('мобильный Telegram пишет только безопасные lifecycle-поля диагностики', async () => {
+  const api = {
+    createApiClient() {
+      return { getCatalog: async () => [] };
+    },
+  };
+  const platform = {
+    createPlatform() {
+      return { isMobileTelegram: () => true, ready() {}, expand() {} };
+    },
+  };
+  const { document, diagnosticLogs } = loadApp({}, api, platform);
+
+  document.visibilityState = 'hidden';
+  document.dispatch('visibilitychange');
+  document.visibilityState = 'visible';
+  document.dispatch('visibilitychange');
+
+  const events = diagnosticLogs
+    .filter(([label]) => label === 'MOBILE_DIAGNOSTIC')
+    .map(([, value]) => JSON.parse(value));
+  assert.deepEqual(events.map((event) => event.event), ['page-load', 'visibility-hidden', 'visibility-visible']);
+  const allowed = new Set(['appVersion', 'pageInstanceId', 'lifecycleSequence', 'platform', 'screen', 'operation', 'requestId', 'attempt', 'startedAt', 'finishedAt', 'elapsedMs', 'outcome', 'httpStatus', 'errorCode', 'event']);
+  events.forEach((event) => Object.keys(event).forEach((key) => assert.ok(allowed.has(key))));
+  assert.ok(events.every((event) => event.platform === 'telegram-mobile' && event.pageInstanceId));
 });
 
 test('мобильный Telegram обновляет список админки после возврата из фона', async () => {
@@ -334,7 +365,7 @@ test('страница запрашивает свежие версии buyer-д
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
   assert.match(indexSource, /api\.js\?v=20261003-mobile-save-cors-simple-1/);
   assert.match(indexSource, /core\.js\?v=20261003-cart-reconcile-1/);
-  assert.match(indexSource, /app\.js\?v=20261003-mobile-resume-1/);
+  assert.match(indexSource, /app\.js\?v=20261003-mobile-diagnostics-1/);
 });
 
 test('нижняя навигация равномерно распределяет четыре раздела', () => {
