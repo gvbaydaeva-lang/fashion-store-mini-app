@@ -2153,7 +2153,9 @@
       state.catalogProducts = Core.createAdminCatalog(products);
       state.cart = Core.reconcileCart(state.cart, state.catalogProducts);
       saveState();
-      await preloadCatalogImages(state.catalogProducts);
+      // Не блокируем первый экран мобильной сетью: карточки уже можно
+      // открыть после ответа API, а браузер догрузит изображения сам.
+      void preloadCatalogImages(state.catalogProducts);
       state.catalogStatus = 'ready';
       render({ preserveScroll: options.preserveScroll });
       return true;
