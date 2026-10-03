@@ -25,6 +25,10 @@
   const BOT_URL = Core.buildBotUrl('fashion_katalog_bot');
   const SHARE_TEXT = 'Посмотри «Выгодные покупки» в Telegram 🛍';
   const ROOT_SCREENS = new Set(['home', 'catalog', 'cart', 'orders', 'store']);
+  const MOBILE_RESUME_RENDER_SCREENS = new Set([
+    'home', 'catalog', 'product', 'cart', 'orders', 'store', 'payment-success', 'order-detail',
+    'seller-access', 'seller-products', 'seller-orders', 'seller-order', 'seller-users', 'seller-user',
+  ]);
   const CHECKOUT_SCREENS = new Set([
     'product', 'checkout-contact', 'checkout-delivery', 'checkout-review',
     'payment-success', 'order-detail', 'seller-access', 'seller-products',
@@ -2104,6 +2108,7 @@
       rebuildAdminCategories();
       state.sellerAuthStatus = 'ready';
       state.sellerAuthError = '';
+      if (options.expectedScreen && state.screen !== options.expectedScreen) return true;
       state.screen = 'seller-products';
       state.history = [];
       render({ preserveScroll: options.preserveScroll });
@@ -2120,6 +2125,7 @@
       const hasLoadedProducts = state.adminProducts.length > 0;
       state.sellerAuthStatus = hasLoadedProducts ? 'ready' : 'error';
       if (!hasLoadedProducts) state.adminProducts = [];
+      if (options.expectedScreen && state.screen !== options.expectedScreen) return false;
       render({ preserveScroll: options.preserveScroll });
       return false;
     }
@@ -2152,9 +2158,11 @@
 
   async function loadRemoteCatalog(options = {}) {
     if (!apiClient) return false;
+    const canRender = () => options.render !== false
+      && (!options.expectedScreen || state.screen === options.expectedScreen);
     state.catalogStatus = 'loading';
     state.catalogError = '';
-    render({ preserveScroll: options.preserveScroll });
+    if (canRender()) render({ preserveScroll: options.preserveScroll });
     try {
       const products = await apiClient.getCatalog(state.filters);
       state.catalogProducts = Core.createAdminCatalog(products);
@@ -2164,13 +2172,26 @@
       // открыть после ответа API, а браузер догрузит изображения сам.
       void preloadCatalogImages(state.catalogProducts);
       state.catalogStatus = 'ready';
-      render({ preserveScroll: options.preserveScroll });
+      if (canRender()) render({ preserveScroll: options.preserveScroll });
       return true;
     } catch (error) {
       state.catalogStatus = 'error';
       state.catalogError = error?.message || 'Каталог временно недоступен.';
-      render({ preserveScroll: options.preserveScroll });
+      if (canRender()) render({ preserveScroll: options.preserveScroll });
       return false;
+    }
+  }
+
+  function refreshAfterMobileResume() {
+    if (!platform?.isMobileTelegram?.() || document.visibilityState !== 'visible') return;
+    const resumeScreen = state.screen;
+    void loadRemoteCatalog({
+      preserveScroll: true,
+      expectedScreen: resumeScreen,
+      render: MOBILE_RESUME_RENDER_SCREENS.has(resumeScreen),
+    });
+    if (resumeScreen === 'seller-products') {
+      void loadRemoteAdminProducts({ preserveScroll: true, expectedScreen: resumeScreen });
     }
   }
 
@@ -2479,6 +2500,7 @@
     platform?.onThemeChanged?.(applyTelegramTheme);
     platform?.onViewportChanged?.(applyViewportHeight);
     window.addEventListener('orientationchange', applyViewportLayout);
+    if (platform?.isMobileTelegram?.()) document.addEventListener('visibilitychange', refreshAfterMobileResume);
     render();
     if (platform?.getInitData?.() && apiClient?.trackOpen) void apiClient.trackOpen().catch(() => {});
     void loadRemoteCatalog();

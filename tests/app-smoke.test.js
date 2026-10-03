@@ -52,7 +52,7 @@ function createElement() {
   };
 }
 
-function loadApp(initialStorage = {}, api = null) {
+function loadApp(initialStorage = {}, api = null, platform = null) {
   const elements = new Map([
     ['#screen', createElement()],
     ['#app', createElement()],
@@ -68,6 +68,7 @@ function loadApp(initialStorage = {}, api = null) {
   const eventHandlers = new Map();
   const document = {
     documentElement: createElement(),
+    visibilityState: 'visible',
     querySelector(selector) { return elements.get(selector) || null; },
     querySelectorAll() { return []; },
     addEventListener(type, handler) { eventHandlers.set(type, handler); },
@@ -78,6 +79,7 @@ function loadApp(initialStorage = {}, api = null) {
     FashionStoreCore: Core,
     FashionStoreUI: UI,
     FashionStoreApi: api,
+    FashionStorePlatform: platform,
     HTMLImageElement: class HTMLImageElement {},
     document,
     innerHeight: 800,
@@ -111,6 +113,202 @@ function loadApp(initialStorage = {}, api = null) {
   };
 }
 
+test('мобильный Telegram заново загружает каталог после возврата Mini App из фона', async () => {
+  let catalogRequests = 0;
+  const api = {
+    createApiClient() {
+      return {
+        async getCatalog() {
+          catalogRequests += 1;
+          return [];
+        },
+      };
+    },
+  };
+  const platform = {
+    createPlatform() {
+      return {
+        isMobileTelegram: () => true,
+        ready() {},
+        expand() {},
+      };
+    },
+  };
+  const { document } = loadApp({}, api, platform);
+
+  await Promise.resolve();
+  assert.equal(catalogRequests, 1);
+
+  document.visibilityState = 'hidden';
+  document.dispatch('visibilitychange');
+  document.visibilityState = 'visible';
+  document.dispatch('visibilitychange');
+
+  await Promise.resolve();
+  assert.equal(catalogRequests, 2);
+});
+
+test('мобильный Telegram обновляет список админки после возврата из фона', async () => {
+  let adminRequests = 0;
+  const api = {
+    createApiClient() {
+      return {
+        async getCatalog() { return []; },
+        async getAdminProducts() {
+          adminRequests += 1;
+          return [];
+        },
+      };
+    },
+  };
+  const platform = {
+    createPlatform() {
+      return {
+        isMobileTelegram: () => true,
+        ready() {},
+        expand() {},
+      };
+    },
+  };
+  const { app, document } = loadApp({}, api, platform);
+  app.navigate('seller-products');
+
+  document.visibilityState = 'hidden';
+  document.dispatch('visibilitychange');
+  document.visibilityState = 'visible';
+  document.dispatch('visibilitychange');
+
+  await Promise.resolve();
+  assert.equal(adminRequests, 1);
+});
+
+test('мобильный Telegram не перерисовывает открытый редактор при возврате из фона', async () => {
+  let catalogRequests = 0;
+  const api = {
+    createApiClient() {
+      return {
+        async getCatalog() {
+          catalogRequests += 1;
+          return [];
+        },
+      };
+    },
+  };
+  const platform = {
+    createPlatform() {
+      return { isMobileTelegram: () => true, ready() {}, expand() {} };
+    },
+  };
+  const { app, document } = loadApp({}, api, platform);
+  await Promise.resolve();
+  app.navigate('seller-product-edit');
+
+  document.visibilityState = 'hidden';
+  document.dispatch('visibilitychange');
+  document.visibilityState = 'visible';
+  document.dispatch('visibilitychange');
+
+  await Promise.resolve();
+  assert.equal(catalogRequests, 2);
+});
+
+test('ответ фонового обновления списка не выбрасывает из открытого редактора', async () => {
+  let resolveAdminProducts;
+  const api = {
+    createApiClient() {
+      return {
+        async getCatalog() { return []; },
+        getAdminProducts() {
+          return new Promise((resolve) => { resolveAdminProducts = resolve; });
+        },
+      };
+    },
+  };
+  const platform = {
+    createPlatform() {
+      return { isMobileTelegram: () => true, ready() {}, expand() {} };
+    },
+  };
+  const { app, document, screen } = loadApp({}, api, platform);
+  app.navigate('seller-products');
+  document.visibilityState = 'hidden';
+  document.dispatch('visibilitychange');
+  document.visibilityState = 'visible';
+  document.dispatch('visibilitychange');
+  app.navigate('seller-product-edit');
+
+  resolveAdminProducts([]);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(screen.dataset.screen, 'seller-product-edit');
+});
+
+test('ответ фонового обновления каталога не перерисовывает открытый редактор', async () => {
+  let catalogRequests = 0;
+  let resolveCatalog;
+  const api = {
+    createApiClient() {
+      return {
+        getCatalog() {
+          catalogRequests += 1;
+          if (catalogRequests === 1) return Promise.resolve([]);
+          return new Promise((resolve) => { resolveCatalog = resolve; });
+        },
+      };
+    },
+  };
+  const platform = {
+    createPlatform() {
+      return { isMobileTelegram: () => true, ready() {}, expand() {} };
+    },
+  };
+  const { app, document, screen } = loadApp({}, api, platform);
+  await new Promise((resolve) => setImmediate(resolve));
+  app.navigate('seller-products');
+  document.visibilityState = 'hidden';
+  document.dispatch('visibilitychange');
+  document.visibilityState = 'visible';
+  document.dispatch('visibilitychange');
+  app.navigate('seller-product-edit');
+  screen.innerHTML = '<input value="несохранённый текст">';
+
+  resolveCatalog([]);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(screen.innerHTML, '<input value="несохранённый текст">');
+});
+
+test('ответ фонового обновления каталога не стирает незавершённую форму заказа', async () => {
+  let catalogRequests = 0;
+  let resolveCatalog;
+  const api = {
+    createApiClient() {
+      return {
+        getCatalog() {
+          catalogRequests += 1;
+          if (catalogRequests === 1) return Promise.resolve([]);
+          return new Promise((resolve) => { resolveCatalog = resolve; });
+        },
+      };
+    },
+  };
+  const platform = {
+    createPlatform() {
+      return { isMobileTelegram: () => true, ready() {}, expand() {} };
+    },
+  };
+  const { app, document, screen } = loadApp({}, api, platform);
+  await new Promise((resolve) => setImmediate(resolve));
+  app.navigate('checkout-contact');
+  screen.innerHTML = '<input value="Гиляна">';
+  document.visibilityState = 'hidden';
+  document.dispatch('visibilitychange');
+  document.visibilityState = 'visible';
+  document.dispatch('visibilitychange');
+
+  resolveCatalog([]);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(screen.innerHTML, '<input value="Гиляна">');
+});
+
 test('админ-панель не меняет ширину при изменении visualViewport от фокуса', () => {
   assert.doesNotMatch(appSource, /window\.visualViewport\?\.width/);
   assert.doesNotMatch(appSource, /window\.visualViewport\?\.addEventListener\('resize', applyViewportLayout\)/);
@@ -136,7 +334,7 @@ test('страница запрашивает свежие версии buyer-д
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
   assert.match(indexSource, /api\.js\?v=20261003-mobile-save-cors-simple-1/);
   assert.match(indexSource, /core\.js\?v=20261003-cart-reconcile-1/);
-  assert.match(indexSource, /app\.js\?v=20261003-mobile-save-cors-simple-1/);
+  assert.match(indexSource, /app\.js\?v=20261003-mobile-resume-1/);
 });
 
 test('нижняя навигация равномерно распределяет четыре раздела', () => {
