@@ -31,6 +31,7 @@ test('browser mode works without Telegram and uses browser fallbacks', async () 
 
   assert.equal(platform.mode, 'browser');
   assert.equal(platform.isTelegram(), false);
+  assert.equal(platform.isMobileTelegram(), false);
   assert.equal(platform.getUserName(), 'Гость');
   platform.setBackVisibility(true);
   platform.goBack();
@@ -59,6 +60,7 @@ test('Telegram mode exposes the existing back, theme, share and raw initData cap
   const telegram = {
     WebApp: {
       initData: 'signed-init-data',
+      platform: 'ios',
       initDataUnsafe: { user: { first_name: 'Гиляна' } },
       themeParams: { bg_color: '#fff' },
       colorScheme: 'dark',
@@ -75,6 +77,7 @@ test('Telegram mode exposes the existing back, theme, share and raw initData cap
 
   assert.equal(platform.mode, 'telegram');
   assert.equal(platform.isTelegram(), true);
+  assert.equal(platform.isMobileTelegram(), true);
   assert.equal(platform.getUserName(), 'Гиляна');
   assert.equal(platform.getInitData(), 'signed-init-data');
   platform.setBackVisibility(true);

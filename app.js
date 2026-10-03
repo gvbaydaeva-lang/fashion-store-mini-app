@@ -105,7 +105,9 @@
   let apiClient = null;
 
   try {
-    apiClient = API?.createApiClient?.() || null;
+    apiClient = API?.createApiClient?.({
+      includeWriteRequestId: Boolean(platform?.isMobileTelegram?.()),
+    }) || null;
   } catch (_error) {
     apiClient = null;
   }
@@ -2325,16 +2327,19 @@
         state.adminErrors = { ...state.adminErrors, ...error.fieldErrors };
         state.adminStep = 4;
       }
+      const mobileRequestId = !versionConflict && !serverDraftSaved && platform?.isMobileTelegram?.()
+        ? String(error?.requestId || '')
+        : '';
       state.adminSaveError = versionConflict
           ? 'Карточка изменилась на другом устройстве. Обнови список, чтобы не затереть чужие изменения.'
         : serverDraftSaved
           ? 'Черновик сохранён на сервере. Не удалось завершить загрузку фотографии. Повтори сохранение.'
-          : 'Связь прервалась до подтверждения результата. Данные оставлены на этом устройстве; повтори сохранение.';
+          : `Связь прервалась до подтверждения результата. Данные оставлены на этом устройстве; повтори сохранение.${mobileRequestId ? ` Код обращения: ${mobileRequestId}.` : ''}`;
       persistAdminDraft();
       render();
       showToast(versionConflict
         ? 'Товар изменён на другом устройстве. Обнови список.'
-        : `${state.adminSaveError}${error?.requestId ? ` Код обращения: ${error.requestId}.` : ''}`);
+        : state.adminSaveError);
     }
   }
 

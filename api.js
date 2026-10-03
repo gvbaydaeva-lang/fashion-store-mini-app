@@ -245,6 +245,14 @@
       throw new FashionStoreApiError('В браузере недоступен сетевой клиент.');
     }
 
+    const includeWriteRequestId = options.includeWriteRequestId === true;
+
+    function createRequestId() {
+      const randomUuid = window.crypto?.randomUUID?.bind(window.crypto);
+      if (typeof randomUuid === 'function') return randomUuid();
+      return `save-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+    }
+
     function requestWithTimeout(url, requestOptions, requestTimeoutMs = timeoutMs) {
       const controller = typeof AbortController === 'function' ? new AbortController() : null;
       const optionsWithSignal = controller ? { ...requestOptions, signal: controller.signal } : requestOptions;
@@ -304,12 +312,18 @@
 
     async function adminRequest(action, payload = {}) {
       const readOnlyAction = ['list', 'list-users', 'get-user', 'get-save-result'].includes(action);
-      const response = await requestWithRetry(`${baseUrl}/admin-api`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, initData: options.initData ?? getInitData(), ...payload }),
-      }, readOnlyAction, readOnlyAction ? timeoutMs : writeTimeoutMs);
-      return readResponse(response);
+      const requestId = !readOnlyAction && includeWriteRequestId ? createRequestId() : '';
+      try {
+        const response = await requestWithRetry(`${baseUrl}/admin-api`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, initData: options.initData ?? getInitData(), ...payload, ...(requestId ? { requestId } : {}) }),
+        }, readOnlyAction, readOnlyAction ? timeoutMs : writeTimeoutMs);
+        return await readResponse(response);
+      } catch (error) {
+        if (requestId && !error?.requestId) error.requestId = requestId;
+        throw error;
+      }
     }
 
     async function orderRequest(action, payload = {}) {

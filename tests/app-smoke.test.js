@@ -125,8 +125,8 @@ test('Mini App запрещает автоматическое увеличен�
 });
 
 test('точка входа подключает платформенный адаптер до приложения', () => {
-  assert.match(indexSource, /platform\.js\?v=20260914-platform-1/);
-  assert.ok(indexSource.indexOf('platform.js?v=20260914-platform-1') < indexSource.indexOf('app.js?v='));
+  assert.match(indexSource, /platform\.js\?v=20261003-mobile-save-correlation-1/);
+  assert.ok(indexSource.indexOf('platform.js?v=20261003-mobile-save-correlation-1') < indexSource.indexOf('app.js?v='));
   assert.doesNotMatch(appSource, /window\.Telegram\?\.WebApp/);
 });
 
@@ -134,9 +134,9 @@ test('страница запрашивает свежие версии buyer-д
   assert.match(indexSource, /data\.js\?v=20260930-loading-fix-1/);
   assert.match(indexSource, /styles\.css\?v=20260920-save-button-visible-1/);
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
-  assert.match(indexSource, /api\.js\?v=20261003-mobile-retry-1/);
+  assert.match(indexSource, /api\.js\?v=20261003-mobile-save-correlation-1/);
   assert.match(indexSource, /core\.js\?v=20261003-cart-reconcile-1/);
-  assert.match(indexSource, /app\.js\?v=20261003-mobile-startup-1/);
+  assert.match(indexSource, /app\.js\?v=20261003-mobile-save-correlation-1/);
 });
 
 test('нижняя навигация равномерно распределяет четыре раздела', () => {
@@ -1071,6 +1071,13 @@ test('неизвестный результат сохранения не объ
   const saveSource = appSource.match(/async function saveAdminProduct\(status, action\) \{[\s\S]*?\n  \}/)?.[0] || '';
   assert.doesNotMatch(saveSource, /Сервер не сохранил черновик/);
   assert.match(saveSource, /Связь прервалась до подтверждения результата/);
+});
+
+test('неподтверждённое мобильное сохранение показывает только безопасный код обращения', () => {
+  const saveSource = appSource.match(/async function saveAdminProduct\(status, action\) \{[\s\S]*?\n  \}/)?.[0] || '';
+  assert.match(saveSource, /platform\?\.isMobileTelegram\?\.\(\)/);
+  assert.match(saveSource, /error\?\.requestId/);
+  assert.match(saveSource, /Код обращения/);
 });
 
 test('ошибка сохранения честно различает серверный черновик и локальный резерв', () => {

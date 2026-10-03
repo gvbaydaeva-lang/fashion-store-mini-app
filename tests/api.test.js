@@ -4,6 +4,12 @@ const assert = require('node:assert/strict');
 
 const API = require('../api.js');
 
+function withoutRequestId(value) {
+  if (Array.isArray(value)) return value.map(withoutRequestId);
+  const { requestId, ...rest } = value;
+  return rest;
+}
+
 test('публичная Mini App без настройки API использует Beget каталог', async () => {
   const calls = [];
   const client = API.createApiClient({
@@ -61,6 +67,40 @@ test('изменяющие seller-операции не повторяются �
 
   await assert.rejects(() => client.createAdminProduct({ name: 'Новый товар' }));
   assert.equal(attempts, 1);
+});
+
+test('seller-запись получает безопасный код корреляции, а чтение его не отправляет', async () => {
+  const bodies = [];
+  const client = API.createApiClient({
+    initData: 'signed-telegram-data',
+    includeWriteRequestId: true,
+    fetch: async (_url, options) => {
+      const body = JSON.parse(options.body);
+      bodies.push(body);
+      if (body.action === 'update') {
+        return { ok: true, async json() { return { ok: true, data: { product: { id: 12, status: 'published', updated_at: '2026-10-03T15:00:00.000Z', product_variants: [], product_images: [] } } }; } };
+      }
+      return { ok: true, async json() { return { ok: true, data: { products: [] } }; } };
+    },
+  });
+
+  await client.updateAdminProduct({ id: 12, updatedAt: '2026-10-03T14:00:00.000Z', name: 'Костюм', variants: [], imagePaths: [] });
+  await client.getAdminProducts();
+
+  assert.match(bodies[0].requestId, /^[a-z0-9-]{12,80}$/i);
+  assert.equal(bodies[1].requestId, undefined);
+
+  const desktopBodies = [];
+  const desktopClient = API.createApiClient({
+    initData: 'signed-telegram-data',
+    fetch: async (_url, options) => {
+      desktopBodies.push(JSON.parse(options.body));
+      return { ok: true, async json() { return { ok: true, data: { product: { id: 12, status: 'published', updated_at: '2026-10-03T15:00:00.000Z', product_variants: [], product_images: [] } } }; } };
+    },
+  });
+
+  await desktopClient.updateAdminProduct({ id: 12, updatedAt: '2026-10-03T14:00:00.000Z', name: 'Костюм', variants: [], imagePaths: [] });
+  assert.equal(desktopBodies[0].requestId, undefined);
 });
 
 test('getCatalog отправляет GET и преобразует серверные поля товара', async () => {
@@ -163,7 +203,7 @@ test('клиент передаёт версию для публикации и 
   });
   await client.publishAdminProduct({ id: 12, updatedAt: '2026-09-04T10:00:00.000Z' });
   await client.getAdminSaveResult({ draftKey: '123e4567-e89b-42d3-a456-426614174000' });
-  assert.deepEqual(calls, [
+  assert.deepEqual(withoutRequestId(calls), [
     { action: 'publish', initData: 'signed-telegram-data', productId: 12, updatedAt: '2026-09-04T10:00:00.000Z' },
     { action: 'get-save-result', initData: 'signed-telegram-data', draftKey: '123e4567-e89b-42d3-a456-426614174000' },
   ]);
@@ -208,7 +248,7 @@ test('административный запрос передаёт сырой 
   );
   assert.equal(calls[0].url, 'https://example.supabase.co/functions/v1/admin-api');
   assert.equal(calls[0].options.method, 'POST');
-  assert.deepEqual(JSON.parse(calls[0].options.body), {
+  assert.deepEqual(withoutRequestId(JSON.parse(calls[0].options.body)), {
     action: 'list',
     initData: 'signed-telegram-data',
   });
@@ -227,7 +267,7 @@ test('учёт открытия передаёт только raw initData в us
 
   assert.deepEqual(await client.trackOpen(), { tracked: true });
   assert.equal(calls[0].url, 'https://example.supabase.co/functions/v1/user-api');
-  assert.deepEqual(JSON.parse(calls[0].options.body), {
+  assert.deepEqual(withoutRequestId(JSON.parse(calls[0].options.body)), {
     action: 'track-open', initData: 'signed-telegram-data',
   });
 });
@@ -244,7 +284,7 @@ test('клиент запрашивает список пользователе�
 
   await client.listAdminUsers({ query: 'Анна', filter: 'orders' });
   await client.getAdminUser(17);
-  assert.deepEqual(bodies, [
+  assert.deepEqual(withoutRequestId(bodies), [
     { action: 'list-users', initData: 'signed-telegram-data', query: 'Анна', filter: 'orders' },
     { action: 'get-user', initData: 'signed-telegram-data', userId: 17 },
   ]);
@@ -280,7 +320,7 @@ test('архивирование отправляет productId и актуал�
   const result = await client.archiveAdminProduct(12, '2026-09-30T10:00:00.000Z');
 
   assert.deepEqual(result, { archived: true });
-  assert.deepEqual(JSON.parse(calls[0].options.body), {
+  assert.deepEqual(withoutRequestId(JSON.parse(calls[0].options.body)), {
     action: 'archive', initData: 'signed-telegram-data', productId: 12, updatedAt: '2026-09-30T10:00:00.000Z',
   });
 });
@@ -301,7 +341,7 @@ test('склейки отправляют выбранные карточки ч
   ];
   assert.deepEqual(await client.combineAdminProducts(products), { groupId: 12, productIds: [12, 34] });
   assert.deepEqual(await client.ungroupAdminProducts(products), { productIds: [12, 34] });
-  assert.deepEqual(bodies, [
+  assert.deepEqual(withoutRequestId(bodies), [
     {
       action: 'combine-groups', initData: 'signed-telegram-data', productIds: [12, 34],
       productVersions: [
@@ -332,7 +372,7 @@ test('изменение остатка отправляет variantId, stock и
   const result = await client.updateAdminStock(12, 34, 4, false, '2026-10-01T10:00:00.000Z');
 
   assert.deepEqual(result, { stock: 4, isEnabled: false });
-  assert.deepEqual(JSON.parse(calls[0].body), {
+  assert.deepEqual(withoutRequestId(JSON.parse(calls[0].body)), {
     action: 'update-stock', initData: 'signed-telegram-data',
     productId: 12, variantId: 34, stock: 4, isEnabled: false, updatedAt: '2026-10-01T10:00:00.000Z',
   });
@@ -390,7 +430,7 @@ test('фотография загружается по разовой ссылк
   const objectPath = await client.uploadAdminImage(12, 'data:image/png;base64,AA==');
 
   assert.equal(objectPath, '12/photo.png');
-  assert.deepEqual(JSON.parse(calls[0].options.body), {
+  assert.deepEqual(withoutRequestId(JSON.parse(calls[0].options.body)), {
     action: 'upload-url', initData: 'signed-telegram-data', productId: 12, fileExtension: 'png',
   });
   assert.equal(calls[1].url, 'https://storage.example/upload/photo');
@@ -472,7 +512,7 @@ test('удаление варианта передаёт отдельное се
 
   const result = await client.deleteAdminProduct(12);
   assert.deepEqual(result, { deletedProductId: 12 });
-  assert.deepEqual(body, { action: 'delete', initData: 'signed-telegram-data', productId: 12 });
+  assert.deepEqual(withoutRequestId(body), { action: 'delete', initData: 'signed-telegram-data', productId: 12 });
 });
 
 test('клиент отклоняет успешный ответ без подтверждения удалённого товара', async () => {

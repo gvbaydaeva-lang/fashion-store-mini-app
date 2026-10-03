@@ -66,6 +66,9 @@
       applyTheme,
       share,
       isTelegram,
+      isMobileTelegram() {
+        return ['android', 'ios'].includes(String(telegram?.platform || '').toLowerCase());
+      },
       ready() { telegram?.ready?.(); },
       expand() { telegram?.expand?.(); },
       onThemeChanged(handler) { telegram?.onEvent?.('themeChanged', handler); },
