@@ -92,6 +92,7 @@
     adminDirty: false,
     adminErrors: {},
     adminSaveError: '',
+    adminSubmitAction: '',
     isSubmitting: false,
     catalogStatus: 'idle',
     catalogError: '',
@@ -1183,9 +1184,12 @@
   function renderAdminStepFour(product) {
     const errors = Core.validateAdminProduct(product, 4);
     const errorEntries = Object.values(errors);
+    const isSaving = state.adminSubmitAction === 'save';
+    const isPublishing = state.adminSubmitAction === 'publish';
+    const adminSubmitDisabled = state.adminSubmitAction ? 'disabled' : '';
     const finalActions = product.adminStatus === 'published'
-      ? `<div class="admin-editor-actions"><span></span><button class="primary-button" type="button" data-action="save-admin-changes" ${errorEntries.length ? 'disabled' : ''}>Сохранить изменения</button></div>`
-      : `<div class="admin-editor-actions admin-editor-actions--final"><button class="secondary-button" type="button" data-action="save-admin-draft">Сохранить черновик</button><button class="primary-button" type="button" data-action="publish-admin-product" ${errorEntries.length ? 'disabled' : ''}>Опубликовать</button></div>`;
+      ? `<div class="admin-editor-actions"><span></span><button class="primary-button" type="button" data-action="save-admin-changes" ${errorEntries.length || adminSubmitDisabled ? 'disabled' : ''}>${isSaving ? 'Сохраняем…' : 'Сохранить изменения'}</button></div>`
+      : `<div class="admin-editor-actions admin-editor-actions--final"><button class="secondary-button" type="button" data-action="save-admin-draft" ${adminSubmitDisabled}>${isSaving ? 'Сохраняем…' : 'Сохранить черновик'}</button><button class="primary-button" type="button" data-action="publish-admin-product" ${errorEntries.length || adminSubmitDisabled ? 'disabled' : ''}>${isPublishing ? 'Публикуем…' : 'Опубликовать'}</button></div>`;
     return `
       <section class="admin-editor-form">
         <div class="admin-preview-switch" role="group" aria-label="Режим просмотра"><span>Редактор</span><strong>Как увидит покупатель</strong></div>
@@ -1307,9 +1311,9 @@
           ${adminFieldError('description')}
         </section>
         ${renderAdminProductGroup(product)}
-        <div class="admin-editor-actions admin-editor-actions--final" aria-busy="${state.isSubmitting}">
-          <button class="secondary-button" type="button" data-action="${product.adminStatus === 'published' ? 'save-admin-changes' : 'save-admin-draft'}" ${state.isSubmitting ? 'disabled' : ''}>${state.isSubmitting ? 'Сохраняем…' : product.adminStatus === 'published' ? 'Сохранить изменения' : 'Сохранить'}</button>
-          ${product.adminStatus === 'published' ? '<span></span>' : `<button class="primary-button" type="button" data-action="publish-admin-product" ${state.isSubmitting ? 'disabled' : ''}>${state.isSubmitting ? 'Сохраняем…' : 'Опубликовать'}</button>`}
+        <div class="admin-editor-actions admin-editor-actions--final" aria-busy="${Boolean(state.adminSubmitAction)}">
+          <button class="secondary-button" type="button" data-action="${product.adminStatus === 'published' ? 'save-admin-changes' : 'save-admin-draft'}" ${state.adminSubmitAction ? 'disabled' : ''}>${state.adminSubmitAction === 'save' ? 'Сохраняем…' : product.adminStatus === 'published' ? 'Сохранить изменения' : 'Сохранить'}</button>
+          ${product.adminStatus === 'published' ? '<span></span>' : `<button class="primary-button" type="button" data-action="publish-admin-product" ${state.adminSubmitAction ? 'disabled' : ''}>${state.adminSubmitAction === 'publish' ? 'Публикуем…' : 'Опубликовать'}</button>`}
         </div>
         ${/^\d+$/.test(String(product.id)) ? '<button class="danger-button full-width admin-delete-product-button" type="button" data-action="delete-admin-product">Удалить этот вариант</button>' : ''}
       </form>`;
@@ -2194,16 +2198,17 @@
     void loadRemoteAdminProducts({ preserveScroll: true });
   }
 
-  async function saveAdminProduct(status) {
-    if (state.isSubmitting) return;
+  async function saveAdminProduct(status, action) {
+    action = action || 'save';
+    if (state.adminSubmitAction) return;
     const form = document.querySelector('#admin-product-form');
     syncAdminForm(form);
     if (!state.adminDraft || !apiClient) return;
     persistAdminDraft();
     state.adminSaveError = '';
-    state.isSubmitting = true;
+    state.adminSubmitAction = action;
     render();
-    const shouldPublish = Core.shouldPublishAdminProduct(state.adminDraft, status);
+    const shouldPublish = action === 'publish' && Core.shouldPublishAdminProduct(state.adminDraft, status);
     let serverDraftSaved = false;
     try {
       let saved = state.adminDraft.id && /^\d+$/.test(String(state.adminDraft.id))
@@ -2217,16 +2222,15 @@
       ));
       if (hasUnconfirmedImages) {
         const imagePaths = [...(state.adminDraft.imagePaths || [])];
-        for (let index = 0; index < state.adminDraft.images.length; index += 1) {
-          const image = state.adminDraft.images[index];
+        const uploadedPaths = await Promise.all(state.adminDraft.images.map(async (image, index) => {
           if (String(image).startsWith('data:') && !imagePaths[index]) {
-            imagePaths[index] = await apiClient.uploadAdminImage(saved.id, image);
-            state.adminDraft.imagePaths = imagePaths;
-            persistAdminDraft();
-          } else if (!imagePaths[index]) {
-            imagePaths[index] = image;
+            return apiClient.uploadAdminImage(saved.id, image);
           }
-        }
+          return imagePaths[index] || image;
+        }));
+        uploadedPaths.forEach((objectPath, index) => { imagePaths[index] = objectPath; });
+        state.adminDraft.imagePaths = imagePaths;
+        persistAdminDraft();
         saved = await apiClient.updateAdminProduct({
           ...state.adminDraft,
           id: saved.id,
@@ -2246,7 +2250,7 @@
         state.adminErrors = Core.validateAdminProduct(state.adminDraft, 'publish');
         if (Object.keys(state.adminErrors).length) {
           state.adminStep = 4;
-          state.isSubmitting = false;
+          state.adminSubmitAction = '';
           state.adminSaveError = '';
           render();
           showToast('Черновик сохранён. Исправь ошибки перед публикацией');
@@ -2267,7 +2271,7 @@
       state.adminErrors = {};
       state.adminSaveError = '';
       state.adminStep = 1;
-      state.isSubmitting = false;
+      state.adminSubmitAction = '';
       if (shouldPublish) {
         returnToAdminProductList();
         showToast('Товар опубликован');
@@ -2278,7 +2282,7 @@
       showToast(finalProduct.adminStatus === 'published' ? 'Изменения сохранены' : 'Черновик сохранён');
       void (finalProduct.adminStatus === 'published' ? refreshPublishedProductLists() : refreshAdminProductList());
     } catch (error) {
-      state.isSubmitting = false;
+      state.adminSubmitAction = '';
       const versionConflict = error?.code === 'PRODUCT_VERSION_CONFLICT';
       const validationError = error?.code === 'PUBLICATION_VALIDATION_FAILED';
       // Ответ мог потеряться уже после того, как сервер записал черновик или
@@ -2426,9 +2430,9 @@
       render();
     },
     'admin-editor-back': adminEditorBack,
-    'save-admin-draft': () => void saveAdminProduct('draft'),
-    'save-admin-changes': () => void saveAdminProduct('published'),
-    'publish-admin-product': () => void saveAdminProduct('published'),
+    'save-admin-draft': () => void saveAdminProduct('draft', 'save'),
+    'save-admin-changes': () => void saveAdminProduct('published', 'save'),
+    'publish-admin-product': () => void saveAdminProduct('published', 'publish'),
     'confirm-leave-admin': confirmLeaveAdminEditor,
     'delete-admin-product': (control) => confirmDeleteAdminProduct(control.dataset.productId),
     'confirm-delete-admin-product': (control) => void deleteAdminProduct(control.dataset.productId),

@@ -136,7 +136,7 @@ test('страница запрашивает свежие версии buyer-д
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
   assert.match(indexSource, /api\.js\?v=20261002-save-timeout-1/);
   assert.match(indexSource, /core\.js\?v=20261003-cart-reconcile-1/);
-  assert.match(indexSource, /app\.js\?v=20261003-cart-reconcile-1/);
+  assert.match(indexSource, /app\.js\?v=20261003-mobile-startup-1/);
 });
 
 test('нижняя навигация равномерно распределяет четыре раздела', () => {
@@ -228,16 +228,16 @@ test('новый цветовой вариант не требует предв�
 });
 
 test('сохранение draft не запускает обязательную проверку публикации', () => {
-  assert.match(appSource, /const shouldPublish = Core\.shouldPublishAdminProduct\(state\.adminDraft, status\);/);
+  assert.match(appSource, /const shouldPublish = action === 'publish' && Core\.shouldPublishAdminProduct\(state\.adminDraft, status\);/);
   assert.match(appSource, /if \(shouldPublish\) \{[\s\S]*?validateAdminProduct/);
   assert.match(appSource, /adminStatus: 'draft'/);
   assert.match(appSource, /Черновик сохранён\. Исправь ошибки перед публикацией/);
-  assert.match(appSource, /for \(let index = 0; index < state\.adminDraft\.images\.length; index \+= 1\)/);
+  assert.match(appSource, /state\.adminDraft\.images\.map\(async \(image, index\)/);
 });
 
 test('редактирование опубликованной карточки не принимает PRODUCT_NOT_DRAFT за конфликт версий', () => {
-  const saveSource = appSource.match(/async function saveAdminProduct\(status\) \{[\s\S]*?\n  \}\n\n  const actions/)?.[0] || '';
-  assert.match(saveSource, /Core\.shouldPublishAdminProduct\(state\.adminDraft, status\)/);
+  const saveSource = appSource.match(/async function saveAdminProduct\(status, action\) \{[\s\S]*?\n  \}\n\n  const actions/)?.[0] || '';
+  assert.match(saveSource, /action === 'publish' && Core\.shouldPublishAdminProduct\(state\.adminDraft, status\)/);
   assert.match(saveSource, /error\?\.code === 'PRODUCT_VERSION_CONFLICT'/);
   assert.doesNotMatch(saveSource, /error\?\.status === 409/);
 });
@@ -314,9 +314,10 @@ test('оформление не блокируется старым заказо
   assert.match(appSource, /state\.demoOrders = \[demoOrder, \.\.\.state\.demoOrders/);
 });
 
-test('каталог ждёт предзагрузку фото и не откладывает запрос на 300 мс', () => {
+test('каталог не блокирует первый экран ожиданием фотографий', () => {
   assert.match(appSource, /function preloadCatalogImages\(products\)/);
-  assert.match(appSource, /await preloadCatalogImages\(state\.catalogProducts\)/);
+  assert.match(appSource, /void preloadCatalogImages\(state\.catalogProducts\)/);
+  assert.doesNotMatch(appSource, /await preloadCatalogImages\(state\.catalogProducts\)/);
   assert.doesNotMatch(appSource, /window\.setTimeout\(\(\) => \{[\s\S]*void loadRemoteCatalog\(\);[\s\S]*\}, 300\)/);
 });
 
@@ -869,7 +870,7 @@ test('checkout показывает правильное количество т
 });
 
 test('после публикации продавцом каталоги обновляются в фоне после уведомления', () => {
-  const saveSource = appSource.match(/async function saveAdminProduct\(status\) \{[\s\S]*?\n  \}\n\n  const actions/);
+  const saveSource = appSource.match(/async function saveAdminProduct\(status, action\) \{[\s\S]*?\n  \}\n\n  const actions/);
 
   assert.ok(saveSource, 'не найден полный обработчик сохранения товара');
   const returnToList = saveSource[0].indexOf('returnToAdminProductList();');
@@ -881,7 +882,7 @@ test('после публикации продавцом каталоги обн
 });
 
 test('сохранение опубликованной карточки обновляет витрину без отдельной записи остатка', () => {
-  const saveSource = appSource.match(/async function saveAdminProduct\(status\) \{[\s\S]*?\n  \}\n\n  const actions/);
+  const saveSource = appSource.match(/async function saveAdminProduct\(status, action\) \{[\s\S]*?\n  \}\n\n  const actions/);
 
   assert.ok(saveSource, 'не найден полный обработчик сохранения товара');
   assert.match(saveSource[0], /finalProduct\.adminStatus === 'published' \? refreshPublishedProductLists\(\) : refreshAdminProductList\(\)/);
@@ -1005,11 +1006,26 @@ test('buyer-рендер не показывает черновик после �
 });
 
 test('сохранение товара блокирует повторный submit до завершения запроса', () => {
-  const saveSource = appSource.match(/async function saveAdminProduct\(status\) \{[\s\S]*?\n  \}/);
+  const saveSource = appSource.match(/async function saveAdminProduct\(status, action\) \{[\s\S]*?\n  \}/);
 
   assert.ok(saveSource, 'не найден обработчик сохранения товара');
-  assert.match(saveSource[0], /if \(state\.isSubmitting\) return;/);
-  assert.match(saveSource[0], /state\.isSubmitting = true;/);
+  assert.match(saveSource[0], /if \(state\.adminSubmitAction\) return;/);
+  assert.match(saveSource[0], /state\.adminSubmitAction = action;/);
+  assert.doesNotMatch(saveSource[0], /state\.isSubmitting/);
+});
+
+test('сохранение нескольких новых фото выполняется параллельно и сохраняет их исходный порядок', () => {
+  const saveSource = appSource.match(/async function saveAdminProduct\(status, action\) \{[\s\S]*?\n  \}\n\n  const actions/)?.[0] || '';
+
+  assert.match(saveSource, /Promise\.all\(/);
+  assert.match(saveSource, /imagePaths\[index\] = objectPath/);
+  assert.match(saveSource, /state\.adminDraft\.images\.map/);
+});
+
+test('кнопки seller показывают состояние только своего действия', () => {
+  assert.match(appSource, /state\.adminSubmitAction === 'save'/);
+  assert.match(appSource, /state\.adminSubmitAction === 'publish'/);
+  assert.match(appSource, /adminSubmitAction: ''/);
 });
 
 test('изменение остатка в редакторе не запускает вторую запись до кнопки сохранения', () => {
@@ -1020,20 +1036,20 @@ test('изменение остатка в редакторе не запуск�
 });
 
 test('повторное сохранение не загружает повторно фотографию с подтверждённым Storage path', () => {
-  const saveSource = appSource.match(/async function saveAdminProduct\(status\) \{[\s\S]*?\n  \}/)?.[0] || '';
+  const saveSource = appSource.match(/async function saveAdminProduct\(status, action\) \{[\s\S]*?\n  \}/)?.[0] || '';
   assert.match(saveSource, /String\(image\)\.startsWith\('data:'\) && !state\.adminDraft\.imagePaths\?\.\[index\]/);
   assert.match(saveSource, /String\(image\)\.startsWith\('data:'\) && !imagePaths\[index\]/);
 });
 
 test('сохранение не теряет позицию нового фото между черновым сохранением и загрузкой', () => {
-  const saveSource = appSource.match(/async function saveAdminProduct\(status\) \{[\s\S]*?\n  \}\n\n  const actions/);
+  const saveSource = appSource.match(/async function saveAdminProduct\(status, action\) \{[\s\S]*?\n  \}\n\n  const actions/);
   assert.ok(saveSource, 'не найден полный обработчик сохранения товара');
   assert.match(saveSource[0], /Core\.mergeAdminDraftSave\(state\.adminDraft, saved\)/);
 });
 
 test('сохранение возвращает к прежней позиции списка карточек продавца', () => {
   const draftStart = appSource.match(/function startAdminDraft\(product = null, \{ restoreLocalDraft = false \} = \{\}\) \{[\s\S]*?\n  \}/);
-  const saveSource = appSource.match(/async function saveAdminProduct\(status\) \{[\s\S]*?\n  \}\n\n  const actions/);
+  const saveSource = appSource.match(/async function saveAdminProduct\(status, action\) \{[\s\S]*?\n  \}\n\n  const actions/);
   assert.ok(draftStart, 'не найдено открытие редактора');
   assert.ok(saveSource, 'не найден полный обработчик сохранения товара');
   assert.match(draftStart[0], /captureAdminListReturnContext\(\)/);
@@ -1041,7 +1057,7 @@ test('сохранение возвращает к прежней позиции
 });
 
 test('подтверждённое сохранение возвращает к списку до фонового обновления', () => {
-  const saveSource = appSource.match(/async function saveAdminProduct\(status\) \{[\s\S]*?\n  \}\n\n  const actions/)?.[0] || '';
+  const saveSource = appSource.match(/async function saveAdminProduct\(status, action\) \{[\s\S]*?\n  \}\n\n  const actions/)?.[0] || '';
   const draftSuccess = saveSource.slice(saveSource.lastIndexOf('if (shouldPublish)'));
 
   assert.match(
@@ -1052,13 +1068,13 @@ test('подтверждённое сохранение возвращает к 
 });
 
 test('неизвестный результат сохранения не объявляется несохранённым сервером', () => {
-  const saveSource = appSource.match(/async function saveAdminProduct\(status\) \{[\s\S]*?\n  \}/)?.[0] || '';
+  const saveSource = appSource.match(/async function saveAdminProduct\(status, action\) \{[\s\S]*?\n  \}/)?.[0] || '';
   assert.doesNotMatch(saveSource, /Сервер не сохранил черновик/);
   assert.match(saveSource, /Связь прервалась до подтверждения результата/);
 });
 
 test('ошибка сохранения честно различает серверный черновик и локальный резерв', () => {
-  const saveSource = appSource.match(/async function saveAdminProduct\(status\) \{[\s\S]*?\n  \}/)?.[0] || '';
+  const saveSource = appSource.match(/async function saveAdminProduct\(status, action\) \{[\s\S]*?\n  \}/)?.[0] || '';
   assert.match(saveSource, /state\.adminSaveError = '';/);
   assert.match(saveSource, /let serverDraftSaved = false;/);
   assert.match(saveSource, /serverDraftSaved = true;/);
@@ -1073,7 +1089,7 @@ test('админка больше не содержит поле артикул�
 });
 
 test('тайм-аут сохранения сначала восстанавливает результат, а публикация передаёт подтверждённую версию', () => {
-  const saveSource = appSource.match(/async function saveAdminProduct\(status\) \{[\s\S]*?\n  \}/)?.[0] || '';
+  const saveSource = appSource.match(/async function saveAdminProduct\(status, action\) \{[\s\S]*?\n  \}/)?.[0] || '';
   assert.match(saveSource, /getAdminSaveResult/);
   assert.match(saveSource, /Черновик сохранён на сервере\. Ответ задержался/);
   assert.match(saveSource, /publishAdminProduct\(saved\)/);
