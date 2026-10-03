@@ -246,6 +246,9 @@
     }
 
     const includeWriteRequestId = options.includeWriteRequestId === true;
+    // Telegram iOS/Android отправляет seller-JSON как простой запрос, чтобы
+    // не выполнять отдельный CORS preflight к API на другом домене.
+    const mobileSellerTransport = options.mobileSellerTransport === true;
 
     function createRequestId() {
       const randomUuid = window.crypto?.randomUUID?.bind(window.crypto);
@@ -316,7 +319,7 @@
       try {
         const response = await requestWithRetry(`${baseUrl}/admin-api`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': mobileSellerTransport ? 'text/plain;charset=UTF-8' : 'application/json' },
           body: JSON.stringify({ action, initData: options.initData ?? getInitData(), ...payload, ...(requestId ? { requestId } : {}) }),
         }, readOnlyAction, readOnlyAction ? timeoutMs : writeTimeoutMs);
         return await readResponse(response);

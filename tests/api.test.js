@@ -103,6 +103,34 @@ test('seller-запись получает безопасный код корр�
   assert.equal(desktopBodies[0].requestId, undefined);
 });
 
+test('мобильный seller-запрос не вызывает CORS preflight, а desktop сохраняет JSON-заголовок', async () => {
+  const mobileCalls = [];
+  const mobileClient = API.createApiClient({
+    initData: 'signed-telegram-data',
+    includeWriteRequestId: true,
+    mobileSellerTransport: true,
+    fetch: async (_url, options) => {
+      mobileCalls.push(options);
+      return { ok: true, async json() { return { ok: true, data: { product: { id: 12, status: 'published', updated_at: '2026-10-03T15:00:00.000Z', product_variants: [], product_images: [] } } }; } };
+    },
+  });
+
+  await mobileClient.updateAdminProduct({ id: 12, updatedAt: '2026-10-03T14:00:00.000Z', name: 'Костюм', variants: [], imagePaths: [] });
+  assert.equal(mobileCalls[0].headers['Content-Type'], 'text/plain;charset=UTF-8');
+
+  const desktopCalls = [];
+  const desktopClient = API.createApiClient({
+    initData: 'signed-telegram-data',
+    fetch: async (_url, options) => {
+      desktopCalls.push(options);
+      return { ok: true, async json() { return { ok: true, data: { product: { id: 12, status: 'published', updated_at: '2026-10-03T15:00:00.000Z', product_variants: [], product_images: [] } } }; } };
+    },
+  });
+
+  await desktopClient.updateAdminProduct({ id: 12, updatedAt: '2026-10-03T14:00:00.000Z', name: 'Костюм', variants: [], imagePaths: [] });
+  assert.equal(desktopCalls[0].headers['Content-Type'], 'application/json');
+});
+
 test('getCatalog отправляет GET и преобразует серверные поля товара', async () => {
   const calls = [];
   const client = API.createApiClient({

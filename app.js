@@ -107,6 +107,7 @@
   try {
     apiClient = API?.createApiClient?.({
       includeWriteRequestId: Boolean(platform?.isMobileTelegram?.()),
+      mobileSellerTransport: Boolean(platform?.isMobileTelegram?.()),
     }) || null;
   } catch (_error) {
     apiClient = null;
