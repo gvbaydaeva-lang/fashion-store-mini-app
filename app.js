@@ -24,7 +24,7 @@
   const PREORDER_RESET_KEY = 'fashion-store-preorder-reset-v1';
   const BOT_URL = Core.buildBotUrl('fashion_katalog_bot');
   const SHARE_TEXT = 'Посмотри «Выгодные покупки» в Telegram 🛍';
-  const MOBILE_DIAGNOSTIC_APP_VERSION = '20261004-mobile-postparse-recovery-1';
+  const MOBILE_DIAGNOSTIC_APP_VERSION = '20261004-mobile-stage-trace-1';
   const ROOT_SCREENS = new Set(['home', 'catalog', 'cart', 'orders', 'store']);
   const MOBILE_RESUME_RENDER_SCREENS = new Set([
     'home', 'catalog', 'product', 'cart', 'orders', 'store', 'payment-success', 'order-detail',
@@ -145,6 +145,12 @@
     }) || null;
   } catch (_error) {
     apiClient = null;
+  }
+
+  function reportMobileReadStage(products, outcome) {
+    const receipt = products?.mobileDiagnosticReceipt;
+    if (!mobileTelegram || !receipt || typeof apiClient?.reportMobileReadOutcome !== 'function') return;
+    void apiClient.reportMobileReadOutcome(receipt, outcome);
   }
 
   function icon(name, className = 'ui-icon') {
@@ -2154,19 +2160,31 @@
     }
     const readGeneration = mobileTelegram ? ++mobileAdminReadGeneration : 0;
     const isCurrentRead = () => !mobileTelegram || readGeneration === mobileAdminReadGeneration;
+    let products = null;
+    let renderStarted = false;
     try {
-      const products = await apiClient.getAdminProducts();
-      if (!isCurrentRead()) return false;
+      products = await apiClient.getAdminProducts();
+      if (!isCurrentRead()) {
+        reportMobileReadStage(products, 'stale-discarded');
+        return false;
+      }
       state.adminProducts = Core.createAdminCatalog(products);
       rebuildAdminCategories();
       state.sellerAuthStatus = 'ready';
       state.sellerAuthError = '';
-      if (options.expectedScreen && state.screen !== options.expectedScreen) return true;
+      reportMobileReadStage(products, 'state-applied');
+      if (options.expectedScreen && state.screen !== options.expectedScreen) {
+        reportMobileReadStage(products, 'render-skipped-current-screen');
+        return true;
+      }
       state.screen = 'seller-products';
       state.history = [];
+      renderStarted = true;
       render({ preserveScroll: options.preserveScroll });
+      reportMobileReadStage(products, 'render-called');
       return true;
     } catch (error) {
+      if (products) reportMobileReadStage(products, renderStarted ? 'post-response-error-render' : 'post-response-error-state');
       if (!isCurrentRead()) return false;
       state.sellerAuthError = error?.status === 403
         ? 'У тебя нет доступа к панели продавца.'
@@ -2216,12 +2234,17 @@
     const isCurrentRead = () => !mobileTelegram || readGeneration === mobileCatalogReadGeneration;
     const canRender = () => options.render !== false
       && (!options.expectedScreen || state.screen === options.expectedScreen);
+    let products = null;
+    let renderStarted = false;
     state.catalogStatus = 'loading';
     state.catalogError = '';
     if (canRender()) render({ preserveScroll: options.preserveScroll });
     try {
-      const products = await apiClient.getCatalog(state.filters);
-      if (!isCurrentRead()) return false;
+      products = await apiClient.getCatalog(state.filters);
+      if (!isCurrentRead()) {
+        reportMobileReadStage(products, 'stale-discarded');
+        return false;
+      }
       state.catalogProducts = Core.createAdminCatalog(products);
       state.cart = Core.reconcileCart(state.cart, state.catalogProducts);
       saveState();
@@ -2229,9 +2252,17 @@
       // открыть после ответа API, а браузер догрузит изображения сам.
       void preloadCatalogImages(state.catalogProducts);
       state.catalogStatus = 'ready';
-      if (canRender()) render({ preserveScroll: options.preserveScroll });
+      reportMobileReadStage(products, 'state-applied');
+      if (canRender()) {
+        renderStarted = true;
+        render({ preserveScroll: options.preserveScroll });
+        reportMobileReadStage(products, 'render-called');
+      } else {
+        reportMobileReadStage(products, 'render-skipped-current-screen');
+      }
       return true;
     } catch (error) {
+      if (products) reportMobileReadStage(products, renderStarted ? 'post-response-error-render' : 'post-response-error-state');
       if (!isCurrentRead()) return false;
       state.catalogStatus = 'error';
       state.catalogError = error?.message || 'Каталог временно недоступен.';

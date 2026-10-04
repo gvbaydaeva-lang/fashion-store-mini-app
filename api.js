@@ -279,21 +279,39 @@
       onDiagnostic({ event, ...details, startedAt: details.startedAt || Date.now(), finishedAt: details.finishedAt || null, elapsedMs: details.elapsedMs ?? null, httpStatus: details.httpStatus ?? null, errorCode: details.errorCode || null });
     }
 
-    function reportParsedMobileRead(diagnostic) {
-      if (!mobileDiagnostics || !diagnostic?.requestId) return;
-      Promise.resolve()
+    const MOBILE_READ_OPERATIONS = new Set(['catalog-read', 'admin-list-read']);
+    const MOBILE_READ_OUTCOMES = new Set([
+      'response-parsed', 'response-normalized', 'state-applied',
+      'render-called', 'render-skipped-current-screen', 'stale-discarded',
+      'post-response-error-state', 'post-response-error-render',
+    ]);
+
+    function reportMobileReadOutcome(receipt, outcome) {
+      if (!mobileDiagnostics || !receipt?.requestId
+        || !MOBILE_READ_OPERATIONS.has(receipt.operation)
+        || !MOBILE_READ_OUTCOMES.has(outcome)) return Promise.resolve();
+      return Promise.resolve()
         .then(() => requestFetch(`${baseUrl}/mobile-diagnostic`, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
           body: JSON.stringify({
             mobileDiagnostic: true,
-            requestId: diagnostic.requestId,
-            operation: diagnostic.operation,
-            outcome: 'response-parsed',
+            requestId: receipt.requestId,
+            operation: receipt.operation,
+            outcome,
           }),
           keepalive: true,
         }))
         .catch(() => {});
+    }
+
+    function attachMobileReadReceipt(value, receipt) {
+      if (!mobileDiagnostics || !receipt?.requestId || !value || typeof value !== 'object') return value;
+      Object.defineProperty(value, 'mobileDiagnosticReceipt', {
+        value: Object.freeze({ requestId: receipt.requestId, operation: receipt.operation }),
+        enumerable: false,
+      });
+      return value;
     }
 
     function requestWithTimeout(url, requestOptions, requestTimeoutMs = timeoutMs) {
@@ -361,8 +379,10 @@
       const diagnostic = requestId ? { operation: 'catalog-read', requestId } : null;
       const response = await requestWithRetry(`${baseUrl}/catalog-api${suffix}`, { method: 'GET', cache: 'no-store' }, true, timeoutMs, diagnostic);
       const data = await readResponse(response);
-      reportParsedMobileRead(diagnostic);
-      return normalizeProducts(data.products, baseUrl);
+      void reportMobileReadOutcome(diagnostic, 'response-parsed');
+      const products = normalizeProducts(data.products, baseUrl);
+      void reportMobileReadOutcome(diagnostic, 'response-normalized');
+      return attachMobileReadReceipt(products, diagnostic);
     }
 
     async function adminRequest(action, payload = {}) {
@@ -376,8 +396,9 @@
           body: JSON.stringify({ action, initData: options.initData ?? getInitData(), ...payload, ...(diagnosticRead ? { mobileDiagnostic: true } : {}), ...(requestId ? { requestId } : {}) }),
         }, readOnlyAction, readOnlyAction ? timeoutMs : writeTimeoutMs, diagnosticRead ? { operation: action === 'list' ? 'admin-list-read' : `admin-${action}-read`, requestId } : null);
         const data = await readResponse(response);
-        reportParsedMobileRead(diagnosticRead ? { operation: action === 'list' ? 'admin-list-read' : `admin-${action}-read`, requestId } : null);
-        return data;
+        const diagnostic = diagnosticRead ? { operation: action === 'list' ? 'admin-list-read' : `admin-${action}-read`, requestId } : null;
+        void reportMobileReadOutcome(diagnostic, 'response-parsed');
+        return attachMobileReadReceipt(data, diagnostic);
       } catch (error) {
         if (requestId && !error?.requestId) error.requestId = requestId;
         throw error;
@@ -444,6 +465,7 @@
 
     return {
       getCatalog,
+      reportMobileReadOutcome,
       async trackOpen() {
         return userRequest('track-open');
       },
@@ -479,7 +501,9 @@
       },
       async getAdminProducts(filters) {
         const data = await adminRequest('list', { filters });
-        return normalizeProducts(data.products, baseUrl);
+        const products = normalizeProducts(data.products, baseUrl);
+        void reportMobileReadOutcome(data.mobileDiagnosticReceipt, 'response-normalized');
+        return attachMobileReadReceipt(products, data.mobileDiagnosticReceipt);
       },
       async listAdminUsers(filters = {}) {
         const data = await adminRequest('list-users', filters);

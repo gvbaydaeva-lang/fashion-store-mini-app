@@ -161,6 +161,34 @@ test('мобильный Telegram заново загружает каталог
   assert.equal(catalogRequests, 2);
 });
 
+test('мобильный загрузчик отмечает применение состояния и вызов отрисовки для своего read-запроса', async () => {
+  const outcomes = [];
+  const products = [];
+  Object.defineProperty(products, 'mobileDiagnosticReceipt', {
+    value: { requestId: 'read-20261004-app-stage', operation: 'catalog-read' },
+  });
+  const api = {
+    createApiClient() {
+      return {
+        async getCatalog() { return products; },
+        reportMobileReadOutcome(receipt, outcome) { outcomes.push({ receipt, outcome }); },
+      };
+    },
+  };
+  const platform = {
+    createPlatform() {
+      return { isMobileTelegram: () => true, ready() {}, expand() {} };
+    },
+  };
+  loadApp({}, api, platform);
+
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(outcomes, [
+    { receipt: { requestId: 'read-20261004-app-stage', operation: 'catalog-read' }, outcome: 'state-applied' },
+    { receipt: { requestId: 'read-20261004-app-stage', operation: 'catalog-read' }, outcome: 'render-called' },
+  ]);
+});
+
 test('устаревшая ошибка каталога после возврата Mini App не заменяет новый успешный результат', async () => {
   let catalogRequests = 0;
   let resolveFreshCatalog;
@@ -459,9 +487,9 @@ test('страница запрашивает свежие версии buyer-д
   assert.match(indexSource, /data\.js\?v=20260930-loading-fix-1/);
   assert.match(indexSource, /styles\.css\?v=20260920-save-button-visible-1/);
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
-  assert.match(indexSource, /api\.js\?v=20261004-mobile-postparse-recovery-1/);
+  assert.match(indexSource, /api\.js\?v=20261004-mobile-stage-trace-1/);
   assert.match(indexSource, /core\.js\?v=20261003-cart-reconcile-1/);
-  assert.match(indexSource, /app\.js\?v=20261004-mobile-postparse-recovery-1/);
+  assert.match(indexSource, /app\.js\?v=20261004-mobile-stage-trace-1/);
 });
 
 test('нижняя навигация равномерно распределяет четыре раздела', () => {
