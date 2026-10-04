@@ -152,6 +152,93 @@ test('мобильный Telegram заново загружает каталог
   assert.equal(catalogRequests, 2);
 });
 
+test('устаревшая ошибка каталога после возврата Mini App не заменяет новый успешный результат', async () => {
+  let catalogRequests = 0;
+  let resolveFreshCatalog;
+  let rejectStaleCatalog;
+  const api = {
+    createApiClient() {
+      return {
+        getCatalog() {
+          catalogRequests += 1;
+          if (catalogRequests === 1) return new Promise((_resolve, reject) => { rejectStaleCatalog = reject; });
+          return new Promise((resolve) => { resolveFreshCatalog = resolve; });
+        },
+      };
+    },
+  };
+  const platform = {
+    createPlatform() {
+      return { isMobileTelegram: () => true, ready() {}, expand() {} };
+    },
+  };
+  const { app, document, screen } = loadApp({}, api, platform);
+
+  document.visibilityState = 'hidden';
+  document.dispatch('visibilitychange');
+  document.visibilityState = 'visible';
+  document.dispatch('visibilitychange');
+  resolveFreshCatalog([]);
+  await new Promise((resolve) => setImmediate(resolve));
+  rejectStaleCatalog(new Error('Старый оборванный запрос'));
+  await new Promise((resolve) => setImmediate(resolve));
+
+  app.navigate('catalog');
+  assert.match(screen.innerHTML, /Ассортимент скоро появится/);
+  assert.doesNotMatch(screen.innerHTML, /Каталог временно недоступен/);
+});
+
+test('устаревшая ошибка списка продавца после возврата Mini App не заменяет новый успешный результат', async () => {
+  let adminRequests = 0;
+  let resolveInitialAdmin;
+  let resolveFreshAdmin;
+  let rejectStaleAdmin;
+  const product = {
+    id: 'fresh-admin-after-resume', name: 'Свежая карточка', category: 'all', price: 4990,
+    images: [], colors: [], variants: [], adminStatus: 'published',
+  };
+  const api = {
+    createApiClient() {
+      return {
+        getCatalog: async () => [],
+        getAdminProducts() {
+          adminRequests += 1;
+          if (adminRequests === 1) return new Promise((resolve) => { resolveInitialAdmin = resolve; });
+          if (adminRequests === 2) return new Promise((_resolve, reject) => { rejectStaleAdmin = reject; });
+          return new Promise((resolve) => { resolveFreshAdmin = resolve; });
+        },
+      };
+    },
+  };
+  const platform = {
+    createPlatform() {
+      return { isMobileTelegram: () => true, ready() {}, expand() {} };
+    },
+  };
+  const { document, screen } = loadApp({}, api, platform);
+  const dispatchAction = (action) => document.dispatch('click', {
+    target: {
+      closest() { return { dataset: { action }, disabled: false, matches() { return false; } }; },
+    },
+  });
+
+  dispatchAction('open-seller-demo');
+  resolveInitialAdmin([]);
+  await new Promise((resolve) => setImmediate(resolve));
+  dispatchAction('reload-admin-products');
+  document.visibilityState = 'hidden';
+  document.dispatch('visibilitychange');
+  document.visibilityState = 'visible';
+  document.dispatch('visibilitychange');
+  resolveFreshAdmin([product]);
+  await new Promise((resolve) => setImmediate(resolve));
+  rejectStaleAdmin(new Error('Старый оборванный запрос'));
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.match(screen.innerHTML, /Свежая карточка/);
+  assert.doesNotMatch(screen.innerHTML, /Старый оборванный запрос/);
+});
+
 test('мобильный Telegram пишет только безопасные lifecycle-поля диагностики', async () => {
   const api = {
     createApiClient() {
@@ -365,7 +452,7 @@ test('страница запрашивает свежие версии buyer-д
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
   assert.match(indexSource, /api\.js\?v=20261003-mobile-save-cors-simple-1/);
   assert.match(indexSource, /core\.js\?v=20261003-cart-reconcile-1/);
-  assert.match(indexSource, /app\.js\?v=20261003-mobile-diagnostics-1/);
+  assert.match(indexSource, /app\.js\?v=20261004-mobile-read-generation-1/);
 });
 
 test('нижняя навигация равномерно распределяет четыре раздела', () => {

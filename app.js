@@ -24,7 +24,7 @@
   const PREORDER_RESET_KEY = 'fashion-store-preorder-reset-v1';
   const BOT_URL = Core.buildBotUrl('fashion_katalog_bot');
   const SHARE_TEXT = 'Посмотри «Выгодные покупки» в Telegram 🛍';
-  const MOBILE_DIAGNOSTIC_APP_VERSION = '20261003-mobile-diagnostics-1';
+  const MOBILE_DIAGNOSTIC_APP_VERSION = '20261004-mobile-read-generation-1';
   const ROOT_SCREENS = new Set(['home', 'catalog', 'cart', 'orders', 'store']);
   const MOBILE_RESUME_RENDER_SCREENS = new Set([
     'home', 'catalog', 'product', 'cart', 'orders', 'store', 'payment-success', 'order-detail',
@@ -111,6 +111,8 @@
   const mobileTelegram = Boolean(platform?.isMobileTelegram?.());
   const mobileDiagnosticPageInstanceId = window.crypto?.randomUUID?.() || `page-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
   let mobileDiagnosticSequence = 0;
+  let mobileCatalogReadGeneration = 0;
+  let mobileAdminReadGeneration = 0;
 
   function recordMobileDiagnostic(event, details = {}) {
     if (!mobileTelegram) return;
@@ -2130,8 +2132,11 @@
       render({ preserveScroll: options.preserveScroll });
       return false;
     }
+    const readGeneration = mobileTelegram ? ++mobileAdminReadGeneration : 0;
+    const isCurrentRead = () => !mobileTelegram || readGeneration === mobileAdminReadGeneration;
     try {
       const products = await apiClient.getAdminProducts();
+      if (!isCurrentRead()) return false;
       state.adminProducts = Core.createAdminCatalog(products);
       rebuildAdminCategories();
       state.sellerAuthStatus = 'ready';
@@ -2142,6 +2147,7 @@
       render({ preserveScroll: options.preserveScroll });
       return true;
     } catch (error) {
+      if (!isCurrentRead()) return false;
       state.sellerAuthError = error?.status === 403
         ? 'У тебя нет доступа к панели продавца.'
         : error?.status === 401
@@ -2186,6 +2192,8 @@
 
   async function loadRemoteCatalog(options = {}) {
     if (!apiClient) return false;
+    const readGeneration = mobileTelegram ? ++mobileCatalogReadGeneration : 0;
+    const isCurrentRead = () => !mobileTelegram || readGeneration === mobileCatalogReadGeneration;
     const canRender = () => options.render !== false
       && (!options.expectedScreen || state.screen === options.expectedScreen);
     state.catalogStatus = 'loading';
@@ -2193,6 +2201,7 @@
     if (canRender()) render({ preserveScroll: options.preserveScroll });
     try {
       const products = await apiClient.getCatalog(state.filters);
+      if (!isCurrentRead()) return false;
       state.catalogProducts = Core.createAdminCatalog(products);
       state.cart = Core.reconcileCart(state.cart, state.catalogProducts);
       saveState();
@@ -2203,6 +2212,7 @@
       if (canRender()) render({ preserveScroll: options.preserveScroll });
       return true;
     } catch (error) {
+      if (!isCurrentRead()) return false;
       state.catalogStatus = 'error';
       state.catalogError = error?.message || 'Каталог временно недоступен.';
       if (canRender()) render({ preserveScroll: options.preserveScroll });
