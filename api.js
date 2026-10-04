@@ -67,8 +67,9 @@
   }
 
   function normalizeProduct(product, baseUrl = '') {
-    const variants = Array.isArray(product?.product_variants)
-      ? product.product_variants.map((variant) => ({
+    const serverVariants = Array.isArray(product?.product_variants) ? product.product_variants : [];
+    const variants = serverVariants.length
+      ? serverVariants.map((variant) => ({
         ...(variant.id == null ? {} : { id: variant.id }),
         colorId: variant.color_id ?? variant.colorId,
         size: variant.size_value ?? variant.size,
@@ -93,7 +94,7 @@
       ? product.product_colors.map((color) => ({ id: color.id, name: color.name }))
       : Array.isArray(product?.colors) ? product.colors : [];
     const colors = explicitColors.length ? explicitColors : [...new Map(
-      (product?.product_variants || []).map((variant) => {
+      serverVariants.map((variant) => {
         const id = variant.color_id ?? variant.colorId;
         return [id, { id, name: variant.color_name ?? variant.colorName ?? id }];
       }).filter(([id]) => id != null),
@@ -102,7 +103,7 @@
       ? product.product_sizes.map((size) => size.value)
       : Array.isArray(product?.sizes) ? product.sizes : [];
     const sizes = explicitSizes.length ? explicitSizes : [...new Set(
-      (product?.product_variants || [])
+      serverVariants
         .map((variant) => variant.size_value ?? variant.size)
         .filter((size) => size != null),
     )];
@@ -122,6 +123,20 @@
       sizes,
       variants,
     };
+  }
+
+  function normalizeProducts(products, baseUrl = '') {
+    if (!Array.isArray(products)) return [];
+    return products.flatMap((product) => {
+      // Один некорректный элемент ответа не должен прятать весь каталог или
+      // список продавца после уже успешного HTTP-ответа.
+      if (!product || typeof product !== 'object' || product.id == null) return [];
+      try {
+        return [normalizeProduct(product, baseUrl)];
+      } catch (_error) {
+        return [];
+      }
+    });
   }
 
   function normalizeOrder(order, baseUrl = '') {
@@ -347,7 +362,7 @@
       const response = await requestWithRetry(`${baseUrl}/catalog-api${suffix}`, { method: 'GET', cache: 'no-store' }, true, timeoutMs, diagnostic);
       const data = await readResponse(response);
       reportParsedMobileRead(diagnostic);
-      return (Array.isArray(data.products) ? data.products : []).map((product) => normalizeProduct(product, baseUrl));
+      return normalizeProducts(data.products, baseUrl);
     }
 
     async function adminRequest(action, payload = {}) {
@@ -464,7 +479,7 @@
       },
       async getAdminProducts(filters) {
         const data = await adminRequest('list', { filters });
-        return (Array.isArray(data.products) ? data.products : []).map((product) => normalizeProduct(product, baseUrl));
+        return normalizeProducts(data.products, baseUrl);
       },
       async listAdminUsers(filters = {}) {
         const data = await adminRequest('list-users', filters);

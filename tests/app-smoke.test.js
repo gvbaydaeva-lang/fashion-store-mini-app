@@ -52,7 +52,7 @@ function createElement() {
   };
 }
 
-function loadApp(initialStorage = {}, api = null, platform = null) {
+function loadApp(initialStorage = {}, api = null, platform = null, storageOptions = {}) {
   const elements = new Map([
     ['#screen', createElement()],
     ['#app', createElement()],
@@ -86,9 +86,18 @@ function loadApp(initialStorage = {}, api = null, platform = null) {
     innerHeight: 800,
     innerWidth: 375,
     localStorage: {
-      getItem(key) { return storage.has(key) ? storage.get(key) : null; },
-      setItem(key, value) { storage.set(key, String(value)); },
-      removeItem(key) { storage.delete(key); },
+      getItem(key) {
+        storageOptions.getItem?.(key);
+        return storage.has(key) ? storage.get(key) : null;
+      },
+      setItem(key, value) {
+        storageOptions.setItem?.(key, value);
+        storage.set(key, String(value));
+      },
+      removeItem(key) {
+        storageOptions.removeItem?.(key);
+        storage.delete(key);
+      },
     },
     addEventListener() {},
     clearTimeout() {},
@@ -450,9 +459,9 @@ test('страница запрашивает свежие версии buyer-д
   assert.match(indexSource, /data\.js\?v=20260930-loading-fix-1/);
   assert.match(indexSource, /styles\.css\?v=20260920-save-button-visible-1/);
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
-  assert.match(indexSource, /api\.js\?v=20261004-mobile-client-ack-1/);
+  assert.match(indexSource, /api\.js\?v=20261004-mobile-postparse-recovery-1/);
   assert.match(indexSource, /core\.js\?v=20261003-cart-reconcile-1/);
-  assert.match(indexSource, /app\.js\?v=20261004-mobile-client-ack-1/);
+  assert.match(indexSource, /app\.js\?v=20261004-mobile-postparse-recovery-1/);
 });
 
 test('нижняя навигация равномерно распределяет четыре раздела', () => {
@@ -518,6 +527,32 @@ test('после обновления каталога корзина показ
   assert.match(screen.innerHTML, /Чёрный/);
   assert.match(screen.innerHTML, />1<\/span>/);
   assert.match(screen.innerHTML, />2<\/span>/);
+});
+
+test('мобильный Telegram показывает каталог после успешного ответа, даже если localStorage временно недоступен', async () => {
+  const mobilePlatform = {
+    createPlatform() {
+      return { isMobileTelegram: () => true, ready() {}, expand() {} };
+    },
+  };
+  const { app, screen } = loadApp({
+    'fashion-store-preorder-reset-v1': '1',
+  }, {
+    createApiClient() {
+      return {
+        getCatalog: async () => [{
+          id: 'storage-safe', name: 'Карточка после сбоя хранилища', price: 1,
+          images: [], colors: [], variants: [], adminStatus: 'published',
+        }],
+      };
+    },
+  }, mobilePlatform, {
+    setItem() { throw new Error('QuotaExceededError'); },
+  });
+
+  assert.equal(await app.loadRemoteCatalog(), true);
+  app.navigate('catalog');
+  assert.match(screen.innerHTML, /Карточка после сбоя хранилища/);
 });
 
 test('карточка товара содержит горизонтальную галерею всех фотографий', () => {

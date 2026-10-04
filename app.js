@@ -24,7 +24,7 @@
   const PREORDER_RESET_KEY = 'fashion-store-preorder-reset-v1';
   const BOT_URL = Core.buildBotUrl('fashion_katalog_bot');
   const SHARE_TEXT = 'Посмотри «Выгодные покупки» в Telegram 🛍';
-  const MOBILE_DIAGNOSTIC_APP_VERSION = '20261004-mobile-client-ack-1';
+  const MOBILE_DIAGNOSTIC_APP_VERSION = '20261004-mobile-postparse-recovery-1';
   const ROOT_SCREENS = new Set(['home', 'catalog', 'cart', 'orders', 'store']);
   const MOBILE_RESUME_RENDER_SCREENS = new Set([
     'home', 'catalog', 'product', 'cart', 'orders', 'store', 'payment-success', 'order-detail',
@@ -193,7 +193,11 @@
       const raw = window.localStorage.getItem(key);
       return raw == null ? fallback : JSON.parse(raw);
     } catch (_error) {
-      window.localStorage.removeItem(key);
+      try {
+        window.localStorage.removeItem(key);
+      } catch (storageError) {
+        if (!mobileTelegram) throw storageError;
+      }
       return fallback;
     }
   }
@@ -216,7 +220,11 @@
       ? storedDemoOrders.filter((order) => order && order.demoPayment === true && typeof order.id === 'string')
       : [];
     state.activeOrderId = state.orders[0]?.id || null;
-    window.localStorage.removeItem(ORDER_KEY);
+    try {
+      window.localStorage.removeItem(ORDER_KEY);
+    } catch (error) {
+      if (!mobileTelegram) throw error;
+    }
     state.checkoutIdempotencyKey = readStored(ORDER_IDEMPOTENCY_KEY, null);
     state.adminProducts = [];
     state.adminCategories = [];
@@ -230,17 +238,29 @@
   }
 
   function applyApprovedDemoReset() {
-    if (window.localStorage.getItem(PREORDER_RESET_KEY) === '1') return;
-    [CART_KEY, ORDER_KEY, ORDERS_KEY, ADMIN_PRODUCTS_KEY].forEach((key) => window.localStorage.removeItem(key));
-    window.localStorage.setItem(PREORDER_RESET_KEY, '1');
+    try {
+      if (window.localStorage.getItem(PREORDER_RESET_KEY) === '1') return;
+      [CART_KEY, ORDER_KEY, ORDERS_KEY, ADMIN_PRODUCTS_KEY].forEach((key) => window.localStorage.removeItem(key));
+      window.localStorage.setItem(PREORDER_RESET_KEY, '1');
+    } catch (error) {
+      if (!mobileTelegram) throw error;
+    }
   }
 
   function saveState() {
-    window.localStorage.setItem(CART_KEY, JSON.stringify(state.cart));
-    window.localStorage.setItem(ORDERS_KEY, JSON.stringify(state.orders));
-    window.localStorage.removeItem(ORDER_KEY);
-    if (state.checkoutIdempotencyKey) window.localStorage.setItem(ORDER_IDEMPOTENCY_KEY, state.checkoutIdempotencyKey);
-    else window.localStorage.removeItem(ORDER_IDEMPOTENCY_KEY);
+    try {
+      window.localStorage.setItem(CART_KEY, JSON.stringify(state.cart));
+      window.localStorage.setItem(ORDERS_KEY, JSON.stringify(state.orders));
+      window.localStorage.removeItem(ORDER_KEY);
+      if (state.checkoutIdempotencyKey) window.localStorage.setItem(ORDER_IDEMPOTENCY_KEY, state.checkoutIdempotencyKey);
+      else window.localStorage.removeItem(ORDER_IDEMPOTENCY_KEY);
+    } catch (error) {
+      // На iOS WebView localStorage может быть временно недоступен после
+      // возврата из фона. Каталог уже получен, поэтому сохраняем его на экране;
+      // следующая успешная запись восстановит локальный снимок.
+      if (!mobileTelegram) throw error;
+      recordMobileDiagnostic('local-storage-unavailable', { errorCode: 'local-storage' });
+    }
   }
 
   function saveDemoOrders() {

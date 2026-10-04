@@ -84,6 +84,32 @@ test('мобильная диагностика подтверждает сер�
   assert.doesNotMatch(reports[0].options.body, /initData|signed-telegram-data/);
 });
 
+test('каталог и список продавца не теряют все карточки из-за одной повреждённой записи ответа', async () => {
+  const client = API.createApiClient({
+    initData: 'signed-telegram-data',
+    fetch: async (url) => ({
+      ok: true,
+      status: 200,
+      async json() {
+        const products = [null, {
+          id: 12,
+          name: 'Надёжная карточка',
+          product_variants: { invalid: true },
+          product_images: { invalid: true },
+        }];
+        return String(url).endsWith('/admin-api') ? { products } : { products };
+      },
+    }),
+  });
+
+  const catalog = await client.getCatalog();
+  assert.equal(catalog.length, 1);
+  assert.equal(catalog[0].id, '12');
+  assert.equal(catalog[0].name, 'Надёжная карточка');
+  assert.deepEqual(catalog[0].variants, []);
+  assert.equal((await client.getAdminProducts()).length, 1);
+});
+
 test('изменяющие seller-операции не повторяются автоматически после сетевого сбоя', async () => {
   let attempts = 0;
   const client = API.createApiClient({
