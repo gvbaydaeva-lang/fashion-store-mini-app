@@ -1700,12 +1700,14 @@
         return { id, name, sizeRows };
       }).filter(({ name }) => name);
       state.adminDraft.colors = parsedBlocks.map(({ id, name }) => ({ id, name }));
-      state.adminDraft.sizes = [...new Set(parsedBlocks.flatMap(({ sizeRows }) => sizeRows.map(({ size }) => size)))];
-      state.adminDraft.variants = parsedBlocks.flatMap(({ id, name, sizeRows }) => {
+      state.adminDraft.sizes = [...new Set(parsedBlocks.reduce((allSizes, { sizeRows }) => (
+        allSizes.concat(sizeRows.map(({ size }) => size))
+      ), []))];
+      state.adminDraft.variants = parsedBlocks.reduce((variants, { id, name, sizeRows }) => {
         const stockBySize = new Map(sizeRows.map(({ size, stock }) => [size, stock]));
-        return Core.buildColorVariants({ id, name }, sizeRows.map(({ size }) => size), previousVariants)
-          .map((variant) => ({ ...variant, stock: stockBySize.get(variant.size) ?? variant.stock }));
-      });
+        return variants.concat(Core.buildColorVariants({ id, name }, sizeRows.map(({ size }) => size), previousVariants)
+          .map((variant) => ({ ...variant, stock: stockBySize.get(variant.size) ?? variant.stock })));
+      }, []);
       state.adminColorEmptyRows = 0;
       state.adminSizeEmptyRows = {};
     }
@@ -2291,7 +2293,9 @@
 
   function preloadCatalogImages(products) {
     if (typeof window.Image !== 'function') return Promise.resolve();
-    const urls = [...new Set(products.flatMap((product) => product.images || []).filter(Boolean))];
+    const urls = [...new Set((Array.isArray(products) ? products : []).reduce((allUrls, product) => (
+      allUrls.concat(Array.isArray(product?.images) ? product.images : [])
+    ), []).filter(Boolean))];
     return Promise.all(urls.map((source) => new Promise((resolve) => {
       const image = new window.Image();
       image.onload = resolve;

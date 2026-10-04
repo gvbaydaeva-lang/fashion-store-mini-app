@@ -4,6 +4,16 @@
   if (typeof module === 'object' && module.exports) module.exports = core;
   root.FashionStoreCore = core;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function createCore() {
+  function flatMapOneLevel(items, project) {
+    const result = [];
+    (Array.isArray(items) ? items : []).forEach((item, index) => {
+      const projected = project(item, index);
+      if (Array.isArray(projected)) result.push(...projected);
+      else result.push(projected);
+    });
+    return result;
+  }
+
   function filterProducts(products, filters) {
     return products.filter((product) => {
       const matchesCategory = filters.category === 'all' || product.category === filters.category;
@@ -35,7 +45,7 @@
   }
 
   function flattenCatalogProductGroups(groups) {
-    return (Array.isArray(groups) ? groups : []).flatMap((group) => (
+    return flatMapOneLevel(groups, (group) => (
       (Array.isArray(group.options) ? group.options : []).map((option) => ({
         ...group,
         ...option,
@@ -68,7 +78,7 @@
 
   function reconcileCart(cart, products) {
     const catalog = new Map((Array.isArray(products) ? products : []).map((product) => [String(product.id), product]));
-    return (Array.isArray(cart) ? cart : []).flatMap((item) => {
+    return flatMapOneLevel(cart, (item) => {
       const product = catalog.get(String(item?.productId));
       if (!product) return [];
       const variant = (product.variants || []).find((candidate) => (
@@ -243,7 +253,7 @@
     const previousByKey = new Map(previousVariants.map((variant) => (
       [`${variant.colorId}:${variant.size}`, variant]
     )));
-    return colors.flatMap((color) => sizes.map((size) => {
+    return flatMapOneLevel(colors, (color) => sizes.map((size) => {
       const previous = previousByKey.get(`${color.id}:${size}`);
       return {
         colorId: color.id,

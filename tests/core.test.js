@@ -129,6 +129,18 @@ test('склейка разворачивается в каталоге в от�
   assert.equal(getSelectedProductOption(group, 'option-milk').colorName, 'Молочный');
 });
 
+test('критические операции каталога и карточки не требуют Array.prototype.flatMap', () => {
+  const originalFlatMap = Array.prototype.flatMap;
+  Array.prototype.flatMap = undefined;
+  try {
+    assert.equal(flattenCatalogProductGroups([{ id: 'group', options: [{ id: 'option', images: [], sizes: [] }] }]).length, 1);
+    assert.deepEqual(reconcileCart([], TEST_PRODUCTS), []);
+    assert.equal(buildProductVariants(TEST_PRODUCTS[0].colors, ['M']).length, 1);
+  } finally {
+    Array.prototype.flatMap = originalFlatMap;
+  }
+});
+
 test('одинаковый вариант объединяется и ограничивается остатком', () => {
   const item = {
     key: 'dress-air:blue:M',

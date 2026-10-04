@@ -173,6 +173,27 @@ test('каталог и список продавца не теряют все �
   assert.equal((await client.getAdminProducts()).length, 1);
 });
 
+test('каталог и список продавца нормализуются в WebView без Array.prototype.flatMap', async () => {
+  const client = API.createApiClient({
+    initData: 'signed-telegram-data',
+    fetch: async () => ({
+      ok: true,
+      status: 200,
+      async json() {
+        return { products: [{ id: 12, name: 'Надёжная карточка', product_variants: [], product_images: [] }] };
+      },
+    }),
+  });
+  const originalFlatMap = Array.prototype.flatMap;
+  Array.prototype.flatMap = undefined;
+  try {
+    assert.equal((await client.getCatalog()).length, 1);
+    assert.equal((await client.getAdminProducts()).length, 1);
+  } finally {
+    Array.prototype.flatMap = originalFlatMap;
+  }
+});
+
 test('изменяющие seller-операции не повторяются автоматически после сетевого сбоя', async () => {
   let attempts = 0;
   const client = API.createApiClient({

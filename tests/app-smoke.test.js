@@ -111,6 +111,7 @@ function loadApp(initialStorage = {}, api = null, platform = null, storageOption
     FormData: class FormData {},
     FileReader: class FileReader {},
     HTMLImageElement: window.HTMLImageElement,
+    Array,
     Intl,
     Map,
     Set,
@@ -159,6 +160,34 @@ test('мобильный Telegram заново загружает каталог
 
   await Promise.resolve();
   assert.equal(catalogRequests, 2);
+});
+
+test('мобильный каталог достигает отрисовки без Array.prototype.flatMap', async () => {
+  const originalFlatMap = Array.prototype.flatMap;
+  Array.prototype.flatMap = undefined;
+  try {
+    const api = {
+      createApiClient() {
+        return {
+          async getCatalog() {
+            return [{ id: 'mobile-product', name: 'Совместимая карточка', category: 'all', price: 1000, images: [], colors: [], sizes: [], variants: [] }];
+          },
+        };
+      },
+    };
+    const platform = {
+      createPlatform() {
+        return { isMobileTelegram: () => true, ready() {}, expand() {} };
+      },
+    };
+    const { app, screen } = loadApp({}, api, platform);
+    await new Promise((resolve) => setImmediate(resolve));
+    app.navigate('catalog');
+    assert.match(screen.innerHTML, /Совместимая карточка/);
+    assert.doesNotMatch(screen.innerHTML, /Каталог временно недоступен/);
+  } finally {
+    Array.prototype.flatMap = originalFlatMap;
+  }
 });
 
 test('мобильный загрузчик отмечает применение состояния и вызов отрисовки для своего read-запроса', async () => {
@@ -487,9 +516,9 @@ test('страница запрашивает свежие версии buyer-д
   assert.match(indexSource, /data\.js\?v=20260930-loading-fix-1/);
   assert.match(indexSource, /styles\.css\?v=20260920-save-button-visible-1/);
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
-  assert.match(indexSource, /api\.js\?v=20261004-mobile-stage-trace-1/);
-  assert.match(indexSource, /core\.js\?v=20261003-cart-reconcile-1/);
-  assert.match(indexSource, /app\.js\?v=20261004-mobile-stage-trace-1/);
+  assert.match(indexSource, /api\.js\?v=20261004-mobile-webview-compat-1/);
+  assert.match(indexSource, /core\.js\?v=20261004-mobile-webview-compat-1/);
+  assert.match(indexSource, /app\.js\?v=20261004-mobile-webview-compat-1/);
 });
 
 test('нижняя навигация равномерно распределяет четыре раздела', () => {

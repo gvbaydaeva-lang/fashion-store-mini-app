@@ -127,16 +127,18 @@
 
   function normalizeProducts(products, baseUrl = '') {
     if (!Array.isArray(products)) return [];
-    return products.flatMap((product) => {
+    const normalized = [];
+    products.forEach((product) => {
       // Один некорректный элемент ответа не должен прятать весь каталог или
       // список продавца после уже успешного HTTP-ответа.
-      if (!product || typeof product !== 'object' || product.id == null) return [];
+      if (!product || typeof product !== 'object' || product.id == null) return;
       try {
-        return [normalizeProduct(product, baseUrl)];
+        normalized.push(normalizeProduct(product, baseUrl));
       } catch (_error) {
-        return [];
+        // Один повреждённый товар не отменяет весь ответ каталога.
       }
     });
+    return normalized;
   }
 
   function normalizeOrder(order, baseUrl = '') {
