@@ -264,6 +264,23 @@
       onDiagnostic({ event, ...details, startedAt: details.startedAt || Date.now(), finishedAt: details.finishedAt || null, elapsedMs: details.elapsedMs ?? null, httpStatus: details.httpStatus ?? null, errorCode: details.errorCode || null });
     }
 
+    function reportParsedMobileRead(diagnostic) {
+      if (!mobileDiagnostics || !diagnostic?.requestId) return;
+      Promise.resolve()
+        .then(() => requestFetch(`${baseUrl}/mobile-diagnostic`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+          body: JSON.stringify({
+            mobileDiagnostic: true,
+            requestId: diagnostic.requestId,
+            operation: diagnostic.operation,
+            outcome: 'response-parsed',
+          }),
+          keepalive: true,
+        }))
+        .catch(() => {});
+    }
+
     function requestWithTimeout(url, requestOptions, requestTimeoutMs = timeoutMs) {
       const controller = typeof AbortController === 'function' ? new AbortController() : null;
       const optionsWithSignal = controller ? { ...requestOptions, signal: controller.signal } : requestOptions;
@@ -326,8 +343,10 @@
         query.set('requestId', requestId);
       }
       const suffix = query.toString() ? `?${query.toString()}` : '';
-      const response = await requestWithRetry(`${baseUrl}/catalog-api${suffix}`, { method: 'GET', cache: 'no-store' }, true, timeoutMs, requestId ? { operation: 'catalog-read', requestId } : null);
+      const diagnostic = requestId ? { operation: 'catalog-read', requestId } : null;
+      const response = await requestWithRetry(`${baseUrl}/catalog-api${suffix}`, { method: 'GET', cache: 'no-store' }, true, timeoutMs, diagnostic);
       const data = await readResponse(response);
+      reportParsedMobileRead(diagnostic);
       return (Array.isArray(data.products) ? data.products : []).map((product) => normalizeProduct(product, baseUrl));
     }
 
@@ -341,7 +360,9 @@
           headers: { 'Content-Type': mobileSellerTransport ? 'text/plain;charset=UTF-8' : 'application/json' },
           body: JSON.stringify({ action, initData: options.initData ?? getInitData(), ...payload, ...(diagnosticRead ? { mobileDiagnostic: true } : {}), ...(requestId ? { requestId } : {}) }),
         }, readOnlyAction, readOnlyAction ? timeoutMs : writeTimeoutMs, diagnosticRead ? { operation: action === 'list' ? 'admin-list-read' : `admin-${action}-read`, requestId } : null);
-        return await readResponse(response);
+        const data = await readResponse(response);
+        reportParsedMobileRead(diagnosticRead ? { operation: action === 'list' ? 'admin-list-read' : `admin-${action}-read`, requestId } : null);
+        return data;
       } catch (error) {
         if (requestId && !error?.requestId) error.requestId = requestId;
         throw error;

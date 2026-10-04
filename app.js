@@ -24,7 +24,7 @@
   const PREORDER_RESET_KEY = 'fashion-store-preorder-reset-v1';
   const BOT_URL = Core.buildBotUrl('fashion_katalog_bot');
   const SHARE_TEXT = 'Посмотри «Выгодные покупки» в Telegram 🛍';
-  const MOBILE_DIAGNOSTIC_APP_VERSION = '20261004-mobile-read-generation-1';
+  const MOBILE_DIAGNOSTIC_APP_VERSION = '20261004-mobile-client-ack-1';
   const ROOT_SCREENS = new Set(['home', 'catalog', 'cart', 'orders', 'store']);
   const MOBILE_RESUME_RENDER_SCREENS = new Set([
     'home', 'catalog', 'product', 'cart', 'orders', 'store', 'payment-success', 'order-detail',

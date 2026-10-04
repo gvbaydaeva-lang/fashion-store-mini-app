@@ -55,6 +55,35 @@ test('каталог переживает два последовательны�
   assert.equal(attempts, 3);
 });
 
+test('мобильная диагностика подтверждает серверу разбор успешного ответа без initData', async () => {
+  const reports = [];
+  const client = API.createApiClient({
+    mobileDiagnostics: true,
+    createRequestId: () => 'read-20261004-client-ack',
+    fetch: async (url, options = {}) => {
+      if (String(url).endsWith('/mobile-diagnostic')) {
+        reports.push({ url, options });
+        return { ok: true, async json() { return {}; } };
+      }
+      return { ok: true, status: 200, async json() { return { products: [] }; } };
+    },
+  });
+
+  await client.getCatalog();
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(reports.length, 1);
+  assert.equal(reports[0].url, 'https://api.womanshop08.ru/api/mobile-diagnostic');
+  assert.deepEqual(JSON.parse(reports[0].options.body), {
+    mobileDiagnostic: true,
+    requestId: 'read-20261004-client-ack',
+    operation: 'catalog-read',
+    outcome: 'response-parsed',
+  });
+  assert.equal(reports[0].options.headers['Content-Type'], 'text/plain;charset=UTF-8');
+  assert.doesNotMatch(reports[0].options.body, /initData|signed-telegram-data/);
+});
+
 test('изменяющие seller-операции не повторяются автоматически после сетевого сбоя', async () => {
   let attempts = 0;
   const client = API.createApiClient({
@@ -196,11 +225,16 @@ test('мобильная диагностика коррелирует толь�
 
   await client.getCatalog();
   await client.getAdminProducts();
+  await new Promise((resolve) => setImmediate(resolve));
 
   assert.equal(calls[0].url, 'https://api.womanshop08.ru/api/catalog-api?mobileDiagnostic=1&requestId=read-12345678');
-  assert.deepEqual(calls[1].body, {
+  assert.deepEqual(calls.find((call) => call.body?.action === 'list').body, {
     action: 'list', initData: 'signed-telegram-data', mobileDiagnostic: true, requestId: 'read-12345678',
   });
+  assert.deepEqual(calls.filter((call) => String(call.url).endsWith('/mobile-diagnostic')).map((call) => call.body), [
+    { mobileDiagnostic: true, requestId: 'read-12345678', operation: 'catalog-read', outcome: 'response-parsed' },
+    { mobileDiagnostic: true, requestId: 'read-12345678', operation: 'admin-list-read', outcome: 'response-parsed' },
+  ]);
   assert.deepEqual(events.map((event) => [event.event, event.operation, event.requestId, event.attempt, event.httpStatus]), [
     ['request-start', 'catalog-read', 'read-12345678', 1, null],
     ['request-end', 'catalog-read', 'read-12345678', 1, 200],
