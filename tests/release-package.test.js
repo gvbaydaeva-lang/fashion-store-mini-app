@@ -25,11 +25,13 @@ function writeFile(filePath, contents) {
   fs.writeFileSync(filePath, contents);
 }
 
-function createIndex({ extra = '', omitted = '' } = {}) {
-  const scripts = STATIC_FILES
+function createIndex({ extra = '', omitted = '', dynamicModules = false } = {}) {
+  const scriptSources = STATIC_FILES
     .filter((file) => file.endsWith('.js') && file !== omitted)
-    .map((file) => `<script src="${file}"></script>`)
-    .join('\n');
+    .map((file) => file);
+  const scripts = dynamicModules
+    ? `<script data-telegram-sdk-bootstrap>const localModules = [${scriptSources.map((file) => `'${file}'`).join(', ')}];</script>`
+    : scriptSources.map((file) => `<script src="${file}"></script>`).join('\n');
   const stylesheet = omitted === 'styles.css' ? '' : '<link rel="stylesheet" href="styles.css">';
   return `<!doctype html><html><head>${stylesheet}</head><body>${scripts}${extra}</body></html>`;
 }
@@ -108,6 +110,13 @@ test('строитель принимает cache-bust параметры обя
     index = index.replace(`\"${file}\"`, `\"${file}?v=cache-test\"`);
   });
   fs.writeFileSync(indexPath, index);
+
+  assert.doesNotThrow(() => buildStaticRelease(releaseOptions(fixture)));
+});
+
+test('строитель проверяет полный набор модулей из безопасного динамического загрузчика', async (t) => {
+  const { buildStaticRelease } = await loadReleaseTools();
+  const fixture = createSourceFixture(t, { index: { dynamicModules: true } });
 
   assert.doesNotThrow(() => buildStaticRelease(releaseOptions(fixture)));
 });

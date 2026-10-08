@@ -517,6 +517,18 @@ test('точка входа подключает платформенный ад
   assert.doesNotMatch(appSource, /window\.Telegram\?\.WebApp/);
 });
 
+test('внешний SDK Telegram не может заблокировать запуск локального каталога', () => {
+  assert.match(indexSource, /<script data-telegram-sdk-bootstrap>/);
+  assert.match(indexSource, /windowLike\.setTimeout\(startLocalModules, 1200\)/);
+  assert.match(indexSource, /script\.onload = loadNextModule/);
+  assert.doesNotMatch(indexSource, /<script(?:\s+[^>]*)?\ssrc="https:\/\/telegram\.org\/js\/telegram-web-app\.js"/);
+});
+
+test('приложение запускается и после завершения разбора HTML', () => {
+  assert.match(appSource, /document\.readyState === 'complete' \|\| document\.readyState === 'interactive'/);
+  assert.match(appSource, /\) \{\s*init\(\);\s*\} else \{/);
+});
+
 test('страница запрашивает свежие версии buyer-данных, каталога и редактора', () => {
   assert.match(indexSource, /data\.js\?v=20261004-data-syntax-recovery-1/);
   assert.match(indexSource, /styles\.css\?v=20261008-screen-always-visible-1/);

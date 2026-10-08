@@ -95,23 +95,62 @@
       })(window, document);
     </script>
 
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script data-mobile-startup-visibility>
-      (function markMobileTelegram(documentLike, windowLike) {
+    <script data-telegram-sdk-bootstrap>
+      (function startMiniApp(documentLike, windowLike) {
         'use strict';
 
-        const platform = String(windowLike.Telegram?.WebApp?.platform || '').toLowerCase();
-        if (platform === 'ios' || platform === 'android') {
-          documentLike.documentElement.dataset.mobileTelegram = 'true';
+        const localModules = [
+          'platform.js?v=20261003-mobile-save-correlation-1',
+          'data.js?v=20261004-data-syntax-recovery-1',
+          'core.js?v=20261004-mobile-webview-compat-1',
+          'ui.js',
+          'admin-draft-store.js?v=20260904-admin-save-1',
+          'api.js?v=20261004-mobile-webview-compat-1',
+          'app.js?v=20261008-unified-startup-guard-1',
+        ];
+        let localModulesStarted = false;
+        let sdkTimeoutId = null;
+
+        function markMobileTelegram() {
+          const platform = String(windowLike.Telegram?.WebApp?.platform || '').toLowerCase();
+          if (platform === 'ios' || platform === 'android') {
+            documentLike.documentElement.dataset.mobileTelegram = 'true';
+          }
         }
+
+        function startLocalModules() {
+          if (localModulesStarted) return;
+          localModulesStarted = true;
+          if (sdkTimeoutId != null) windowLike.clearTimeout(sdkTimeoutId);
+          markMobileTelegram();
+
+          let moduleIndex = 0;
+          function loadNextModule() {
+            const source = localModules[moduleIndex++];
+            if (!source) return;
+            const script = documentLike.createElement('script');
+            script.src = source;
+            script.dataset.startupModule = '';
+            script.onload = loadNextModule;
+            script.onerror = () => windowLike.FashionStoreStartup?.fail(script.src);
+            documentLike.body.appendChild(script);
+          }
+          loadNextModule();
+        }
+
+        if (windowLike.Telegram?.WebApp) {
+          startLocalModules();
+          return;
+        }
+
+        const sdk = documentLike.createElement('script');
+        sdk.async = true;
+        sdk.src = 'https://telegram.org/js/telegram-web-app.js';
+        sdk.onload = startLocalModules;
+        sdk.onerror = startLocalModules;
+        sdkTimeoutId = windowLike.setTimeout(startLocalModules, 1200);
+        documentLike.head.appendChild(sdk);
       })(document, window);
     </script>
-    <script src="platform.js?v=20261003-mobile-save-correlation-1" data-startup-module></script>
-    <script src="data.js?v=20261004-data-syntax-recovery-1" data-startup-module></script>
-    <script src="core.js?v=20261004-mobile-webview-compat-1" data-startup-module></script>
-    <script src="ui.js" data-startup-module></script>
-    <script src="admin-draft-store.js?v=20260904-admin-save-1" data-startup-module></script>
-    <script src="api.js?v=20261004-mobile-webview-compat-1" data-startup-module></script>
-    <script src="app.js?v=20261008-unified-startup-guard-1" data-startup-module></script>
   </body>
 </html>

@@ -2721,5 +2721,11 @@
   }
 
   window.FashionStoreApp = { init, navigate, goBack, render, selectColor, selectProductOption, selectSize, loadRemoteCatalog, loadRemoteAdminUsers };
-  document.addEventListener('DOMContentLoaded', init, { once: true });
+  // Локальные модули могут быть добавлены после безопасного ожидания Telegram SDK.
+  // В таком случае DOMContentLoaded уже прошёл, поэтому стартуем сразу.
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    init();
+  } else {
+    document.addEventListener('DOMContentLoaded', init, { once: true });
+  }
 })(window, document);

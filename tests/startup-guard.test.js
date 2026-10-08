@@ -42,24 +42,32 @@ function loadStartupGuard() {
   };
 }
 
-function loadMobileStartupVisibility(telegramPlatform = null) {
-  const visibilitySource = indexSource.match(/<script data-mobile-startup-visibility>([\s\S]*?)<\/script>/)?.[1];
-  assert.ok(visibilitySource, 'не найден исполняемый mobile startup visibility guard в index.html');
+function loadMiniAppBootstrap(telegramPlatform = null) {
+  const bootstrapSource = indexSource.match(/<script data-telegram-sdk-bootstrap>([\s\S]*?)<\/script>/)?.[1];
+  assert.ok(bootstrapSource, 'не найден исполняемый bootstrap Mini App в index.html');
 
-  const document = { documentElement: { dataset: {} } };
+  const appendedModules = [];
+  const document = {
+    documentElement: { dataset: {} },
+    createElement() { return { dataset: {} }; },
+    body: { appendChild(script) { appendedModules.push(script); } },
+    head: { appendChild() { throw new Error('SDK не должен запрашиваться, когда Telegram уже доступен'); } },
+  };
   const window = {
     document,
     Telegram: telegramPlatform ? { WebApp: { platform: telegramPlatform } } : undefined,
+    setTimeout() { throw new Error('таймер не нужен, когда Telegram уже доступен'); },
+    clearTimeout() {},
   };
 
-  vm.runInNewContext(visibilitySource, { window, document }, { filename: 'mobile-startup-visibility.js' });
-  return { document };
+  vm.runInNewContext(bootstrapSource, { window, document }, { filename: 'mini-app-bootstrap.js' });
+  return { document, appendedModules };
 }
 
 test('iOS и Android получают признак видимого стартового экрана до загрузки модулей', () => {
-  const ios = loadMobileStartupVisibility('ios');
-  const android = loadMobileStartupVisibility('android');
-  const desktop = loadMobileStartupVisibility('tdesktop');
+  const ios = loadMiniAppBootstrap('ios');
+  const android = loadMiniAppBootstrap('android');
+  const desktop = loadMiniAppBootstrap('tdesktop');
 
   assert.equal(ios.document.documentElement.dataset.mobileTelegram, 'true');
   assert.equal(android.document.documentElement.dataset.mobileTelegram, 'true');
@@ -103,29 +111,20 @@ test('app не перерисовывает экран ошибки после �
 });
 
 test('обязательные локальные модули остаются в едином порядке и guard ловит их ошибку', () => {
-  const scripts = [...indexSource.matchAll(/<script src="([^"]+)"( data-startup-module)?><\/script>/g)]
-    .map(([, source, startupModule]) => ({ source, startupModule }));
-  const localScripts = scripts.filter(({ source }) => !source.startsWith('https://'));
+  const bootstrap = loadMiniAppBootstrap('ios');
+  for (let index = 0; index < 6; index += 1) bootstrap.appendedModules.at(-1).onload();
+  const localScripts = bootstrap.appendedModules;
 
-  assert.deepEqual(
-    localScripts.map(({ source }) => source.replace(/\?.*$/, '')),
-    ['platform.js', 'data.js', 'core.js', 'ui.js', 'admin-draft-store.js', 'api.js', 'app.js'],
-  );
-  localScripts.forEach(({ startupModule }) => {
-    assert.equal(startupModule, ' data-startup-module');
-  });
-  assert.deepEqual(
-    localScripts.map(({ source }) => source),
-    [
-      'platform.js?v=20261003-mobile-save-correlation-1',
-      'data.js?v=20261004-data-syntax-recovery-1',
-      'core.js?v=20261004-mobile-webview-compat-1',
-      'ui.js',
-      'admin-draft-store.js?v=20260904-admin-save-1',
-      'api.js?v=20261004-mobile-webview-compat-1',
-      'app.js?v=20261008-unified-startup-guard-1',
-    ],
-  );
+  assert.deepEqual(localScripts.map(({ src }) => src), [
+    'platform.js?v=20261003-mobile-save-correlation-1',
+    'data.js?v=20261004-data-syntax-recovery-1',
+    'core.js?v=20261004-mobile-webview-compat-1',
+    'ui.js',
+    'admin-draft-store.js?v=20260904-admin-save-1',
+    'api.js?v=20261004-mobile-webview-compat-1',
+    'app.js?v=20261008-unified-startup-guard-1',
+  ]);
+  localScripts.forEach(({ dataset }) => assert.equal(dataset.startupModule, ''));
 
   const startup = loadStartupGuard();
   startup.resourceError('https://example.invalid/core.js?v=test');
