@@ -14,6 +14,7 @@ test('deploy полного пакета проверяет manifest до пер
 
   assert.match(source, /release\.json/);
   assert.match(source, /createHash\('sha256'\)/);
+  assert.match(source, /chmod -R a\+rX/);
   assert.match(source, /ln -sfn/);
   assert.match(source, /releases\/current/);
   assert.doesNotMatch(source, /systemctl\s+(?:restart|reload)\s+fashion-store\.service/);
@@ -24,6 +25,7 @@ test('bootstrap переводит Nginx только после nginx -t и с�
   const source = readScript('bootstrap-static-release.sh');
 
   assert.match(source, /cp --preserve/);
+  assert.match(source, /chmod -R a\+rX/);
   assert.match(source, /nginx -t/);
   assert.match(source, /nginx -s reload/);
   assert.match(source, /releases\/current\/tg-app/);
