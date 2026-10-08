@@ -2,6 +2,8 @@
 (function createApp(window, document) {
   'use strict';
 
+  if (window.FashionStoreStartup?.hasFailed?.()) return;
+
   const Data = window.FashionStoreData;
   const Core = window.FashionStoreCore;
   const UI = window.FashionStoreUI;

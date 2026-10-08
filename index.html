@@ -45,13 +45,63 @@
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <div id="modal-root"></div>
 
+    <script data-startup-guard>
+      (function createStartupGuard(windowLike, documentLike) {
+        'use strict';
+
+        const releaseId = '20261008-unified-startup-guard-1';
+        let hasStartupFailure = false;
+
+        function resourceName(resource) {
+          return String(resource || 'неизвестный файл')
+            .split(/[?#]/, 1)[0]
+            .split('/')
+            .pop()
+            .replace(/[^a-zA-Z0-9._-]/g, '') || 'неизвестный файл';
+        }
+
+        function fail(resource) {
+          hasStartupFailure = true;
+          const screen = documentLike.querySelector('#screen');
+          if (!screen) return;
+
+          const failedResource = resourceName(resource);
+          screen.innerHTML = `
+            <section class="loading-screen" role="alert" aria-live="assertive">
+              <div class="brand-mark" aria-hidden="true">🛍</div>
+              <p class="eyebrow">🛍 Выгодные покупки</p>
+              <h1>Не удалось запустить приложение</h1>
+              <p>Не загрузился обязательный файл: <strong>${failedResource}</strong>.</p>
+              <p>Версия запуска: <strong>${releaseId}</strong>.</p>
+              <button class="primary-button" type="button" data-startup-retry>Повторить</button>
+            </section>
+          `;
+        }
+
+        documentLike.addEventListener('click', (event) => {
+          if (event.target.closest?.('[data-startup-retry]')) windowLike.location.reload();
+        });
+        documentLike.addEventListener('error', (event) => {
+          const target = event.target;
+          if (target?.tagName === 'SCRIPT' && target.dataset?.startupModule !== undefined) {
+            fail(target.src);
+          }
+        }, true);
+
+        windowLike.FashionStoreStartup = {
+          fail,
+          hasFailed: () => hasStartupFailure,
+        };
+      })(window, document);
+    </script>
+
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="platform.js?v=20261003-mobile-save-correlation-1"></script>
-    <script src="data.js?v=20261004-data-syntax-recovery-1"></script>
-    <script src="core.js?v=20261004-mobile-webview-compat-1"></script>
-    <script src="ui.js"></script>
-    <script src="admin-draft-store.js?v=20260904-admin-save-1"></script>
-    <script src="api.js?v=20261004-mobile-webview-compat-1"></script>
-    <script src="app.js?v=20261004-mobile-webview-compat-1"></script>
+    <script src="platform.js?v=20261003-mobile-save-correlation-1" data-startup-module></script>
+    <script src="data.js?v=20261004-data-syntax-recovery-1" data-startup-module></script>
+    <script src="core.js?v=20261004-mobile-webview-compat-1" data-startup-module></script>
+    <script src="ui.js" data-startup-module></script>
+    <script src="admin-draft-store.js?v=20260904-admin-save-1" data-startup-module></script>
+    <script src="api.js?v=20261004-mobile-webview-compat-1" data-startup-module></script>
+    <script src="app.js?v=20261008-unified-startup-guard-1" data-startup-module></script>
   </body>
 </html>

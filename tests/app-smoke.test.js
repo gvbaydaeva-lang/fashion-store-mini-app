@@ -518,7 +518,7 @@ test('страница запрашивает свежие версии buyer-д
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
   assert.match(indexSource, /api\.js\?v=20261004-mobile-webview-compat-1/);
   assert.match(indexSource, /core\.js\?v=20261004-mobile-webview-compat-1/);
-  assert.match(indexSource, /app\.js\?v=20261004-mobile-webview-compat-1/);
+  assert.match(indexSource, /app\.js\?v=20261008-unified-startup-guard-1/);
 });
 
 test('нижняя навигация равномерно распределяет четыре раздела', () => {
