@@ -111,12 +111,12 @@ button:active,
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
-  animation: screen-in var(--transition);
+  /* Стартовый экран никогда не должен зависеть от анимации с opacity: 0:
+     Telegram iOS может оставить WebView на первом кадре. */
+  animation: none;
 }
 
-/* iOS Telegram может заморозить WebView в начальном кадре CSS-анимации при
-   повторном открытии. Для mobile Mini App экран всегда должен оставаться
-   видимым; desktop и обычный браузер сохраняют прежнюю анимацию. */
+/* Сохраняем явную защиту для уже распознанного мобильного Telegram. */
 html[data-mobile-telegram="true"] #screen { animation: none; }
 
 .screen--full { padding-bottom: calc(24px + var(--safe-bottom)); }
