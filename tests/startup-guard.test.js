@@ -16,6 +16,7 @@ function loadStartupGuard() {
   const screen = { innerHTML: '' };
   let reloads = 0;
   const document = {
+    documentElement: { dataset: {} },
     querySelector(selector) { return selector === '#screen' ? screen : null; },
     addEventListener(type, handler) { listeners.set(type, handler); },
   };
@@ -40,6 +41,30 @@ function loadStartupGuard() {
     get reloads() { return reloads; },
   };
 }
+
+function loadMobileStartupVisibility(telegramPlatform = null) {
+  const visibilitySource = indexSource.match(/<script data-mobile-startup-visibility>([\s\S]*?)<\/script>/)?.[1];
+  assert.ok(visibilitySource, 'не найден исполняемый mobile startup visibility guard в index.html');
+
+  const document = { documentElement: { dataset: {} } };
+  const window = {
+    document,
+    Telegram: telegramPlatform ? { WebApp: { platform: telegramPlatform } } : undefined,
+  };
+
+  vm.runInNewContext(visibilitySource, { window, document }, { filename: 'mobile-startup-visibility.js' });
+  return { document };
+}
+
+test('iOS и Android получают признак видимого стартового экрана до загрузки модулей', () => {
+  const ios = loadMobileStartupVisibility('ios');
+  const android = loadMobileStartupVisibility('android');
+  const desktop = loadMobileStartupVisibility('tdesktop');
+
+  assert.equal(ios.document.documentElement.dataset.mobileTelegram, 'true');
+  assert.equal(android.document.documentElement.dataset.mobileTelegram, 'true');
+  assert.equal(desktop.document.documentElement.dataset.mobileTelegram, undefined);
+});
 
 test('сбой обязательного файла показывает понятную ошибку и перезапускается только по нажатию', () => {
   const startup = loadStartupGuard();

@@ -506,6 +506,10 @@ test('Mini App запрещает автоматическое увеличен�
   assert.match(indexSource, /user-scalable=no/);
 });
 
+test('мобильный Telegram не оставляет стартовый экран на нулевой прозрачности анимации', () => {
+  assert.match(stylesSource, /html\[data-mobile-telegram="true"\]\s+#screen\s*\{\s*animation:\s*none;/);
+});
+
 test('точка входа подключает платформенный адаптер до приложения', () => {
   assert.match(indexSource, /platform\.js\?v=20261003-mobile-save-correlation-1/);
   assert.ok(indexSource.indexOf('platform.js?v=20261003-mobile-save-correlation-1') < indexSource.indexOf('app.js?v='));
@@ -514,7 +518,7 @@ test('точка входа подключает платформенный ад
 
 test('страница запрашивает свежие версии buyer-данных, каталога и редактора', () => {
   assert.match(indexSource, /data\.js\?v=20261004-data-syntax-recovery-1/);
-  assert.match(indexSource, /styles\.css\?v=20260920-save-button-visible-1/);
+  assert.match(indexSource, /styles\.css\?v=20261008-mobile-screen-visible-2/);
   assert.match(indexSource, /admin-draft-store\.js\?v=20260904-admin-save-1/);
   assert.match(indexSource, /api\.js\?v=20261004-mobile-webview-compat-1/);
   assert.match(indexSource, /core\.js\?v=20261004-mobile-webview-compat-1/);

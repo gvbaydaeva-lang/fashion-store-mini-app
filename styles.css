@@ -114,6 +114,11 @@ button:active,
   animation: screen-in var(--transition);
 }
 
+/* iOS Telegram может заморозить WebView в начальном кадре CSS-анимации при
+   повторном открытии. Для mobile Mini App экран всегда должен оставаться
+   видимым; desktop и обычный браузер сохраняют прежнюю анимацию. */
+html[data-mobile-telegram="true"] #screen { animation: none; }
+
 .screen--full { padding-bottom: calc(24px + var(--safe-bottom)); }
 .screen--product { padding-bottom: calc(150px + var(--safe-bottom)); }
 
